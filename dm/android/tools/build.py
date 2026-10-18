@@ -6,6 +6,7 @@ import argparse
 import os
 from pathlib import Path
 import re
+from host_env import HOST_TAG, tool
 import shutil
 import struct
 import subprocess
@@ -14,7 +15,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = Path(os.environ.get("DM_ANDROID_TOOLS", str(Path.home() / "dm-work/tools/android")))
-BIN = TOOLS / "ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+BIN = TOOLS / "ndk/toolchains/llvm/prebuilt" / HOST_TAG / "bin"
 
 GAME_ACTIVITY = "org.d2r.android.port.D2RActivity"
 LAUNCHER_NAME = "org.d2r.android.port.LauncherActivity"
@@ -49,14 +50,22 @@ GAME_ACTIVITY_BLOCK = (
 
 
 def run(args, **kwargs):
-    subprocess.run(list(map(str, args)), check=True, **kwargs)
+    # Windows 上 build-tools 的 d8/apksigner 是 .bat、NDK 的 clang 包装是 .cmd，而
+    # CreateProcess 只自动补 .exe。在这里对 argv[0] 做一次解析，比逐个调用点改稳妥。
+    # On Windows build-tools ships d8/apksigner as .bat and the NDK clang wrapper as .cmd,
+    # while CreateProcess only auto-appends .exe. Resolving argv[0] once here is safer
+    # than touching every call site.
+    argv = list(map(str, args))
+    if argv:
+        argv[0] = str(tool(args[0]))
+    subprocess.run(argv, check=True, **kwargs)
 
 
 def build_counter_timestamp(build):
     # 生产辅助着色器每次构建从GLSL生成，独立于游戏缓存。
     # Generate the production helper from GLSL independently of the game cache.
     output = build / "counter_timestamp.spv"
-    run([TOOLS / "ndk/shader-tools/linux-x86_64/glslc", "--target-env=vulkan1.1", "-O",
+    run([tool(TOOLS / "ndk/shader-tools" / HOST_TAG / "glslc"), "--target-env=vulkan1.1", "-O",
          ROOT / "native/shaders/counter_timestamp.comp", "-o", output])
     data = output.read_bytes()
     words = struct.unpack("<" + "I" * (len(data) // 4), data)
@@ -65,8 +74,8 @@ def build_counter_timestamp(build):
     text += "".join("    " + ",".join(f"0x{word:08x}u" for word in words[i:i+8]) + ",\n" for i in range(0,len(words),8))
     text += "};\n#define DM_VK_COUNTER_TIMESTAMP_SPV_BYTES (sizeof dm_vk_counter_timestamp_spv)\n"
     header = ROOT / "native/counter_timestamp_spv.h"
-    if not header.exists() or header.read_text() != text:
-        header.write_text(text)
+    if not header.exists() or header.read_text(encoding="utf-8") != text:
+        header.write_text(text, encoding="utf-8")
 
 
 # APK 的版本必须能区分构建。写死的版本名会让系统把两个不同构建当成同一个版本（覆盖安装只提示"重新安装"），
@@ -120,7 +129,7 @@ def main():
     build = ROOT / "build"
     build.mkdir(exist_ok=True)
     if args.game_run: build_counter_timestamp(build)
-    for required in [BIN / "aarch64-linux-android29-clang", TOOLS / "jdk/bin/java", TOOLS / "platform/android.jar"]:
+    for required in [tool(BIN / "aarch64-linux-android29-clang"), tool(TOOLS / "jdk/bin/java"), TOOLS / "platform/android.jar"]:
         if not required.exists(): sys.exit("Missing tool: " + str(required) + "; run tools/bootstrap.py")
     env = dict(os.environ, JAVA_HOME=str(TOOLS / "jdk"), PATH=str(TOOLS / "jdk/bin") + os.pathsep + os.environ["PATH"])
     entry = build / "entry_elf.S"
@@ -146,7 +155,7 @@ def main():
             '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
             '    <background android:drawable="@drawable/ic_launcher_background" />\n'
             '    <foreground android:drawable="@drawable/ic_launcher_custom" />\n'
-            '</adaptive-icon>\n')
+            '</adaptive-icon>\n', encoding="utf-8")
         # 位图没有干净的单色轮廓，覆盖时不提供主题图标层（Android 13 会退回彩色图标）。
         # A bitmap has no clean monochrome silhouette, so the override ships no themed layer (Android 13 falls back
         # to the colour icon).
@@ -154,7 +163,7 @@ def main():
     run([sys.executable, ROOT / "tools/make_probe.py", build / "probe", BIN])
     run([sys.executable, ROOT / "tools/build_gpu_driver.py"])
     run([sys.executable, ROOT / "tools/build_gpu_fixtures.py"])
-    compiler = BIN / "aarch64-linux-android29-clang"
+    compiler = tool(BIN / "aarch64-linux-android29-clang")
     common = [compiler, "-O1", "-g", "-Wall", "-Wextra", "-I", ROOT / "native", "-I", build, "-I", build / "gpu-driver/include", ROOT / "native/runtime.c", ROOT / "native/probe.c", entry]
     run(common + ["-ldl", "-o", build / "runtime-smoke"])
     if args.game_run:
@@ -214,7 +223,11 @@ def main():
         classes, dex = build / "java-classes", build / "dex"
         if classes.exists(): shutil.rmtree(classes)
         classes.mkdir(); dex.mkdir(exist_ok=True)
-        run([TOOLS / "jdk/bin/javac", "--release", "8", "-classpath", TOOLS / "platform/android.jar", "-d", classes,
+        # -encoding UTF-8：中文 Windows 上 javac 默认用 GBK 读源码，而 Java 源文件是 UTF-8
+        # 中文注释，不显式指定会报 576 个「不可映射的字符」。ci_checks.py 早已带这个参数，这里补齐。
+        # -encoding UTF-8: on a Chinese Windows locale javac defaults to GBK while these sources are
+        # UTF-8, producing hundreds of "unmappable character" errors. ci_checks.py already passes it.
+        run([TOOLS / "jdk/bin/javac", "-encoding", "UTF-8", "--release", "8", "-classpath", TOOLS / "platform/android.jar", "-d", classes,
              *sorted((ROOT / "java").rglob("*.java"))])
         run([TOOLS / "build-tools/d8", "--min-api", "29", "--lib", TOOLS / "platform/android.jar", "--output", dex,
              *sorted(classes.rglob("*.class"))], env=env)
@@ -222,7 +235,7 @@ def main():
         manifest = build / "game-AndroidManifest.xml"
         # 正式游戏声明游戏类别；探针应用仍保持原类别。
         # Declare the game category only for the playable application, not the probe.
-        source = (ROOT / "AndroidManifest.xml").read_text()
+        source = (ROOT / "AndroidManifest.xml").read_text(encoding="utf-8")
         source = source.replace('android:hasCode="false"', 'android:hasCode="true" android:appCategory="game"')
         # 版本写进清单：名字给人看，号码给系统判断升级。两处都要求恰好替换一次，清单改了会立刻报错。
         # The version goes into the manifest: the name is for people, the code is what the system compares for an
@@ -236,7 +249,7 @@ def main():
         source, replaced = re.subn(r'<activity android:name="android\.app\.NativeActivity".*?</activity>',
                                    LAUNCHER_ACTIVITY_BLOCK + GAME_ACTIVITY_BLOCK, source, count=1, flags=re.S)
         if replaced != 1: sys.exit("game manifest: expected exactly one NativeActivity activity block")
-        manifest.write_text(source)
+        manifest.write_text(source, encoding="utf-8")
     run([TOOLS / "build-tools/aapt2", "compile", "--dir", build / "res", "-o", build / "resources.zip"])
     run([TOOLS / "build-tools/aapt2", "link", "--manifest", manifest,
          "-I", TOOLS / "platform/android.jar", "-A", assets, "-o", unsigned, build / "resources.zip"])

@@ -41,11 +41,11 @@ def ticket_key(directory, keys):
 def minimal_keyset(source, directory):
     # 旧 hactool 会拒绝新版文件中无关的不同长度字段。只保留提取所需字段。
     # Older hactool rejects unrelated fields with newer sizes; keep extraction-relevant fields only.
-    fields = dict(re.findall(r"^\s*(\w+)\s*=\s*([0-9a-fA-F]+)\s*$", source.read_text(), re.M))
+    fields = dict(re.findall(r"^\s*(\w+)\s*=\s*([0-9a-fA-F]+)\s*$", source.read_text(encoding="utf-8"), re.M))
     private = directory / "private"
     private.mkdir(parents=True, exist_ok=True); private.chmod(0o700)
     target = private / "hactool.keys"
-    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0), 0o600)   # O_BINARY：Windows 默认文本模式，虽此处是纯文本不致错，但与 bootstrap 同类，统一避免 CRT 换行翻译
     with os.fdopen(fd, "w") as file:
         for key, value in fields.items():
             allowed = key == "header_key" or re.fullmatch(r"(master_key|titlekek|key_area_key_application)_[0-9a-f]{2}", key) or key in ["aes_kek_generation_source", "aes_key_generation_source", "titlekek_source", "key_area_key_application_source"]

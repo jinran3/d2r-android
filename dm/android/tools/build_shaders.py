@@ -4,6 +4,7 @@ Original CASC and main-embedded shaders → Vulkan SPIR-V and resource reflectio
 """
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from host_env import HOST_TAG
 import argparse
 import hashlib
 import json
@@ -53,7 +54,7 @@ def prepare_jobs(packages, main, work, reduced=False, host_subgroup_size=32):
             key = hashlib.sha256(control).hexdigest()[:16]
             records.setdefault(key, (path.name, path.name[:2], record[0x38:ci], control))
     image = nsoimg.load(main)
-    for line in (ROOT / "gfx/nvn/shader_map.tsv").read_text().splitlines():
+    for line in (ROOT / "gfx/nvn/shader_map.tsv").read_text(encoding="utf-8").splitlines():
         cols = line.split("\t")
         if len(cols) <= 4 or not cols[0].startswith("main.rodata@"): continue
         offset = int(cols[0].split("@")[1], 16)
@@ -80,7 +81,7 @@ def prepare_jobs(packages, main, work, reduced=False, host_subgroup_size=32):
         job = {"key": key, "stage": stage, "code": str(path), "c1": c1.hex(), "debug": False, "reduced": reduced, "host_subgroup_size": host_subgroup_size, "set": {"vs":0,"ps":1,"gs":2,"hs":3,"ds":4,"cs":0}[stage]}
         job.update(facts.get(key, {})); jobs.append(job)
         if name.startswith("main.counter@"): job.update(local=[32, 1, 1], shared=0)
-    (work / "jobs.json").write_text(json.dumps(jobs))
+    (work / "jobs.json").write_text(json.dumps(jobs), encoding="utf-8")
     return jobs
 
 
@@ -88,7 +89,7 @@ def reuse_jobs(source, reduced, host_subgroup_size=32):
     """复用已经提取的机器码与事实，新选项只写到新工作目录。
     Reuse extracted machine code and facts; write new options only to the destination work directory.
     """
-    source = source.resolve(); jobs = json.loads(source.read_text()); keys = set()
+    source = source.resolve(); jobs = json.loads(source.read_text(encoding="utf-8")); keys = set()
     if not isinstance(jobs, list) or not jobs: raise ValueError("The source jobs file is empty or is not an array")
     for job in jobs:
         key = job["key"]
@@ -110,7 +111,7 @@ def android_shader_capabilities():
 def validate_translator_profile(tool, host_subgroup_size):
     profile_path = tool.parent / "translation-api.json"
     if not profile_path.is_file(): raise ValueError("The Android translator has no capability profile; build a new translator")
-    profile = json.loads(profile_path.read_text())
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
     if profile.get("shader_host_capabilities") != android_shader_capabilities():
         raise ValueError("The Android translator does not match the enabled shader capabilities; build a new translator")
     if profile.get("translator_sha256") != hashlib.sha256(tool.read_bytes()).hexdigest():
@@ -127,7 +128,7 @@ def record_build_config(work, output, jobs, precision, tool=None):
     config = {"precision": precision, "host_subgroup_size": next(iter(subgroup_sizes)), "guest_warp_size": 32, "shader_host_capabilities": android_shader_capabilities(), "jobs_sha256": hashlib.sha256(json.dumps(jobs, sort_keys=True).encode()).hexdigest()}
     if tool is not None: config["translator_sha256"] = hashlib.sha256(tool.read_bytes()).hexdigest()
     path = work / "build-config.json"
-    previous = json.loads(path.read_text()) if path.exists() else None
+    previous = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
     populated = output.exists() and any(output.glob("*.spv"))
     if populated:
         # 不给既有缓存补写虚假的新能力政策；无记录或旧政策必须重译到独立目录。
@@ -139,7 +140,7 @@ def record_build_config(work, output, jobs, precision, tool=None):
                 if key in previous and previous[key] != value: raise ValueError(f"Existing SPIR-V build differs in {key}; select a separate output directory")
     if previous is not None and previous.get("shader_host_capabilities") == config["shader_host_capabilities"] and tool is None and "translator_sha256" in previous:
         config["translator_sha256"] = previous["translator_sha256"]
-    path.write_text(json.dumps(config, indent=2) + "\n")
+    path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
 
 def storage_image_capabilities(raw):
@@ -211,10 +212,10 @@ def postprocess_spirv(paths, backup, validator=None, workers=4):
         temporary = path.with_suffix(".spv.cap.tmp"); temporary.write_bytes(fixed); os.replace(temporary, path)
         report.append({"key": path.stem, "added": list(added), "original_sha256": digest, "fixed_sha256": hashlib.sha256(fixed).hexdigest(), "backup": str(saved)})
     print(f"SPIR-V storage-image capability declarations repaired={len(report)}/{len(paths)}", flush=True)
-    if report: (backup / "capability-report.json").write_text(json.dumps(report, indent=2) + "\n")
+    if report: (backup / "capability-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     if validator is not None:
         def validate(path):
-            result = subprocess.run([str(validator), "--target-env", "vulkan1.1", str(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            result = subprocess.run([str(validator), "--target-env", "vulkan1.1", str(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
             return None if result.returncode == 0 else (path.name, result.stdout)
         with ThreadPoolExecutor(max_workers=workers) as pool: errors = [error for error in pool.map(validate, paths) if error is not None]
         print(f"SPIR-V Vulkan 1.1 validation={len(paths) - len(errors)}/{len(paths)}", flush=True)
@@ -225,7 +226,7 @@ def postprocess_spirv(paths, backup, validator=None, workers=4):
 
 def translator(dotnet, work):
     project = work / "translator"; project.mkdir(parents=True, exist_ok=True)
-    source = (ROOT / "gfx/tools/dmsh_xlate/Program.cs").read_text()
+    source = (ROOT / "gfx/tools/dmsh_xlate/Program.cs").read_text(encoding="utf-8")
     # 每阶段独立描述符集避免顶点/片元绑定号碰撞；原 Apple 翻译器不修改。
     # Separate descriptor sets per stage avoid vertex/fragment binding collisions; leave the Apple translator unchanged.
     source = source.replace("readonly byte[] _c1;", "readonly byte[] _c1; readonly int _set;")
@@ -240,13 +241,13 @@ def translator(dotnet, work):
     source = source.replace(anchor, '        public int QueryHostSubgroupSize() => _job["host_subgroup_size"] is JsonNode n ? (int)n : 32;\n'
         '        public bool QueryHostSupportsShaderFloat64() => false;\n'
         '        public bool QueryHostSupportsFragmentShaderInterlock() => false;\n' + anchor)
-    (project / "Program.cs").write_text(source)
+    (project / "Program.cs").write_text(source, encoding="utf-8")
     ryu = ROOT / "third_party/ryujinx"
     csproj = f'''<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup><ItemGroup><ProjectReference Include="{ryu}/src/Ryujinx.Graphics.Shader/Ryujinx.Graphics.Shader.csproj"/><ProjectReference Include="{ryu}/src/Ryujinx.Common/Ryujinx.Common.csproj"/><EmbeddedResource Include="Program.cs" LogicalName="src0"/><EmbeddedResource Include="dmsh_android.csproj" LogicalName="src1"/></ItemGroup></Project>'''
-    (project / "dmsh_android.csproj").write_text(csproj)
+    (project / "dmsh_android.csproj").write_text(csproj, encoding="utf-8")
     dest = work / "translator-bin"
     subprocess.run([str(dotnet), "publish", str(project / "dmsh_android.csproj"), "-c", "Release", "-o", str(dest)], check=True)
-    (dest / "translation-api.json").write_text(json.dumps({"schema": 2, "host_subgroup_size_from_job": True, "guest_warp_size": 32, "shader_host_capabilities": android_shader_capabilities(), "translator_sha256": hashlib.sha256((dest / "dmsh_android.dll").read_bytes()).hexdigest()}, indent=2) + "\n")
+    (dest / "translation-api.json").write_text(json.dumps({"schema": 2, "host_subgroup_size_from_job": True, "guest_warp_size": 32, "shader_host_capabilities": android_shader_capabilities(), "translator_sha256": hashlib.sha256((dest / "dmsh_android.dll").read_bytes()).hexdigest()}, indent=2) + "\n", encoding="utf-8")
     return dest / "dmsh_android.dll"
 
 
@@ -262,7 +263,7 @@ def main():
     parser.add_argument("--postprocess-only", action="store_true", help="Repair required storage-image capability declarations in output/spirv without extraction/translation/reflection changes")
     parser.add_argument("--backup", type=Path, help="Original modified SPIR-V backup directory (default: adjacent shader-capability-backups/output-name)")
     parser.add_argument("--validate", action="store_true", help="Validate every SPIR-V module for Vulkan 1.1; fail on any validation error")
-    parser.add_argument("--spirv-val", type=Path, default=Path.home() / "dm-work/tools/android/ndk/shader-tools/linux-x86_64/spirv-val")
+    parser.add_argument("--spirv-val", type=Path, default=(Path.home() / "dm-work/tools/android/ndk/shader-tools") / HOST_TAG / "spirv-val")
     args = parser.parse_args()
     if args.jobs < 1: parser.error("--jobs must be positive")
     args.output = args.output.resolve(); work = args.output / "work"; packages = work / "packages"; output = args.output / "spirv"
@@ -286,7 +287,7 @@ def main():
         n = extract_packages(args.romfs, packages); jobs = prepare_jobs(packages, args.main, work, reduced, args.host_subgroup_size)
         print(f"Shader packages={n} unique jobs={len(jobs)} precision={args.precision} host_subgroup={args.host_subgroup_size} guest_warp=32", flush=True)
     record_build_config(work, output, jobs, args.precision)
-    if args.reuse_jobs is not None: (work / "jobs.json").write_text(json.dumps(jobs))
+    if args.reuse_jobs is not None: (work / "jobs.json").write_text(json.dumps(jobs), encoding="utf-8")
     if args.prepare_only: return
     tool = args.translator.resolve() if args.translator is not None else translator(args.dotnet, work)
     if not tool.is_file(): raise ValueError(f"Missing Android translator: {tool}")
@@ -294,13 +295,13 @@ def main():
     record_build_config(work, output, jobs, args.precision, tool); output.mkdir(parents=True, exist_ok=True)
     def batch(index):
         subset = [j for j in jobs[index::args.jobs] if not (output / (j["key"] + ".spv")).exists() or not (output / (j["key"] + ".res.json")).exists()]
-        path = work / f"jobs-{index}.json"; path.write_text(json.dumps(subset))
-        with (work / f"translation-{index}.log").open("w") as log:
+        path = work / f"jobs-{index}.json"; path.write_text(json.dumps(subset), encoding="utf-8")
+        with (work / f"translation-{index}.log").open("w", encoding="utf-8") as log:
             result = subprocess.run([str(args.dotnet), str(tool), str(path), str(output)], stdout=log, stderr=log)
         retry = [dict(j, debug=True) for j in subset if not (output / (j["key"] + ".spv")).exists()]
         if retry:
-            path.write_text(json.dumps(retry))
-            with (work / f"translation-retry-{index}.log").open("w") as log:
+            path.write_text(json.dumps(retry), encoding="utf-8")
+            with (work / f"translation-retry-{index}.log").open("w", encoding="utf-8") as log:
                 result = subprocess.run([str(args.dotnet), str(tool), str(path), str(output)], stdout=log, stderr=log)
         return result.returncode
     with ThreadPoolExecutor(max_workers=args.jobs) as pool: results = list(pool.map(batch, range(args.jobs)))
@@ -309,8 +310,8 @@ def main():
     for job in jobs:
         path = output / (job["key"] + ".res.json")
         if not path.exists(): continue
-        meta = json.loads(path.read_text()); meta.update({k: v for k, v in job.items() if k in ("c1", "set", "local", "attr", "fout", "shared")})
-        path.write_text(json.dumps(meta, indent=1))
+        meta = json.loads(path.read_text(encoding="utf-8")); meta.update({k: v for k, v in job.items() if k in ("c1", "set", "local", "attr", "fout", "shared")})
+        path.write_text(json.dumps(meta, indent=1), encoding="utf-8")
         # 紧凑二进制反射供 C 回放层读取，不在手机上解析 JSON。
         # Compact binary reflection for the C executor; no JSON parsing on the device.
         entries = [(0, {"binding": 0})]
@@ -341,9 +342,9 @@ def main():
     if any(results) or good != len(jobs): sys.exit(1)
     # 将 host profile 随缓存一起保存，设备安装/对照时可明确区分32与64版本。
     # Save the host profile beside the cache so device installation/comparisons can distinguish 32/64 variants.
-    profile = json.loads((work / "build-config.json").read_text()); profile.update(schema=1, shader_count=good, spirv_target="vulkan1.1", spirv_validated=bool(validator))
-    (output / "host-profile.json").write_text(json.dumps(profile, indent=2) + "\n")
-    (output / "host-subgroup-size.txt").write_text(str(args.host_subgroup_size) + "\n")
+    profile = json.loads((work / "build-config.json").read_text(encoding="utf-8")); profile.update(schema=1, shader_count=good, spirv_target="vulkan1.1", spirv_validated=bool(validator))
+    (output / "host-profile.json").write_text(json.dumps(profile, indent=2) + "\n", encoding="utf-8")
+    (output / "host-subgroup-size.txt").write_text(str(args.host_subgroup_size) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__": main()

@@ -7,7 +7,7 @@ import re
 import sys
 
 source = Path(__file__).resolve().parents[2] / "host/entry.S"
-text = source.read_text()
+text = source.read_text(encoding="utf-8")
 symbols = ["unimpl_stubs", "unimpl_entry", "unimpl_c", "dm_gate", "gate_dispatch", "dm_thread_enter", "dm_thread_returned"]
 for symbol in symbols:
     text = re.sub(r"\b_" + symbol + r"\b", symbol, text)
@@ -84,4 +84,4 @@ dm_android_context_entry:
     ret
     .size dm_android_context_entry, .-dm_android_context_entry
 """
-Path(sys.argv[1]).write_text(text + "\n" + helper + '\n.section .note.GNU-stack,"",%progbits\n')
+Path(sys.argv[1]).write_text(text + "\n" + helper + '\n.section .note.GNU-stack,"",%progbits\n', encoding="utf-8")

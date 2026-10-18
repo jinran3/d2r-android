@@ -83,7 +83,7 @@ def collect_shaders(directory):
     if not profile.is_file():
         raise PackageError(f"shaders directory has no host-subgroup-size.txt: {directory}")
     try:
-        subgroup = int(profile.read_text().strip())
+        subgroup = int(profile.read_text(encoding="utf-8").strip())
     except ValueError:
         raise PackageError("host-subgroup-size.txt is not a plain integer")
     entries = sorted(p for p in directory.iterdir() if p.is_file())

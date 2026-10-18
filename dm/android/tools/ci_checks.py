@@ -20,12 +20,17 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from host_env import tool
+
 ROOT = Path(__file__).resolve().parents[1]          # dm/android
 REPO = ROOT.parents[1]                              # repository root
 TOOLS = Path(os.environ.get("DM_ANDROID_TOOLS", str(Path.home() / "dm-work" / "tools" / "android")))
 CC = os.environ.get("CC", "cc")
-JAVA = TOOLS / "jdk/bin/java"
-JAVAC = TOOLS / "jdk/bin/javac"
+# tool() 补 Windows 后缀：Windows 上只有 javac.exe / java.exe，不带扩展名时 exists()
+# 为假，会把「工具存在但名字带后缀」误判成「没有 JDK」，连带跳过两个真实的 Java 闸门。
+JAVA = tool(TOOLS / "jdk/bin/java")
+JAVAC = tool(TOOLS / "jdk/bin/javac")
 
 # 仓库里绝不允许出现的游戏内容与派生物：本体/更新包、密钥、存档、重写后的游戏模块。
 # Game content and derived files that must never appear in the repository: game images, keys, saves, rewritten
@@ -50,7 +55,7 @@ def report(name, ok, detail=""):
 
 def run(command, **kwargs):
     return subprocess.run([str(c) for c in command], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          text=True, **kwargs)
+                          text=True, encoding="utf-8", errors="replace", **kwargs)
 
 
 def python_check(name, script, *args):

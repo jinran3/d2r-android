@@ -11,10 +11,14 @@ import tempfile
 import unittest
 from unicorn import Uc, UC_ARCH_ARM64, UC_MODE_ARM, UC_HOOK_CODE
 from unicorn import arm64_const as R
+# host_env.py 在 tools/ 下，与本文件不同目录；用 __file__ 定位，
+# 不依赖后文才定义的 ROOT。
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+from host_env import HOST_TAG, tool
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = Path(os.environ.get("DM_ANDROID_TOOLS", str(Path.home() / "dm-work/tools/android")))
-BIN = TOOLS / "ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+BIN = TOOLS / "ndk/toolchains/llvm/prebuilt" / HOST_TAG / "bin"
 CASES = {
     "arithmetic": "mov x18, x1\nadd x18,x18,#7\nadd x0,x18,#9\nret",
     "conditional": "mov x18,x1\ncbz x18,1f\nmov x0,#22\nret\n1: mov x0,#11\nret",
@@ -79,14 +83,14 @@ class RewriterTest(unittest.TestCase):
         for name, assembly in CASES.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
                 directory = Path(temp)
-                (directory / "source.S").write_text(".text\n" + assembly + "\n")
-                subprocess.run([str(BIN / "aarch64-linux-android29-clang"), "-c", str(directory / "source.S"), "-o", str(directory / "source.o")], check=True)
-                subprocess.run([str(BIN / "llvm-objcopy"), "-O", "binary", "--only-section=.text", str(directory / "source.o"), str(directory / "source.bin")], check=True)
+                (directory / "source.S").write_text(".text\n" + assembly + "\n", encoding="utf-8")
+                subprocess.run([str(tool(BIN / "aarch64-linux-android29-clang")), "-c", str(directory / "source.S"), "-o", str(directory / "source.o")], check=True)
+                subprocess.run([str(tool(BIN / "llvm-objcopy")), "-O", "binary", "--only-section=.text", str(directory / "source.o"), str(directory / "source.bin")], check=True)
                 nso, original = make_nso((directory / "source.bin").read_bytes())
                 (directory / "probe.nso").write_bytes(nso)
                 subprocess.run([sys.executable, str(ROOT.parent / "tools/patch_nso.py"), str(directory / "probe.nso"), str(directory), "probe"],
                                env=dict(os.environ, DM_TARGET="android", DM_RULESET="native"), check=True, stdout=subprocess.DEVNULL)
-                layout = {line.split()[1]: int(line.split()[2], 16) for line in (directory / "probe.fixups.tsv").read_text().splitlines()}
+                layout = {line.split()[1]: int(line.split()[2], 16) for line in (directory / "probe.fixups.tsv").read_text(encoding="utf-8").splitlines()}
                 rewritten = (directory / "probe.patched.bin").read_bytes()
                 for seed in [0, 4, 123, 0xffffffffffffffff]:
                     self.assertEqual(execute(original, seed), execute(rewritten, seed, True, layout))

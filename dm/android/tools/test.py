@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
 """重复运行关键 Android 移植测试。| Re-run the key Android port tests."""
 from pathlib import Path
+from host_env import HOST_TAG, tool
 import os
 import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = Path(os.environ.get("DM_ANDROID_TOOLS", str(Path.home() / "dm-work/tools/android")))
-BIN = TOOLS / "ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+BIN = TOOLS / "ndk/toolchains/llvm/prebuilt" / HOST_TAG / "bin"
 BUILD = ROOT / "build"
-ADB = TOOLS / "platform-tools/adb"
+ADB = tool(TOOLS / "platform-tools/adb")
 DEVICE = "/data/local/tmp/d2r-port"
 
 
 def run(args):
-    subprocess.run(list(map(str, args)), check=True)
+    # argv[0] 要解析 .cmd/.bat 后缀，理由同 build.py 的 run()。
+    # argv[0] needs its .cmd/.bat suffix resolved, for the same reason as build.py's run().
+    argv = list(map(str, args))
+    if argv:
+        argv[0] = str(tool(args[0]))
+    subprocess.run(argv, check=True)
 
 
 if __name__ == "__main__":
@@ -26,10 +32,10 @@ if __name__ == "__main__":
     run(["python3", ROOT.parent / "ios/tools/dm_i18n.py", "--check"])
     run([sys.executable, ROOT / "tools/generate_entry.py", BUILD / "entry_elf.S"])
     run([sys.executable, ROOT / "tools/make_probe.py", BUILD / "probe", BIN])
-    run([sys.executable, ROOT / "tools/prepare_gpu_test.py", BUILD / "gpu-test-shaders", TOOLS / "ndk/shader-tools/linux-x86_64/glslc"])
+    run([sys.executable, ROOT / "tools/prepare_gpu_test.py", BUILD / "gpu-test-shaders", tool(TOOLS / "ndk/shader-tools" / HOST_TAG / "glslc")])
     run([sys.executable, ROOT / "tools/build_gpu_driver.py"])
     run([ADB, "shell", "mkdir", "-p", DEVICE])
-    compiler = BIN / "aarch64-linux-android29-clang"
+    compiler = tool(BIN / "aarch64-linux-android29-clang")
     common = [compiler, "-O3", "-fno-strict-aliasing", "-fno-omit-frame-pointer", "-g", "-I", ROOT.parent / "host", "-I", ROOT / "native", "-I", ROOT / "native/compat", "-I", BUILD / "gpu-driver/include"]
     native = ROOT / "native"
     context_library = BUILD / "libcontext-entry-test.so"

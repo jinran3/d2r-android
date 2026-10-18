@@ -28,7 +28,7 @@ def main():
         decoder = ctypes.CDLL(str(library))
         decoder.nvn_bc_unpacked.argtypes = [ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_int)]
         decoder.nvn_bc_decode.argtypes = [ctypes.c_uint32, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_size_t]
-        with (args.probe / "images.tsv").open() as source:
+        with (args.probe / "images.tsv").open(encoding="utf-8") as source:
             for row in csv.DictReader(source, delimiter="\t"):
                 fmt = int(row["format"], 0)
                 if not 0x41 <= fmt <= 0x4e:
@@ -65,7 +65,7 @@ def main():
                 tile.paste(thumbnail, ((208-thumbnail.width)//2, 6+(200-thumbnail.height)//2))
                 ImageDraw.Draw(tile).text((5, 209), f"serial{row['serial']} fmt{fmt:#x}\n{width}x{height} mip{row['mip']}", fill="white")
                 tiles.append(tile)
-    (output / "statistics.json").write_text(json.dumps(results, indent=2) + "\n")
+    (output / "statistics.json").write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
     if tiles:
         columns = min(4, len(tiles)); rows = (len(tiles) + columns - 1) // columns
         sheet = Image.new("RGB", (columns*208, rows*236), "#202020")

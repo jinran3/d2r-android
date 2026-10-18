@@ -236,7 +236,7 @@ def main():
                     raise PackageError(f"复用目录缺少 {required}：{reuse / required}")
             say(f"复用已解出的数据：{reuse}")
             spirv = reuse / "shaders" / "spirv"
-            (spirv / "host-subgroup-size.txt").write_text(str(args.subgroup) + "\n")
+            (spirv / "host-subgroup-size.txt").write_text(str(args.subgroup) + "\n", encoding="utf-8")
             # 复用路径也重做 derived.tsv：三张表从复用目录里的 RomFS 生成只要几十秒，比缓存它更不容易出错。
             # The reuse path regenerates derived.tsv too: the three tables come from the RomFS in the reuse
             # directory in tens of seconds, which is less error-prone than caching them.
@@ -289,7 +289,7 @@ def main():
         if not spirv.is_dir():
             raise PackageError("着色器翻译没有产出 spirv 目录：" + str(spirv))
         # 汇编器会校验着色器目录里的分组档位文件，所以必须先写上。
-        (spirv / "host-subgroup-size.txt").write_text(str(args.subgroup) + "\n")
+        (spirv / "host-subgroup-size.txt").write_text(str(args.subgroup) + "\n", encoding="utf-8")
 
         run([sys.executable, HERE / "build_package.py", "assemble", output,
              "--game", game, "--romfs", romfs, "--shaders", spirv, "--derived", derived,

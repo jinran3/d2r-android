@@ -9,11 +9,12 @@ import subprocess
 import sys
 import shlex
 import argparse
+from host_env import HOST_TAG, tool
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOLS = Path(os.environ.get("DM_ANDROID_TOOLS", str(Path.home() / "dm-work/tools/android")))
 OUT = ROOT / "android/build/host"
-CLANG = TOOLS / "ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android29-clang"
+CLANG = tool(TOOLS / "ndk/toolchains/llvm/prebuilt" / HOST_TAG / "bin/aarch64-linux-android29-clang")
 
 
 def compile(item):
@@ -26,13 +27,13 @@ def compile(item):
     if source.name == "main.c": command += ["-Dmain=dm_main"]
     command += extra + [str(source), "-o", str(obj)]
     recorded = repr(command)
-    if obj.exists() and deps.exists() and stamp.exists() and stamp.read_text() == recorded:
-        dependencies = shlex.split(deps.read_text().split(":", 1)[1].replace("\\\n", " "))
+    if obj.exists() and deps.exists() and stamp.exists() and stamp.read_text(encoding="utf-8") == recorded:
+        dependencies = shlex.split(deps.read_text(encoding="utf-8").split(":", 1)[1].replace("\\\n", " "))
         if all(Path(p).exists() and Path(p).stat().st_mtime <= obj.stat().st_mtime for p in dependencies): return obj
-    r = subprocess.run(command, capture_output=True, text=True)
-    (OUT / (source.stem + ".log")).write_text(r.stdout + r.stderr)
+    r = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    (OUT / (source.stem + ".log")).write_text(r.stdout + r.stderr, encoding="utf-8")
     if r.returncode: print("Compile failed:", source, "see", OUT / (source.stem + ".log")); return None
-    stamp.write_text(recorded)
+    stamp.write_text(recorded, encoding="utf-8")
     return obj
 
 
@@ -59,8 +60,8 @@ if __name__ == "__main__":
     if any(obj is None for obj in objects): sys.exit(1)
     output = OUT / ("libdmandroid.so" if args.activity else "dmhost-android")
     link_flags = ["-shared", "-Wl,-z,defs"] if args.activity else []
-    result = subprocess.run([str(CLANG), "-Wl,-z,max-page-size=16384", *map(str, objects), *link_flags, "-landroid", "-llog", "-laaudio", "-ldl", "-lm", "-o", str(output)], capture_output=True, text=True)
-    (OUT / "link.log").write_text(result.stdout + result.stderr)
+    result = subprocess.run([str(CLANG), "-Wl,-z,max-page-size=16384", *map(str, objects), *link_flags, "-landroid", "-llog", "-laaudio", "-ldl", "-lm", "-o", str(output)], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    (OUT / "link.log").write_text(result.stdout + result.stderr, encoding="utf-8")
     if result.returncode:
         print("Link failed; see", OUT / "link.log", "\n" + result.stderr[:6000]); sys.exit(1)
     print("Android host:", output)

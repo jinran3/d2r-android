@@ -27,10 +27,14 @@ import unittest
 from unicorn import Uc, UC_ARCH_ARM64, UC_MODE_ARM, UC_HOOK_CODE
 from unicorn import arm64_const as R
 from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
+# host_env.py 在 tools/ 下，与本文件不同目录；用 __file__ 定位，
+# 不依赖后文才定义的 ROOT。
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+from host_env import HOST_TAG, tool
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = Path(os.environ.get("DM_ANDROID_TOOLS", str(Path.home() / "dm-work/tools/android")))
-BIN = TOOLS / "ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+BIN = TOOLS / "ndk/toolchains/llvm/prebuilt" / HOST_TAG / "bin"
 MASK = (1 << 64) - 1
 XREGS = [getattr(R, "UC_ARM64_REG_X" + str(i)) for i in range(31)]
 QREGS = [getattr(R, "UC_ARM64_REG_Q" + str(i)) for i in range(32)]
@@ -44,19 +48,19 @@ class ContextEntryTest(unittest.TestCase):
             temp = Path(directory)
             entry, library = temp / "entry.S", temp / "libcontext-test.so"
             subprocess.run([sys.executable, str(ROOT / "tools/generate_entry.py"), str(entry)], check=True)
-            subprocess.run([str(BIN / "aarch64-linux-android29-clang"), "-shared", "-fPIC", "-O1",
+            subprocess.run([str(tool(BIN / "aarch64-linux-android29-clang")), "-shared", "-fPIC", "-O1",
                             "-I", str(ROOT / "native"), str(ROOT / "native/runtime.c"), str(entry),
                             str(ROOT / "tests/context_entry_probe.S"), str(ROOT / "tests/context_entry_test.c"),
                             "-Wl,-z,defs", "-ldl", "-o", str(library)], check=True)
-            symbols = subprocess.check_output([str(BIN / "llvm-nm"), "-n", "--defined-only", str(library)], text=True)
+            symbols = subprocess.check_output([str(tool(BIN / "llvm-nm")), "-n", "--defined-only", str(library)], text=True, encoding="utf-8", errors="replace")
             symbol_addr = {parts[2]: int(parts[0], 16) for line in symbols.splitlines()
                            if len(parts := line.split()) == 3}
-            relocations = subprocess.check_output([str(BIN / "llvm-readelf"), "-r", str(library)], text=True)
+            relocations = subprocess.check_output([str(tool(BIN / "llvm-readelf")), "-r", str(library)], text=True, encoding="utf-8", errors="replace")
             descriptors = re.findall(r"^([0-9a-f]+)\s+.*R_AARCH64_TLSDESC\s", relocations, re.M)
             self.assertEqual(len(descriptors), 1)
             descriptor = int(descriptors[0], 16)
             cache_address = symbol_addr["dm_android_context_cache"]
-            cache_header = (ROOT / "native/runtime_context_cache.h").read_text()
+            cache_header = (ROOT / "native/runtime_context_cache.h").read_text(encoding="utf-8")
             cache_bits = int(re.search(r"#define DM_ANDROID_CONTEXT_CACHE_BITS (\d+)", cache_header)[1])
             cache_hash_shift = int(re.search(r"#define DM_ANDROID_CONTEXT_CACHE_HASH_SHIFT (\d+)", cache_header)[1])
             cache_entry_shift = int(re.search(r"#define DM_ANDROID_CONTEXT_CACHE_ENTRY_SHIFT (\d+)", cache_header)[1])

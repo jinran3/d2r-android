@@ -58,7 +58,7 @@ def shadow_explicit_lod(path):
 
 for index, (extension, source, stage, group, entries) in enumerate(sources, 1):
     key = hashlib.sha256(bytes([index]) + bytes(0x87f)).hexdigest()[:16]
-    path = output / (key + "." + extension); path.write_text(source)
+    path = output / (key + "." + extension); path.write_text(source, encoding="utf-8")
     subprocess.run([str(glslc), "--target-env=vulkan1.1", str(path), "-o", str(output / (key + ".spv"))], check=True)
     if index in (15, 16): shadow_explicit_lod(output / (key + '.spv'))
     bindings = [(0,0,0,0,0,0,0,1,0,0)] + entries
