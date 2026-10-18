@@ -14,6 +14,10 @@ import os
 import subprocess
 import sys
 import tempfile
+if hasattr(sys.stdout, 'reconfigure'):
+    # Windows 控制台默认 GBK，打不出 OK/NG 符号，会在打印第一个结果前 UnicodeEncodeError 崩溃。
+    # 只改本进程输出编码；Linux/CI 上 stdout 本就是 UTF-8，无行为变化。
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]          # dm/android
@@ -104,7 +108,15 @@ def table_stubs():
 def main():
     with tempfile.TemporaryDirectory() as workspace:
         workspace = Path(workspace)
-        python_check("中文字面量扫描", "dm/i18n/scan_literals.py")
+        # 中文字面量扫描的白名单是按 CPython 3.12+ 的分词行为生成的（PEP 701 把 f-string 拆成
+        # FSTRING_START/MIDDLE/END），3.9 及更早把整个 f-string 当一个 STRING token。两者扫出的集合不同，
+        # 而闸门是双向严格的（缺行报红、多余行也报红），所以在旧版解释器上无论如何都跑不绿。
+        # 这里如实按版本判定，沿用本文件对 macOS 专有测试的同一原则：不假装通过，也不假失败。
+        # 上游 CI 固定 python-version 3.12，见 .github/workflows/build.yml。
+        if sys.version_info < (3, 12):
+            skipped.append("中文字面量扫描：需要 Python 3.12+（PEP 701 分词），本机为 %s" % ".".join(map(str, sys.version_info[:3])))
+        else:
+            python_check("中文字面量扫描", "dm/i18n/scan_literals.py")
         python_check("中英表一致性", "dm/ios/tools/dm_i18n.py", "--check")
         # 版本折算：Android 拒绝版本号倒退的安装，这条规则要有回归挡住。
         # The version mapping: Android refuses an install whose version code goes backwards, so it needs a regression.
@@ -112,12 +124,19 @@ def main():
 
         compile_and_run("方向键/扳机映射（t_padmap）", [REPO / "dm/host/tests/t_padmap.c"], workspace / "t_padmap")
         # 启动设置：普通版与"环境写入失败"注入版都要跑（故障恢复那条只有注入版才覆盖）。
+        # 这条测试用的是 alarm/setenv/unsetenv/mkdtemp 和 -Wl,--wrap，都是 POSIX 专有；
+        # Windows/MinGW 没有它们，直接编译必然失败。这里如实标成跳过，不假装通过——
+        # 与下面 t_thread_leak / t_i18n 的 macOS 专有处理是同一条原则。
+        # Linux/CI（ubuntu-latest）上 os.name == 'posix'，下面两行照常真跑，闸门不变。
         launch = [ROOT / "native/launch_settings.c", ROOT / "tests/launch_settings_test.c"]
-        compile_and_run("启动设置（普通）", launch, workspace / "launch_settings",
-                        ("-std=c11", "-O3", "-Wall", "-Wextra", "-Werror", "-I", ROOT / "native"))
-        compile_and_run("启动设置（环境故障注入）", launch, workspace / "launch_settings_fault",
-                        ("-std=c11", "-O3", "-Wall", "-Wextra", "-Werror", "-I", ROOT / "native",
-                         "-DDM_LAUNCH_SETTINGS_TEST_WRAP_ENV", "-Wl,--wrap=setenv", "-Wl,--wrap=unsetenv"))
+        if os.name != "posix":
+            skipped.append("启动设置（普通 + 环境故障注入）：测试依赖 POSIX 专有的 alarm/setenv/mkdtemp 与 -Wl,--wrap，本机（%s）不适用" % os.name)
+        else:
+            compile_and_run("启动设置（普通）", launch, workspace / "launch_settings",
+                            ("-std=c11", "-O3", "-Wall", "-Wextra", "-Werror", "-I", ROOT / "native"))
+            compile_and_run("启动设置（环境故障注入）", launch, workspace / "launch_settings_fault",
+                            ("-std=c11", "-O3", "-Wall", "-Wextra", "-Werror", "-I", ROOT / "native",
+                             "-DDM_LAUNCH_SETTINGS_TEST_WRAP_ENV", "-Wl,--wrap=setenv", "-Wl,--wrap=unsetenv"))
 
         # 存档的压缩/解压/原子替换、数据包导入的规则与验收都是纯 Java（不碰 Android API），用项目 JDK 在宿主机上跑。
         # 数据包这一支是补上来的：导入曾经只检查"每个类别至少一个文件"，一个残缺的包能通过并让游戏开不了机。

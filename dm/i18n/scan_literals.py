@@ -64,13 +64,19 @@ def caller(text, pos):
     return ''
 
 def hits():
+    # 路径分隔符归一：白名单里存的是正斜杠（host/front_mac.m），而 Windows 的 relpath 给反斜杠，
+    # 直接比较会把整表判成「匹配不到」（本机实测 443 + 112 条全部由这一个原因造成）。
+    # Linux / CI 上 os.sep 就是 /，行为与原先逐字节一致。
+    # Normalize path separators: the whitelist stores forward slashes, while Windows relpath returns
+    # backslashes, so a raw comparison fails the whole table (locally all 443+112 were this one cause).
+    # On Linux/CI os.sep is '/', so behavior is byte-identical to before.
     out = []
     for pat, kind in [(p, 'c') for p in C_FILES] + [(p, 'py') for p in PY_FILES]:
         for f in sorted(glob.glob(os.path.join(ROOT, pat))):
             s = open(f, encoding='utf-8', errors='replace').read(); text, lits = (strip_c if kind == 'c' else strip_py)(s)
             for pos, lit in lits:
                 if not CJK.search(lit) or caller(text, pos) in SINK: continue
-                out.append((os.path.relpath(f, ROOT), s.count('\n', 0, pos) + 1, lit, caller(text, pos)))
+                out.append((os.path.relpath(f, ROOT).replace(os.sep, '/'), s.count('\n', 0, pos) + 1, lit, caller(text, pos)))
     return out
 
 def main():
