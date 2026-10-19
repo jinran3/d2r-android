@@ -12,10 +12,9 @@
 static int output;
 static int stall;
 static void mark(char value) { assert(write(output, &value, 1) == 1); }
-void granny_prof_dump(void) { mark('1'); }
-void hlecount_flush(void) { mark('2'); }
-void dm_audio_suspend(int on) { assert(on == 1); mark('3'); }
-void dm_gfx_suspend(int on) { assert(on == 1); if (stall) usleep(3000000); mark('4'); }
+void hlecount_flush(void) { mark('1'); }
+void dm_audio_suspend(int on) { assert(on == 1); mark('2'); }
+void dm_gfx_suspend(int on) { assert(on == 1); if (stall) usleep(3000000); mark('3'); }
 uint64_t now_ns(void) { return dm_android_clock_ns(CLOCK_MONOTONIC); }
 void dm_term_install(void);
 static void check(int hanging) {
@@ -29,7 +28,7 @@ static void check(int hanging) {
     uint64_t start = now_ns(); assert(!kill(child, SIGTERM)); int status; assert(waitpid(child, &status, 0) == child);
     assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
     char markers[16] = {0}; ssize_t n = read(result[0], markers, sizeof markers - 1);
-    assert(n > 0); assert(!strcmp(markers, hanging ? "0123" : "01234"));
+    assert(n > 0); assert(!strcmp(markers, hanging ? "012" : "0123"));
     if (hanging) assert(now_ns() - start >= 1400000000 && now_ns() - start < 3000000000);
     close(ready[0]); close(result[0]);
 }

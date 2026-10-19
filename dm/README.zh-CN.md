@@ -161,7 +161,6 @@ DM_ROMFS=<Update/RomFS 目录> DM_SAVE=<存档目录> DM_TEMP=<临时目录> DM_
 | 文件 | 管什么 |
 |---|---|
 | `hle_fs.c` | 文件系统：挂载名对应到宿主目录 |
-| `hle_tact.c`、`hle_granny.c` | 资源存储块的 zlib 解压、Granny 数据段解码的宿主实现 |
 | `hle_audio.c`、`hle_codec.c` | 音频输出与 Opus 解码 |
 | `hle_hid.c`、`hle_touch.c` | 手柄与触屏输入 |
 | `hle_swkbd.c`、`hle_charname.c` | 系统软键盘接成宿主输入框；角色名放行中文 |

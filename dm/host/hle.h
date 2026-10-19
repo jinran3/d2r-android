@@ -81,8 +81,6 @@ uint64_t dm_audio_render_calls(void);   // 声卡回调累计次数（静音接�
 //   号     用途                                         所在文件        剪口（main 偏移）
 //   0x81   客户端命令包投递（收包泵 → 服务端收包）         diag.c          0x5d3a88（bl 0x632510 调用点；缺省原样转调，DM_C2S_REPLAY 时丢弃）
 //   0x82   系统类客户端消息投递（收包泵 → 0x6310b0）       diag.c          0x5d39c8（bl 0x6310b0 调用点；缺省原样转调，DM_C2S_REPLAY 时文件首拍起丢弃）
-//   0x83   Granny 段逐块解码（段读取 0x11f0110）           hle_granny.c    0x11f02dc（bl 0x11f4af0 调用点；缺省按预解码候选替换，核不上即原样转调）
-//   0x84   Granny 修正表逐块解码（段读取 0x11f07d0）       hle_granny.c    0x11f0914（bl 0x11f4af0 调用点；同上）
 //   0x85   私有技能 HUD 自绘查询（只读，写 x8）          hle_hostcall.c  0x3e443c（分支门：x8≠0 跳 0x3e4460，否则执行原指令回 0x3e4440；仅触屏私有门）
 //   0x86   私有技能地面方向（转调原 0x2b4ef8 再按右摇杆改向） hle_private_aim.c 0x2faf04（bl 0x2b4ef8 调用点；仅触屏私有门）
 //   0x87   地上物品外观路径（转调原 0xa14dc4 再按规则改指带光变体） dm_dropfilter.c 0x8fa590（bl 0xa14dc4 调用点；只改模式 3 / 5 的物品，输出在 x8 字符串）
@@ -98,8 +96,6 @@ uint64_t dm_audio_render_calls(void);   // 声卡回调累计次数（静音接�
 //   No.    Purpose                                      File            Cut (main offset)
 //   0x81   Client command packet delivery (receive pump → server receive)         diag.c          0x5d3a88 (bl 0x632510 call site; forwarded as is by default, dropped under DM_C2S_REPLAY)
 //   0x82   System-class client message delivery (receive pump → 0x6310b0)       diag.c          0x5d39c8 (bl 0x6310b0 call site; forwarded as is by default, dropped from the file's first tick on under DM_C2S_REPLAY)
-//   0x83   Granny section per-block decode (section read 0x11f0110)           hle_granny.c    0x11f02dc (bl 0x11f4af0 call site; by default replaced with the pre-decoded candidate, forwarded as is if it does not check out)
-//   0x84   Granny fixup table per-block decode (section read 0x11f07d0)       hle_granny.c    0x11f0914 (bl 0x11f4af0 call site; same as above)
 //   0x85   Private skill HUD self-draw query (read-only, writes x8)          hle_hostcall.c  0x3e443c (branch gate: x8≠0 jumps to 0x3e4460, otherwise executes the original instruction and returns to 0x3e4440; touch-only private gate)
 //   0x86   Private skill ground direction (forwards to the original 0x2b4ef8, then redirects by the right stick) hle_private_aim.c 0x2faf04 (bl 0x2b4ef8 call site; touch-only private gate)
 //   0x87   Ground item appearance path (forwards to the original 0xa14dc4, then repoints by rule to the lit variant) dm_dropfilter.c 0x8fa590 (bl 0xa14dc4 call site; only items in mode 3 / 5 are changed, output in the x8 string)
@@ -110,4 +106,4 @@ uint64_t dm_audio_render_calls(void);   // 声卡回调累计次数（静音接�
 //   0x8c   Current act saved while in a rift (when the character is in a rift map w9 is replaced with 4 = Act V, writes x9; x8 always 0) dm_rift.c      0x6fa9d0 (branch gate: x8≠0 jumps to 0x6fa9d4, otherwise executes the original instruction and returns to 0x6fa9d4)
 //   0x8d   Extra mercenary equipment slots (mercenary + rift level ≥10 + belt / boots / gloves / ring / amulet: w0 is replaced with 1, writes x0; x8 always 0) dm_rift.c      0x64a34c (branch gate: x8≠0 jumps to 0x64a350, otherwise executes the original instruction and returns to 0x64a350)
 //   0x8e   Client-side check for the extra mercenary equipment slots (rift level ≥10 + the item is a belt / boots / gloves / ring / amulet: w1 is replaced with the item's own type number, writes x1; x8 always 0) dm_rift.c      0x3beb58 (branch gate: x8≠0 jumps to 0x3beb5c, otherwise executes the original instruction and returns to 0x3beb5c)
-enum { SVC_HOST_C2S_DELIVER = 0x81, SVC_HOST_C2S_SYS = 0x82, SVC_HOST_GRANNY_A = 0x83, SVC_HOST_GRANNY_B = 0x84, SVC_HOST_PRIVATE_SKILL_RENDER = 0x85, SVC_HOST_PRIVATE_SKILL_AIM = 0x86, SVC_HOST_GROUND_ASSET = 0x87, SVC_HOST_DROP_SOUND = 0x88, SVC_HOST_RIFT_EXIT = 0x89, SVC_HOST_JOIN_SPAWN = 0x8a, SVC_HOST_JOIN_CORPSE = 0x8b, SVC_HOST_SAVE_ACT = 0x8c, SVC_HOST_MERC_SLOT = 0x8d, SVC_HOST_MERC_SLOT_CL = 0x8e };   // 0x87：地上物品取模型路径（dm_dropfilter.c 掉落光）   // 0x83/0x84：Granny 逐块解码调用点（hle_granny.c） | 0x87: fetch the model path for ground items (dm_dropfilter.c drop light)   // 0x83/0x84: Granny per-block decode call sites (hle_granny.c)
+enum { SVC_HOST_C2S_DELIVER = 0x81, SVC_HOST_C2S_SYS = 0x82, SVC_HOST_PRIVATE_SKILL_RENDER = 0x85, SVC_HOST_PRIVATE_SKILL_AIM = 0x86, SVC_HOST_GROUND_ASSET = 0x87, SVC_HOST_DROP_SOUND = 0x88, SVC_HOST_RIFT_EXIT = 0x89, SVC_HOST_JOIN_SPAWN = 0x8a, SVC_HOST_JOIN_CORPSE = 0x8b, SVC_HOST_SAVE_ACT = 0x8c, SVC_HOST_MERC_SLOT = 0x8d, SVC_HOST_MERC_SLOT_CL = 0x8e };   // 0x87：地上物品取模型路径（dm_dropfilter.c 掉落光） | 0x87: fetch the model path for ground items (dm_dropfilter.c drop light)

@@ -161,7 +161,6 @@ Usage is `dmhost <build output directory> [module…] [-- game arguments…]`. `
 | File | Responsible for |
 |---|---|
 | `hle_fs.c` | File system: mount names mapped to host directories |
-| `hle_tact.c`, `hle_granny.c` | Host implementations of zlib decompression of resource storage blocks and of Granny data section decoding |
 | `hle_audio.c`, `hle_codec.c` | Audio output and Opus decoding |
 | `hle_hid.c`, `hle_touch.c` | Gamepad and touch-screen input |
 | `hle_swkbd.c`, `hle_charname.c` | The system software keyboard connected to a host input box; Chinese allowed in character names |

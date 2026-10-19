@@ -15,7 +15,6 @@
 #include <stdatomic.h>
 #include <signal.h>
 #include <unistd.h>
-void granny_prof_dump(void);
 void hlecount_flush(void);
 #ifdef __ANDROID__
 // 信号处理只向管道写一个字节，由普通线程有序退出。
@@ -46,7 +45,6 @@ void dm_host_shutdown(const char *why) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1500 * NSEC_PER_MSEC), dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
         LOG("【红】优雅退出 1.5 秒未完成，直接退出"); _exit(0); });
 #endif
-    granny_prof_dump();
     hlecount_flush();                               // DM_HLECOUNT：_exit 不走 atexit，这里写一份 | DM_HLECOUNT: _exit does not run atexit, write a copy here
     dm_audio_suspend(1);
     dm_gfx_suspend(1);

@@ -5,7 +5,6 @@ host/front_mac.m	*	Mac 开发宿主窗口，不进 iOS 产品
 host/hle_thread.c	*	卡死现场 / 线程转储，只进日志
 host/crash.c	*	崩溃与看门狗现场，只进日志
 host/hle_movie.c	*	过场播放日志（MVLOG）
-host/hle_granny.c	*	启动分段计时标签，只进日志
 host/hle_fdstat.c	*	文件描述符统计，只进日志
 host/hle_fs.c	*	存档写错误注入 / 错误码说明，只进日志
 host/hle_touch.c	*	触屏采样调试串，只进日志
