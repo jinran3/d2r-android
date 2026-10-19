@@ -55,7 +55,13 @@ PATCH_OFF = (len(IMG) + 0xFFFF) & ~0xFFFF
 # ---- Registered cuts: {NSO build ID: [(offset, original bytes, new bytes, reason)]} ----
 # Networking cuts (excluded scope: Battle.net / online play): taken from a community offline fix (LFS Mod Offline Fix for v2228224, which differs from the official 94012 main in only these 7 words).
 # Measured: the system service layer (nifm offline / DNS black hole / account service) cannot get around it: the game itself sends Battle.net requests directly and allows offline play according to the "last online" time.
-CUTS = {'db0507f36b84200ac05f75d76ed5026f': [
+# TotK v1.4.2 的 main 构建号登记在此，但表为空：TotK 侧还没有「跑不起来就必须改」的剪口，
+# 空表是正确状态（每条要加的剪口都必须带原字节断言）。
+# TotK v1.4.2's main build id is registered here with an empty table: TotK has no cuts yet
+# (a cut is only for something that cannot run without it), and every future cut must carry the
+# original-byte assertion. An empty table is the correct state.
+CUTS = {'5cb42b1cf25469fb0635fd046453d843': [],
+        'db0507f36b84200ac05f75d76ed5026f': [
     # （放进所有产物共用的基础改写）：游戏显存分配器预算 260 MB → 512 MB
     # (Placed in the base rewrite shared by all build outputs): game video memory allocator budget 260 MB → 512 MB
     (0x8524c4, '0808a2d2', '0800a4d2', '显存分配器初始化配置：mov x8,#0x10400000（260 MB）→ mov x8,#0x20000000（512 MB），随后 movk #0xa0,lsl48 与 str [sp,#0x238] 不变；'
@@ -137,7 +143,8 @@ CUTS = {'db0507f36b84200ac05f75d76ed5026f': [
 # 原指令须与位置无关（不得 PC 相对 / 分支 / 涉 x18·tpidr），离线断言；宿主未挂回调时门块进出一次即返回 ----
 # ---- Registered observation gates: {NSO build ID: [(offset, number, original instruction word, reason)]}. Numbers match OBS_* in the host's hle.h;
 # the original instruction must be position independent (no PC-relative / branch / anything involving x18 or tpidr), asserted offline; when the host has no callback attached the gate block goes in and out once and returns ----
-OBS = {'db0507f36b84200ac05f75d76ed5026f': [
+OBS = {'5cb42b1cf25469fb0635fd046453d843': [],
+        'db0507f36b84200ac05f75d76ed5026f': [
     (0xb1dc60, 1, 'd10603ff', 'UI 消息总线虚函数实现入口（x1 = 消息 {u64 类型哈希, u64 动作哈希, char* 面板名, …}）：'
      'DM_UIMSG 消息流与 DM_BOOTPROF 启动分段的唯一来源；原指令 sub sp, sp, #0x180'),
     (0x5d3bc0, 2, 'd10503ff', '服务端拍入口（x0 = 游戏对象 G）：DM_TICKS 逐拍 6 格状态哈希（dm/verify/tick_state_format.md，与真值 swtick.py 同一采集点）；'
@@ -167,9 +174,39 @@ RULESET = os.environ.get('DM_RULESET', 'native')
 RULESETS = ('native', 'touch-run-v4', 'totk-run-v1')
 assert RULESET in RULESETS, f'未知规则域 {RULESET}（可选：{", ".join(RULESETS)}）'
 RULE_BUILD = 'db0507f36b84200ac05f75d76ed5026f'
+# TotK 的四个模块构建号（v1.4.2，2026-10-20 实测：解包更新包后读 NSO 头 0x40–0x50）。
+# 规则域 totk-run-v1 按这张表钉死构建号：换了 TotK 版本要么显式改这张表，要么停下来重新定位
+# 每条必需改写的地址（必需改写本身是按指令模式扫的，与游戏无关；地址只出现在 CUTS/OBS/PARAMS 里）。
+# The four TotK module build ids (v1.4.2, measured on 2026-10-20 by unpacking the update and reading
+# NSO header 0x40-0x50). The totk-run-v1 domain pins the build id to this table: on a different TotK
+# version, either update this table explicitly or stop and re-locate the addresses of the required
+# rewrites (the required rewrites themselves are found by instruction pattern and are game-agnostic;
+# addresses only appear in the CUTS/OBS/PARAMS tables).
+TOTK_BUILDS = {
+    'main': '5cb42b1cf25469fb0635fd046453d843',
+    'sdk': '5cf080e800530a7f25bd528ec875c27b',
+    'subsdk0': '3308c1d216f788397d1451c8345a16cd',
+    'rtld': '82a3cf78789f9d9858c52379d8d2d129',
+}
 # RULE_RUN 只对 D2R 的触屏规则域成立；totk-run-v1 因此天然不套用任何 D2R 剪口与私有门。
 # RULE_RUN is true only for D2R's touch domain, so totk-run-v1 never applies D2R cuts or private gates.
 RULE_RUN = RULESET == 'touch-run-v4' and NAME == 'main'
+# x18 改写：暗黑2 的 main 把 x18 当 TLS 指针（宿主把它换到线程槽 K18，宿主的 C 代码会踩 x18）。
+# 实测 TotK v1.4.2 的 main 把 x18 当**普通寄存器**用（.text 里 24,204 条指令提到 x18、18,572 条提到 w18，
+# 例如 0x3f00 `add x18, x19, #0x260`、0xa761c `stxr w17, w18, [x10]`），所以 D2R 那套「x18 = TLS」的
+# 前提对 TotK 不成立。TotK 规则域先**不做 x18 改写**（svc / tpidr / cntpct 照旧改写），x18 在宿主调用
+# 之间的保全改由宿主侧补（见 docs/HANDOFF.zh-CN.md 的 NA-029：宿主入口要回写 x18）。
+# x18 rewriting: Diablo II's main uses x18 as the TLS pointer (the host redirects it to thread slot K18,
+# because the host's C code clobbers x18). Measured on TotK v1.4.2's main, x18 is a **general-purpose
+# register** (24,204 instructions in .text mention x18 and 18,572 mention w18, e.g. 0x3f00
+# `add x18, x19, #0x260` and 0xa761c `stxr w17, w18, [x10]`), so D2R's "x18 = TLS" premise does not
+# hold for TotK. The TotK domain therefore does **no** x18 rewriting for now (svc / tpidr / cntpct are
+# still rewritten); preserving x18 across host calls is left to the host side (NA-029: the host entry
+# must write x18 back).
+REWRITE_X18 = RULESET != 'totk-run-v1'
+if RULESET == 'totk-run-v1':
+    assert NAME in TOTK_BUILDS, f'TotK 规则域不认识这个模块 {NAME}（已知：{", ".join(sorted(TOTK_BUILDS))}）'
+    assert BUILD_ID == TOTK_BUILDS[NAME], f'TotK 规则构建号不符 {BUILD_ID}（{NAME} 期望 {TOTK_BUILDS[NAME]}）'
 if RULE_RUN:
     import hashlib
     assert BUILD_ID == RULE_BUILD, f'Run规则构建号不符 {BUILD_ID}'
@@ -569,7 +606,7 @@ for o in range(0, TEXT_END, 4):
     if w & 0xFFFFFFE0 == 0xD53BE020: kinds[o] = ('cntpct', w & 31); continue
     if w & 0xFFFFFFE0 == 0xD53BE040: kinds[o] = ('cntvct', w & 31); continue
     for ins in md.disasm(IMG[o:o + 4], o):
-        if has18(ins): kinds[o] = ('x18', None)
+        if REWRITE_X18 and has18(ins): kinds[o] = ('x18', None)
 
 # 按函数取指令表，找窗口与跳转表
 # Take the instruction table per function, find the windows and jump tables
@@ -682,7 +719,8 @@ for off, oid, ow, why in obs:
 # The two constant-building instructions at the original site are changed so that the first jumps to a parameter trampoline in the patch area and the second is a nop; the trampoline fetches the key page value indirectly and jumps back to just after the first (A+4): when A and B are not adjacent, the original instructions in between execute as usual
 # (it used to jump back to B+4; in the operation-mode notification handler 0xe10d5c/0xe10d60 that skipped adrp x19.. and another trampoline, and switching to handheld crashed immediately; structck ⑩ checks the trampoline exit).
 # xR must not be read or written between A and B (offline assertion: the instructions in between do not contain xR). The host supplies values according to the front end, Mac supplies the original constants → behavior unchanged ----
-PARAMS = {'db0507f36b84200ac05f75d76ed5026f': [
+PARAMS = {'5cb42b1cf25469fb0635fd046453d843': [],
+           'db0507f36b84200ac05f75d76ed5026f': [
     (0xe12d8c, 'd280c813', 0xe12d90, 'f2c07093', 19, 'KRES1', '启动初始化：主机模式输出分辨率 1600x900（{u32 宽, u32 高} 打包）'),
     (0xe12e1c, 'd280a008', 0xe12e20, 'f2c05a08', 8, 'KRES0', '启动初始化：掌机模式输出分辨率 1280x720'),
     (0xe10d60, 'd280c818', 0xe10d80, 'f2c07098', 24, 'KRES1', '运行模式变化通知（0x1f）处理：主机模式 1600x900'),
