@@ -24,7 +24,6 @@ dm/ios/tools/gen_vault_table.py	vt1
 dm/host/dm_kills*	kba kbb
 dm/host/dm_elysium*	v v2 kbb
 dm/host/dm_bossrush*	kbb bd
-dm/host/dm_townwp*	*
 dm/host/dm_rift*	kba kbb dc wp tp
 dm/host/dm_unit.h	kbb dc wp tp
 dm/host/dm_pouch*	t u s sb vt1 c sa

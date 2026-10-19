@@ -4,9 +4,6 @@
  "host": {
   "trigger": "OpenPanel:AutoMap+45",
   "keys": "A@OpenPanel:MainMenuButtonRibbon>FrontEndNavigation:ToGame,MINUS@UnloadPanel:LoadScreenPanel%1>OpenPanel:AutoMap",
-  "env": {
-   "DM_TOWNWP_OFF": "1"
-  }
  },
  "viewport": [
   0,

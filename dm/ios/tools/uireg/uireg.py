@@ -39,24 +39,6 @@ K=VIEW[0]/667.0
 def P(x,y): return f"{x*K+VIEW[2]:.1f},{y*K+VIEW[3]:.1f}"
 def O(dx,dy): return f"{dx*K:.0f},{dy*K:.0f}"
 BASE="DM_SAVE_FRESH=warlock DM_GAME_SEED=0x12345678 DM_FIXED_TIME=1790000000 DM_C2S_LOG=pwc2s.jsonl DM_WORLD_DUMP=1 DM_LAT_LOG=1"+(" DM_IPAD_FULL=1" if MODE=="ipadfull" else " DM_IPAD_FULL=0" if MODE=="ipad" else "")+(f" DM_TEST_SCREEN={SCREEN[0]:.0f}x{SCREEN[1]:.0f}" if SCREEN else "")   #  iPad 包缺省真全屏，16:9 留边档要显式关 | the iPad app defaults to true fullscreen, the 16:9 letterbox mode has to turn it off explicitly
-# 进局落在小站旁（产品缺省，dm_townwp.c）：整表各局缺省开着走产品落点（玩家缺省开着的功能回归局不许缺省关）。
-# 第一批已改成走产品落点：d t u s sb vf2（起局带 DM_TEST_WORLD_GO=near2:2:c267@200 把人带到箱子旁，点箱子前 g.arrive(5808,4443,…)——从小站旁的新落点看不到箱子，直接点单位会「画面里没有这类单位」）。
-# OLD_SPAWN = 暂时还关着它的局，【待改成产品落点】——不是豁免：这些局的起手按原版出生点写死了屏幕坐标，逐批改成「走到跟前再按单位点」后从表里拿掉，
-# 最后只留专门验「关掉这个功能」的那一局。原因是两档实跑出来的（落点开着时这些局的第一步点空，后面连带不通）。
-# Spawn next to the waypoint on joining a run (product default, dm_townwp.c): every run in the full table keeps it on by default and uses the
-# product spawn point (a feature that is on by default for players must not be off by default in regression runs).
-# The first batch already converted to the product spawn point: d t u s sb vf2 (launched with DM_TEST_WORLD_GO=near2:2:c267@200 to bring the
-# character next to the chest, with g.arrive(5808,4443,...) before tapping the chest -- the chest is not visible from the new spawn point next
-# to the waypoint, and tapping the unit directly gives "no unit of this kind on screen").
-# OLD_SPAWN = runs that still have it turned off for now, [to be converted to the product spawn point] -- not an exemption: the opening steps
-# of these runs hard-code screen coordinates based on the original spawn point; they are converted batch by batch to "walk up to it, then tap
-# by unit" and removed from the table,
-# until only the one run that specifically verifies "this feature turned off" remains. The reason comes from real runs in both profiles (with
-# the spawn point on, the first tap of these runs hits nothing and everything after it fails in turn).
-OLD_SPAWN={
- "n":"点阿卡拉的屏幕坐标","p":"点阿卡拉的屏幕坐标","b":"点瓦瑞夫 / 恰西的屏幕坐标","top":"iPad 档：开箱子、走到阿卡拉旁的点位","i":"iPad 档：点卡夏雇佣菜单的点位","pg2":"点箱子","rw2":"点箱子","vt1":"点箱子","vf1":"开箱","v":"建角后点箱子",
- "rw1":"长按物品栏里的软帽后清单落点","j":"背包拖放的落点（物品给在脚下的次序）","k":"背包拖放的落点","pk":"箱子选择框边缘的屏幕坐标","g4":"点凯恩的屏幕坐标","kbb":"主钮连点要怪在跟前",
-}
 if os.environ.get("UIREG_EXTRA_ENV"): BASE+=" "+os.environ["UIREG_EXTRA_ENV"].strip()   # 每局都加的环境变量（空格分隔的 K=V），如某条分支的核对开关 | environment variables added to every run (space-separated K=V), such as the verification switch of some branch
 SAVE_TIME_MIN=1800000000   # 手柄选人的局若要固定时钟，取不早于它的值（标准存档里角色的时间戳都早于它） | If a controller-selection run wants a fixed clock, use a value no earlier than this (the timestamps of the characters in the standard save are all earlier than it)
 WHO_ROW={1:"joe",2:"Warlock",3:"joebao",4:"法师"}   # 标准存档选角页自上而下四行的角色名 | Character names of the four rows, top to bottom, on the standard save's character select page
@@ -286,7 +268,7 @@ def run(g):
     if g.padsel:
         base=re.sub(r" ?DM_FIXED_TIME=\d+","",base); ft=re.search(r"DM_FIXED_TIME=(\d+)",g.env)
         if ft and int(ft.group(1))<SAVE_TIME_MIN: raise SystemExit(f"局 {g.run}：手柄选人的局不许带早于存档时间的固定时钟（DM_FIXED_TIME={ft.group(1)} < {SAVE_TIME_MIN}）")
-    env=dict(os.environ,UIREG_MODE=MODE,UIREG_OUT=OUTBASE,PW_SAVE=g.save,PW_ENV=f"{base}{' DM_TOWNWP_OFF=1' if g.run in OLD_SPAWN else ''} {g.env}".strip())
+    env=dict(os.environ,UIREG_MODE=MODE,UIREG_OUT=OUTBASE,PW_SAVE=g.save,PW_ENV=f"{base} {g.env}".strip())
     t0=time.time(); subprocess.run(["bash",RUNNER,tag,str(cap)],input=script.encode(),env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     d=f"{OUTBASE}/pw/{tag}"; wall=time.time()-t0
     try: log=open(f"{d}/boot.txt",errors='replace').read()
@@ -856,12 +838,6 @@ def groups():
         g.item("点箱子选择框下边外面一点","不中：没有目标、不开箱",NOHIT,r"OpenPanel BankExpansionLayout"); g.tap(P(*PK[1]),2.0); g.shot()
         g.item("点选择框左上角里面（身体框与占地菱形之外）","命中箱子：走过去开箱",r"OpenPanel BankExpansionLayout"); g.tap(P(*PK[2]),4.0); g.shot()
     else: probe(g)
-    gs.append(g)
-    # wp 局：进局落在城镇小站旁（进局与一键重开的出生位置移到小站旁；离小站一个安全距离、尸体同处）。产品缺省，不带 BASE 里的 DM_TOWNWP_OFF=1
-    # wp run: entering a run lands next to the town waypoint (the spawn position for entering a run and for one-tap restart is moved next to the waypoint; a safe distance from the waypoint, with the corpse at the same place). Product default, without the DM_TOWNWP_OFF=1 from BASE
-    g=G("wp","DM_TOWNWP_OFF=0"); g.sect("townwp",0)
-    g.item("进局","进局那一拍就落在小站旁安全距离处（不再第 2 拍换关）；5 拍后人离小站横纵较大的那个 7–12 格（安全距离 10 格，找空格 ±2，转 45 度时横纵各约 7）",r"城镇小站落点：关卡 1 小站 \d+,\d+，进局落点 \d+,\d+[\s\S]*城镇小站落点：拍 \d+ 人在 \d+,\d+，小站 \d+,\d+（差 (?:-?(?:[7-9]|1[0-2]),-?\d+|-?\d+,-?(?:[7-9]|1[0-2]))）"); g.enter(); g.shot()
-    g.item("点脚下的小站","开小站面板",r"OpenPanel WaypointsPanel"); g.at("tap_unit 2 119 5",4.0); g.shot()
     gs.append(g)
     # g1 / g2 / g3 / g4 局：第四幕红门（物件 566，和泰瑞尔说过话才出现；探路开关把人传到泰瑞尔旁并交互）。一局只能验一个命中点（点中就换幕到哈洛加斯，区域 109）。
     # iPhone 比例（1334 宽像素）：门身体框中心 (739,440) 补到 75 见方，选择框中心 (739,405) 124×255；凯恩 246 的身体框 (739,376) 75×119 正压在门的中段，泰瑞尔 367 在门左上 (667,291) 95×216。

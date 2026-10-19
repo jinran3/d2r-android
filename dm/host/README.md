@@ -92,7 +92,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 | `dm_dropfilter.c` | The light beam and landing sound for high-value drops |
 | `dm_drophaptic.c` | Haptic feedback when a high-value item lands, in three strengths |
 | `dm_freetp.c` | Free town portal: reuses the original town portal skill directly |
-| `dm_townwp.c` | Entering a game, or a quick restart, puts you next to the town waypoint |
 
 ### Settings, saves and small shared pieces
 

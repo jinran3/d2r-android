@@ -92,7 +92,6 @@ English: [README.md](README.md)
 | `dm_dropfilter.c` | 高价值掉落的光柱与落地音 |
 | `dm_drophaptic.c` | 高价值物品落地时的震动，分三档 |
 | `dm_freetp.c` | 免费回城：直接复用原版的回城技能 |
-| `dm_townwp.c` | 进局与一键重开时落在城镇传送小站旁 |
 
 ### 设置、存档与公共小件
 
