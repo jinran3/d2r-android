@@ -144,7 +144,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 快照时间：2026-10-19 18:08（Asia/Shanghai）
 - 当前阶段：M0 准备 / 脚手架
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：`a919fdb2e7aef92bd6000ee27c220d40c6b8f452`
+- 观测 HEAD：`a919fdb2e7aef92bd6000ee27c220d40c6b8f452`（这是快照基线；允许是当前 HEAD 的祖先）
 - origin 对应分支：`origin/totk/scaffold`，检查点为 `a919fdb2e7aef92bd6000ee27c220d40c6b8f452`
 - 代码工作区：`DIRTY`（仅统计非交接控制面文件）
 - 未提交代码文件：`dm/android/tools/extract_packages.py`、`dm/tools/patch_nso.py`
@@ -152,7 +152,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`
 - 本次会话目标：落地上下文压缩后可恢复的 Agent 交接协议、自动校验脚本和当前项目快照。
 - 已完成（带证据）：见下方“已完成清单”。
-- 未完成：交接控制面提交/推送；两处 TotK 适配代码提交；TotK 文件准备；M0 实测；资产裁剪；着色器事实表。
+- 未完成：两处 TotK 适配代码提交；交接控制面推送；TotK 文件准备；M0 实测；资产裁剪；着色器事实表。
 - 最近一次成功命令：`tools/agent_handoff_check.py --verify`，exit 0。
 - 最近一次失败命令及原因：无；`touch-run-v4` 的非零退出是预期负向测试。
 - 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`
@@ -183,7 +183,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - ID：NA-001
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：交接控制面已单独提交并推送；两处 TotK 适配代码仍在工作区。
+- 前置条件：交接控制面已单独提交；两处 TotK 适配代码仍在工作区。
 - 动作：审查并单独提交两处 TotK 适配代码。
 - 命令或编辑目标：`git diff --check`；`git diff -- dm/android/tools/extract_packages.py dm/tools/patch_nso.py`；`git add dm/android/tools/extract_packages.py dm/tools/patch_nso.py`；`git commit -m "totk: parameterize title id and add initial ruleset"`；`git push`。
 - 成功判据：提交和推送 exit 0；提交只包含这两处代码；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold` 相同。
