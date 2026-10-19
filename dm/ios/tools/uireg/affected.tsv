@@ -46,7 +46,6 @@ dm/host/dm_bright*	a top
 dm/host/dm_drophaptic*	kbb
 dm/host/dm_freetp*	tp a p q f g
 dm/host/dm_dropfilter*	kbb
-dm/host/dm_shoprefresh*	b m p ra top me1 me3 pvb
 dm/host/dm_world*	ex tb tp dz top i b
 dm/host/dm_actions*	a g n
 dm/host/dm_hud*	a f pk bd bdm q g

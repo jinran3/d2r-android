@@ -353,13 +353,13 @@ INGAME = {
     # 中心换到面板坐标 = (282,1274) / (1018,1274)；按钮图 58 像素 = 116 单位见方 → 左上角 (224,1216) / (960,1216)
     # 交易页只留一颗修理：「全部修理」挪到左格；单件修理去掉（物品上本来就能单件修），空出的右格放「刷新货架」（同赌博页刷新钮的位置与原图）。
     # 刷新钮借单件修理那颗控件 button_repair：面板打开函数 0x409b90 按名字只在交易 / 修理页显示它，正好是刷新钮该出现的时机；图 / 音 / 说明换成赌博页刷新钮的原版值，
-    # 点击发空操作消息 PanelManager:ClosePanel:TouchShopRefresh，宿主 dm_shoprefresh.c 照赌博刷新的写法再发一次「打开交易」并置这个商人的待刷新标志（原版货单机制重刷）
+    # 点击发空操作消息 PanelManager:ClosePanel:TouchShopRefresh；宿主侧「刷新货架」实现已随 D2R 专属模块在裁剪批 7a 摘除（TotK 不沿用），本按钮在 TotK 分支上没有宿主实现
     # The two repair buttons: the keyboard-and-mouse positions (169,1277 / 877,1277) are set to the notches of the keyboard-and-mouse background image; the controller-layout panel uses a different background image (Controller/Panel/Vendor/V2/VendorForge_BG, placed at -2,100),
     # whose notches are elsewhere -- moved over as-is the buttons sit skewed outside the lower-left edge of the notches. Measured on the controller-layout background image: the two notches are at x 72–212 / 440–580, y 542–632 pixels in the image (1 pixel = 2 units),
     # centers converted to panel coordinates = (282,1274) / (1018,1274); the button image is 58 pixels = 116 units square → top-left corners (224,1216) / (960,1216)
     # The trade page keeps only one repair button: 「全部修理」(Repair All) moves to the left cell; single-item repair is removed (items can already be repaired individually on the item itself), and the freed right cell holds 「刷新货架」(Refresh Stock) (same position and original image as the gamble page refresh button).
     # The refresh button borrows the single-item repair widget button_repair: the panel open function 0x409b90 shows it by name only on the trade / repair page, which is exactly when the refresh button should appear; image / sound / description are replaced with the original-game values of the gamble page refresh button,
-    # and the tap sends the no-op message PanelManager:ClosePanel:TouchShopRefresh; the host dm_shoprefresh.c, written the same way as the gamble refresh, sends 'open trade' once more and sets this vendor's pending-refresh flag (re-rolled by the original game's stock list mechanism)
+    # and the tap sends the no-op message PanelManager:ClosePanel:TouchShopRefresh; the host-side "Refresh Stock" implementation was removed with the D2R-only module in trim batch 7a (not carried over to TotK), so this button has no host implementation on the TotK line
     'controller/vendorpanellayouthd.json': ('vendorpanellayouthd.json', [('button_repair', None, '"rect": { "x": 960, "y": 1216 }, "filename": "PANEL\\\\Vendors\\\\Gambling_Refresh_Button", "sound": "cursor_gamble_refresh_hd", "tooltipString": "@refresh", "onClickMessage": "PanelManager:ClosePanel:TouchShopRefresh"'),
         # 不修理的商人（基德、阿卡拉…）不显示 button_repair：同一颗刷新钮再挂一份，名字用 button_blank——面板打开函数 0x409b90 按名字找它，
         # 在「不修理」的交易页与赌博页显示（面板模式 +0x168：0 交易不修理 / 1 交易会修理 / 2 赌博；button_repair 只在 1、button_refresh 只在 2、button_blank 在 ≠ 1）。

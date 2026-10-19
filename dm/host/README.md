@@ -95,7 +95,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 | `dm_drophaptic.c` | Haptic feedback when a high-value item lands, in three strengths |
 | `dm_freetp.c` | Free town portal: reuses the original town portal skill directly |
 | `dm_townwp.c` | Entering a game, or a quick restart, puts you next to the town waypoint |
-| `dm_shoprefresh.c` | "Refresh Stock" on the merchant trade page; calls only the original stock mechanism |
 
 ### Settings, saves and small shared pieces
 

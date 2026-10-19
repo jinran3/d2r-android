@@ -1153,10 +1153,9 @@ static void c2s_obs(const uint64_t *regs) {
     if (regs[1] && tk_rd(regs[1] + 8, &uid, 4)) hu = 1;
     uint8_t b[512]; uint32_t n = len < 512 ? len : 512; if (!tk_rd(regs[2], b, n)) n = 0;
     if (n >= 1 && b[0] == 0x20) cube_diag_req(regs[0], regs[1], b, n);   // 合成读数 | Transmute readout
-    dm_bossrush_c2s(regs[0], regs[1], b, n);
+    dm_bossrush_c2s(regs[0], regs[1], b, n);   // 首领连战：玩家点了连战的门（门只是外观，换关由 dm_bossrush.c 做） | Boss rush: the player tapped the boss rush door (the door is appearance only; the level change is done by dm_bossrush.c)
     { void dm_rift_c2s(uint64_t, const uint8_t *, uint32_t); dm_rift_c2s(regs[0], b, n); }
     { void dm_pouch_c2s(uint64_t *); dm_pouch_c2s((uint64_t *)(uintptr_t)regs); }   // 珍宝匣：符文 / 宝石 / 材料拖进共享页时改道进高级仓库（dm_pouch.c；会换掉 x2 / x3 指向的包） | Trove: runes / gems / materials dragged into the shared tab are rerouted into the advanced stash tabs (dm_pouch.c; replaces the packet x2 / x3 point to)
-    { void dm_shoprefresh_c2s(uint64_t, uint64_t, const uint8_t *, uint32_t); dm_shoprefresh_c2s(regs[0], regs[1], b, n); }   // 商人交易页「刷新货架」（dm_shoprefresh.c）   // 首领连战：玩家点了连战的门（门只是外观，换关由 dm_bossrush.c 做） | Vendor trade page 「刷新货架」(Refresh Stock) (dm_shoprefresh.c)   // Boss rush: the player tapped the boss rush door (the door is appearance only; the level change is done by dm_bossrush.c)
     if (!g_c2sfp) return;                       // 门在产品里常挂（首领连战要看），没开 DM_C2S_LOG 时不记 | The gate is usually installed in the product (boss rush needs it); nothing is logged when DM_C2S_LOG is not on
     // 诊断开关 DM_TEST_WARP_DIAG=1（只读）：收到「与出口砖交互」包（0x40 [砖 id]）这一刻，把服务端处理函数 main+0x6dbea0 的判定逐项读出来记一行——点了出口不进时看是哪一项拒的（全部拒绝都不回包）。
     // 判定顺序：当前动作能否被打断 main+0x6c5730(游戏, 玩家, 2, 0, 0)（0 = 放行）→ 砖对应的出口可用 main+0x5592f0(砖)（非 0 = 放行）→ 距离 main+0x5c7050(玩家, 砖)（查表距离，≤4 才当场换，>4 什么都不做）。
@@ -1766,7 +1765,6 @@ static void loadscreen_on_uimsg(const char *cat, const char *act, const char *ar
     { void dm_vault_on_uimsg(const char *, const char *, const char *); dm_vault_on_uimsg(cat, act, arg); }
     { void dm_padmode_on_uimsg(const char *, const char *, const char *); dm_padmode_on_uimsg(cat, act, arg); }   // 手柄版暂停菜单「游戏难度」行（dm_padmode.c） | "Game Difficulty" row of the controller pause menu (dm_padmode.c)
     { void dm_pouch_on_uimsg(const char *, const char *, const char *); dm_pouch_on_uimsg(cat, act, arg); }   // 百宝囊框 / 存放按钮（dm_pouch.c）   // 储藏箱第六页「编年史」（dm_vault_ui.c） | Pouch frame / deposit button (dm_pouch.c)   // stash page six 「编年史」(Chronicle) (dm_vault_ui.c)
-    { void dm_shoprefresh_on_uimsg(const char *, const char *, const char *, uint8_t *); module_t *sm = main_mod(); dm_shoprefresh_on_uimsg(cat, act, arg, sm ? (uint8_t *)sm->base : NULL); }   // 商人交易页「刷新货架」按钮（dm_shoprefresh.c） | The 「刷新货架」(Refresh Stock) button on the vendor trade page (dm_shoprefresh.c)
     { void dm_runeword_on_uimsg(const char *, const char *, const char *); dm_runeword_on_uimsg(cat, act, arg); }   // 符文之语助手（dm_runeword.c） | Runeword helper (dm_runeword.c)
     { void dm_beltauto_on_uimsg(const char *, const char *, const char *); dm_beltauto_on_uimsg(cat, act, arg); }   // 开背包自动补腰带（dm_beltauto.c） | Auto-refill the belt when the inventory opens (dm_beltauto.c)
     { extern void (*g_dm_charsel_hook)(void); if (g_dm_charsel_hook && !strcmp(cat, "FrontEndNavigation") && !strcmp(act, "ToFrontEnd")) g_dm_charsel_hook(); }   // 退出这一局、回到前端（主菜单 / 选角页）：iOS 把这一局攒下的存档传 iCloud（cloud_ios.m）   // 构建号 + 新版本提示（dm_update.c） | Exiting this run and returning to the front end (main menu / character select page): iOS uploads the saves accumulated during this run to iCloud (cloud_ios.m)   // build number + new version notice (dm_update.c)
@@ -1902,7 +1900,6 @@ void ticks_install(void) {
     if (gate_obs_present(OBS_TICK)) gate_obs_set(OBS_TICK, tick_gate_product);
     else LOG("【红】产物没有拍入口观测门 OBS_TICK：底栏数字 / 难度条 / 动态 3D 比例（dm_ingame_now）都不工作");
     { module_t *tm = main_mod(); void dm_textbox_install(uint8_t *); if (tm) dm_textbox_install((uint8_t *)tm->base); }   // 普通文字框里的注释颜色码（dm_textbox.c，观测门 14） | Annotation color codes in ordinary text boxes (dm_textbox.c, observation gate 14)
-    { module_t *tm = main_mod(); void dm_turnsmooth_install(uint8_t *); if (tm) dm_turnsmooth_install((uint8_t *)tm->base); }   // 转向回跳平滑 / 模型转身参数读取（dm_turnsmooth.c，观测门 19 / 20） | turn snap-back smoothing / reading the model turning parameters (dm_turnsmooth.c, observation gates 19 / 20)
     if (e || rp || lg || sp) {                              // DM_C2S_LOG 也挂拍入口：系统类消息的拍号要从 G 读 | DM_C2S_LOG also hooks the tick entry: the tick number of system-class messages has to be read from G
         if (!gate_obs_present(OBS_TICK)) die("DM_TICKS / DM_STATE / DM_C2S_REPLAY / DM_C2S_LOG：产物没有拍入口观测门 OBS_TICK（需 r8 起的产物）");
         gate_obs_set(OBS_TICK, tick_gate);
