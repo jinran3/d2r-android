@@ -132,14 +132,6 @@ CUTS = {'db0507f36b84200ac05f75d76ed5026f': [
     # (initial value 0), and the probe at 0xb1bcfc over the whole r15 cvd5 run hit 0 times (the write site never executed) ⇒ only table B is read throughout. The cut tree = 17 single-file loads via 0x7f72e0; same as the supplementary proof of
     # the language reload cut above (the same 0xdf67f0 read transaction, paired, no external waiters)
     (0x7f669c, '370b0036', '59000014', '字符串表装载 tbz w23, #0（是否装 legacy 表 A）→ b 0x7f6800：表 A 无读者（选表标志恒 0 → 表 B），整段 17 个 legacy 文件不装'),
-    # 掉落光（仅宿主）：物品取外观定义路径 bl 0xa14dc4(资源管理器, 单位, x8 输出字符串) → svc #0x87：宿主原样代调，
-    # 对模式 3 / 5（地上 / 掉落中）的物品按规则把路径改指覆盖层里的带光变体（dm_dropfilter.c svc_ground_asset；hle.h SVC_HOST_GROUND_ASSET）
-    # 一档掉落音（仅宿主）：落地取掉落音 bl 0x470c20(物品, &触发帧) → svc #0x88：宿主原样代调，一档物品换成提示音（dm_dropfilter.c svc_drop_sound）
-    # Drop light (host only): the item's appearance definition path lookup bl 0xa14dc4(resource manager, unit, x8 output string) → svc #0x87: the host forwards the call as is,
-    # and for items in mode 3 / 5 (on the ground / dropping) repoints the path by rule to the lit variant in the overlay (dm_dropfilter.c svc_ground_asset; hle.h SVC_HOST_GROUND_ASSET)
-    # Tier-one drop sound (host only): fetching the drop sound on landing bl 0x470c20(item, &trigger frame) → svc #0x88: the host forwards the call as is, and tier-one items get a notification sound instead (dm_dropfilter.c svc_drop_sound)
-    (0x468f2c, '3d1f0094', '011100d4', '物品落地取掉落音调用点 bl 0x470c20 → svc #0x88：宿主原样代调后按规则把一档物品的掉落音换成提示音（其余原样）', '仅宿主'),
-    (0x8fa590, '0d6a0494', 'e11000d4', '物品外观路径调用点 bl 0xa14dc4 → svc #0x87：宿主原样代调后按规则改指地上物品的带光变体（存储 / 穿戴 / 腰带 / 镶嵌不碰）', '仅宿主'),
 ]}
 # ---- 已登记观测门：{NSO 构建号: [(偏移, 编号, 原指令字, 理由)]}。编号与宿主 hle.h 的 OBS_* 一致；
 # 原指令须与位置无关（不得 PC 相对 / 分支 / 涉 x18·tpidr），离线断言；宿主未挂回调时门块进出一次即返回 ----

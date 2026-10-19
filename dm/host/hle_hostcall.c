@@ -27,8 +27,6 @@ uint64_t svc_host_call(int num, uint64_t *regs) {
     }
     case SVC_HOST_C2S_DELIVER: { void c2s_deliver(uint64_t *); c2s_deliver(regs); return 1; }
     case SVC_HOST_C2S_SYS: { void c2s_deliver_sys(uint64_t *); c2s_deliver_sys(regs); return 1; }
-    case SVC_HOST_DROP_SOUND: { void svc_drop_sound(uint64_t *); svc_drop_sound(regs); return 1; }
-    case SVC_HOST_GROUND_ASSET: { void svc_ground_asset(uint64_t *); svc_ground_asset(regs); return 1; }
     case SVC_HOST_RIFT_EXIT: { void svc_rift_exit(uint64_t *); svc_rift_exit(regs); return 1; }
     case SVC_HOST_SAVE_ACT: { void svc_save_act(uint64_t *); svc_save_act(regs); return 1; }
     case SVC_HOST_MERC_SLOT: { void svc_merc_slot(uint64_t *); svc_merc_slot(regs); return 1; }

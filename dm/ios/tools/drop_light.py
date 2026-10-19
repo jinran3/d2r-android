@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # 高价值掉落的光（第二批）：覆盖层里给物品的「地面模型定义」json 出两档带光变体，
-# 由宿主在「地上物品取模型路径」那一刻按规则改指过去（dm/host/dm_dropfilter.c，剪口 svc #0x87 落在 main+0x8fa590）。
+# 这些带光变体原先由宿主在「地上物品取模型路径」那一刻按规则改指过去（剪口 svc #0x87 落在 main+0x8fa590）；宿主侧规则已随裁剪批 7f 摘除，这些变体现在没人指向。
 # 变体常驻覆盖层（不进开关组合份数）：开关、档位、筛选都由宿主运行时决定，没被改指的变体游戏不会去读。
 # 变体 = 原模型定义 + 一个原版特效实体：一档 = 原版赫拉迪克光（白色竖光柱），二档 = 原版迪亚波罗光柱（橙色斜光束）。
 # 不加贴图、不加着色器、不放大模型、不加爆闪 / 头顶感叹号。路径：data/hd/items/<类别>/zswg/<档>__<模型名，/ 换成 __>.json（新增路径，casc_overlay「+」）。
@@ -8,7 +8,7 @@
 # 加上杂项里会发光的几类（符文、戒指、项链、护身符、钥匙、任务道具）。原版表里指向包里不存在模型的条目跳过（宿主改指前不核存在性：
 # 那些条目原本就画不出来）。
 # Light on high-value drops (second batch): in the overlay, produce two tiers of lit variants of the items' "ground model definition" json,
-# and the host redirects to them by rule at the moment of "ground item fetches its model path" (dm/host/dm_dropfilter.c, cut svc #0x87 lands at main+0x8fa590).
+# The host used to redirect to them by rule at the moment of "ground item fetches its model path" (cut svc #0x87 lands at main+0x8fa590); that host-side rule was removed in trim batch 7f, so nothing points at them now.
 # Variants live permanently in the overlay (not counted in the number of switch-combination copies): switch, tier and filter are all decided by the host at run time, and the game never reads a variant that is not redirected to.
 # Variant = original model definition + one effect entity from the original game: tier 1 = the original game's Horadric light (white vertical light shaft), tier 2 = the original game's Diablo light shaft (orange slanted beam).
 # No textures added, no shaders added, no model enlargement, no flash burst / overhead exclamation mark. Path: data/hd/items/<category>/zswg/<tier>__<model name, / replaced by __>.json (new path, casc_overlay "+").

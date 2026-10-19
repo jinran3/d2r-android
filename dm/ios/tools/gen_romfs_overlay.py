@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory() as t:
     import touch_strings; ts,nts=touch_strings.build(romfs,t); REPL.update(ts)   # 排版用的串（大字号）；手柄说法 → 触摸说法改由宿主按模式换（旁路表 touch_strings.tsv，见 emit） | Strings used for typesetting (large font size); controller wording → touch wording is now switched by the host according to mode (sidecar table touch_strings.tsv, see emit)
     TS=touch_strings.build_sidecar(romfs)
     import dm_i18n; si,nsi=dm_i18n.build(romfs,t,REPL); REPL.update(si)   # 我们自己的界面文字（中英表 dm/i18n/ui_text.tsv）追加进原版 ui.json，布局写 @键、宿主按键取串 | our own UI text (Chinese-English string table dm/i18n/ui_text.tsv) is appended to the original ui.json; layouts write @key and the host looks strings up by key
-    import drop_light; dl,dls=drop_light.build(romfs,t,REPL); REPL.update(dl)   # 掉落光的带光模型变体（新增路径，常驻；宿主运行时按规则 / 开关改指，dm_dropfilter.c） | Lit model variants for drop lights (new paths, always present; the host repoints at runtime by rule / switch, dm_dropfilter.c)
+    import drop_light; dl,dls=drop_light.build(romfs,t,REPL); REPL.update(dl)   # 掉落光的带光模型变体（新增路径，常驻；宿主运行时按规则 / 开关改指，宿主侧改指规则已随裁剪批 7f 摘除） | Lit model variants for drop lights (new paths, always present; the host repoints at runtime by rule / switch, the host-side repoint rule was removed in trim batch 7f)
     import pouch_layout; pl,pls=pouch_layout.build(romfs,t,REPL); REPL.update(pl)   # 百宝囊框与「存放」按钮（物品栏，叠在触摸布局之后） | Pouch box and 「存放」(Deposit) button (inventory, stacked after the touch layout)
     import wide_stash; ws,wss=wide_stash.build(romfs,t,REPL); REPL.update(ws)
     # 手柄版布局：手柄模式读原版路径上的布局（触屏版挪进了触屏目录，见下面 TDIR）。我们的功能改动两种模式都要——符文之语清单、百宝囊框与「存放」、
