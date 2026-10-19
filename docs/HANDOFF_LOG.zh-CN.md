@@ -3,6 +3,38 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 00:05 Asia/Shanghai — [TOTK] NA-018 裁剪批 7l（百宝囊）进行中
+
+[BEGIN] na-018-pouch-trim
+
+- 命令：`git rm dm/host/dm_pouch.c dm/ios/tools/pouch_layout.py dm/ios/tools/gen_pouch_art.py`，并连带清掉 `dm_world.c`（每拍 `dm_pouch_step`）、`diag.c`（`dm_pouch_srv_tick` / `dm_pouch_c2s` / `dm_pouch_on_uimsg`）、`dm_cursor.c`（`dm_pouch_tip_gate` 两处）、`hle_fs.c`（提交前钩子再收一格）、`dm_rift.c` 与 `t_rift_clock.c`（钩子槽号）、`dm.h`（`dm_blob`）、`dm_custom.c` / `dm_custom.h` 与 `touch_layout.py`（`gem_pick` / `store_btn` 两个开关，行序两侧同收）、`gen_romfs_overlay.py` 与 `gen_assets.py`（百宝囊那一段）、`dm/i18n/ui_text.tsv`（`dmPouch*` / `dmStore*` / 自定义页那两行）并重出 `dm/host/dm_i18n_tab.h`、`uireg/uireg.py`（sa 局）与 `uireg/affected.tsv`、两个 README 表行、`dm/host/Makefile` 的 `SRC`，然后 `ci_checks.py` + `build.py --game-run --version trim-b17` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉百宝囊后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`cc24c702a7a497884fd2b1ea8ddf5396762e3775`
+
+[END] na-018-pouch-trim
+
+- 退出码：`build.py --game-run --version trim-b17` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，18,594,255 字节（2026-10-20 00:03:38；比 trim-b16 小 114,688 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除三个文件：`dm/host/dm_pouch.c`（符文 / 宝石自动拾取进囊、囊里清单、背包「存放」按钮、囊的侧文件）、`dm/ios/tools/pouch_layout.py`（物品栏底部那块百宝囊框与「存放」按钮的布局）、`dm/ios/tools/gen_pouch_art.py`（百宝囊框贴图的生成脚本）。
+- 调用点：`dm/host/dm_world.c` 每拍的 `dm_pouch_step`；`dm/host/diag.c` 的 `dm_pouch_srv_tick` / `dm_pouch_c2s` / `dm_pouch_on_uimsg`；`dm/host/dm_cursor.c` 的 `dm_pouch_tip_gate` 两处；`dm/host/dm.h` 的 `dm_blob` 类型（只剩百宝囊在用）；`dm/host/Makefile` 的 `SRC` 一项。
+- 提交前钩子再收一格：`dm/host/hle_fs.c` 的 `g_dm_pre_commit_hook[2]` 缩成 `[1]`（秘境进度 `[0]`），`dm_rift.c` 与 `dm/host/tests/t_rift_clock.c` 同步，没有悬空槽位。
+- 自定义开关两侧同收：`gem_pick`（符文宝石自动拾取）与 `store_btn`（背包「存放」按钮）从 `dm/host/dm_custom.c` 的 `k_keys[]` / `k_def[]` / 读盘那行日志里摘掉，从 `dm/host/dm_custom.h` 的键说明里摘掉，从 `dm/ios/tools/touch_layout.py` 的 `_CUSTOM_KEYS` 里摘掉。**行序核对**：`k_keys` = `lang_en` + `_CUSTOM_KEYS` 两侧逐项相同（12 项对 12 项），`k_def` 长度也是 12（`eco_fps` 缺省关、其余开）。
+- 中英表：删 11 行（`dmPouchTitle` / `dmPouchEmpty` / `dmStoreHead` / `dmStoreStash` / `dmStorePouch` / `dmStoreSep` / `dmStoreNone` / `dmStoreLeft` / `dmStoreFull` / `dmCustomGemPick` / `dmCustomStoreBtn`；删前逐个查过：这些键只被百宝囊那族用），重出 `dm/host/dm_i18n_tab.h`（368 → 357 条），`dm/ios/tools/dm_i18n.py --check` exit 0，`dm/i18n/scan_literals.py` exit 0（347 条中文字面量全在白名单）。
+- iOS 资产管线：`dm/ios/tools/gen_romfs_overlay.py` 去掉 `pouch_layout` 的 import 与两处 build；`dm/ios/tools/gen_assets.py` 去掉「百宝囊框」那一步与说明里的 `pouch` 目录；`dm/ios/run.sh` 与 `dm/ios/tools/check_hud_gen.sh` 的注释 / 路径清单同步；`dm/i18n/scan_literals.py` 的扫描清单里去掉已删的 `pouch_layout.py`。
+- UI 回归台（`dm/ios/tools/uireg/`）：删掉「sa 局」（它测的正是百宝囊的自动存入）；s 局里那几步的判据跟着改（拖进个人页的符文现在留在个人页，珍宝匣那一格是空的，取件时那一叠是 1 个）；sb 局的页签序列去掉第六页。
+- **补上 NA-017 漏掉的一处**：NA-017 摘掉编年史仓库与个人仓库多页时，UI 回归台里测这两个模块的五局（`pg1` / `pg2` / `vt1` / `vf1` / `vf2`）忘了删，脚本还在断言「个人仓库：第 1 → 2 页」「编年史仓库：进第六页」这些已经不会出现的日志。本批一并删掉，并把 `uireg/affected.tsv` 里指向这五局（外加已删的 `sa`）的 13 行局名清掉、把 `uireg/uireg_pick.py` 的核心局清单里的 `pg2` / `vt1` 去掉。
+- 行为变化（要记清）：**珍宝匣那一页还在**（合页、页签、底图都在 `wide_stash.py` 与 `dm_cursor.c` 里），但「仓库页里新落下的符文 / 宝石 / 材料自动转进高级仓库」与「符文拖进共享页时收包处改道」这两条是写在 `dm_pouch.c` 里的，随本批一起没了。
+- 宽口径复核 `git grep -n -i -e dm_pouch -e dmPouch -e TouchPouch -e TouchStore -e pouch -e gem_pick -e store_btn -- dm/`：`dm/host` / `dm/ios` / `dm/i18n` / `dm/android` 的代码与文案里 0 命中，只剩 `dm/ios/tools/uireg/uireg.py` 里那两行「百宝囊摘掉之后…」的判据说明（有意保留）。
+- `dm\android\tools\build.py --game-run --version trim-b17`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：写本条目之前 9 项通过 / 1 项失败（失败的是「Agent 交接控制面」，因为 `[END]` 还没成对、HANDOFF 还没更新），收尾复跑 10 项通过 / 0 项失败。
+
 ## 2026-10-19 23:30 Asia/Shanghai — [TOTK] NA-017 裁剪批 7k（仓库族）进行中
 
 [BEGIN] na-017-vault-trim
