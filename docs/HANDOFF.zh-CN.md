@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-19T21:35:43+08:00
+updated_at: 2026-10-19T21:42:58+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: b4d3557fd0a8ea67f27c2b37866a671e18674a7f
+observed_head: 89a38ec547809cf2db064186fddf08270212f1c0
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: b4d3557fd0a8ea67f27c2b37866a671e18674a7f
+origin_head_at_checkpoint: 89a38ec547809cf2db064186fddf08270212f1c0
 code_worktree: CLEAN
-next_action_id: NA-010
+next_action_id: NA-011
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,24 +140,24 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-19 21:35（Asia/Shanghai）
+- 快照时间：2026-10-19 21:42（Asia/Shanghai）
 - 当前阶段：M0 准备 / 脚手架
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：`b4d3557fd0a8ea67f27c2b37866a671e18674a7f`（快照基线；允许是当前 HEAD 的祖先）
-- origin 对应分支：`origin/totk/scaffold`，检查点为 `b4d3557fd0a8ea67f27c2b37866a671e18674a7f`（与观测 HEAD 相同）
+- 观测 HEAD：`89a38ec547809cf2db064186fddf08270212f1c0`（快照基线；允许是当前 HEAD 的祖先）
+- origin 对应分支：`origin/totk/scaffold`，检查点为 `89a38ec547809cf2db064186fddf08270212f1c0`（与观测 HEAD 相同）
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
-- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b8`，19,167,695 字节）
-- 本次会话目标：执行 NA-009 —— 摘掉「开背包自动补腰带」（裁剪批 7c）。
+- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b9`，19,151,311 字节）
+- 本次会话目标：执行 NA-010 —— 摘掉药水自动拾取（裁剪批 7d），连同它在 `diag.c` 里织着的服务端一道与日志语义。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：裁剪批 7d（药水自动拾取，见 NA-010）；36 个 `dm_*.c` 的其余部分与派生表 / i18n 表（分小批推进）；D2R 的 CUTS/OBS 表与 `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；`dm_custom.c` 的 `k_keys` 位置数组里 `loot_filter`／`auto_buff`／`pot_pick` 三个已死键与 iOS 自定义页（TotK 侧整页重建时一起消失）；TotK 的过场策略（摘掉 D2R 的空播实现后 TotK 会走游戏自己的 movie 路径，宿主侧 movie 支持待定）；TotK 文件准备；M0 实测；着色器事实表来源。
-- 最近一次成功命令：`dm\android\tools\ci_checks.py` exit 0（10 项通过 / 0 项失败）；`dm\android\tools\build.py --game-run --version trim-b8` exit 0；`tools\agent_handoff_check.py --verify` exit 0。
+- 未完成：裁剪批 7e（进局落在城镇小站旁，见 NA-011）；36 个 `dm_*.c` 的其余部分与派生表 / i18n 表（30 个模块还在；其中 17 个牵连 `dm/ios/Sources/*` 的 iOS 应用源码，本机构建验证不了，宜合批处理或等 TotK 侧重建 iOS 前端时一起做）；D2R 的 CUTS/OBS 表与 `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；`dm_custom.c` 的 `k_keys` 位置数组里 `loot_filter`／`auto_buff`／`pot_pick` 三个已死键与 iOS 自定义页（TotK 侧整页重建时一起消失）；TotK 的过场策略（摘掉 D2R 的空播实现后 TotK 会走游戏自己的 movie 路径，宿主侧 movie 支持待定）；TotK 文件准备；M0 实测；着色器事实表来源。
+- 最近一次成功命令：`dm\android\tools\ci_checks.py` exit 0（10 项通过 / 0 项失败）；`dm\android\tools\build.py --game-run --version trim-b9` exit 0；`tools\agent_handoff_check.py --verify` exit 0。
 - 最近一次失败命令及原因：本轮无仓库命令失败；`dm\verify\test_accept.py` 与 `dm/host/tests/Makefile` 的 macOS 测试面在本机跑不了（NOT RUN，同上一轮的 WSL `bash` 限制），已在对应动作的判据里写明。
-- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（19,167,695 字节，2026-10-19 21:33:50，`trim-b8`）
+- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（19,151,311 字节，2026-10-19 21:40:16，`trim-b9`）
 - 当前阻塞：缺少用户合法导出的 TotK 文件、`prod.keys`、`hactool`；`adb devices` 无设备。
 - 需要用户提供的材料：自己的 TotK 本体 + 更新、`prod.keys`、可用 `hactool`、一加 12（开启 USB 调试）。
-- 回滚点：`b4d3557fd0a8ea67f27c2b37866a671e18674a7f` / `totk/scaffold`。
+- 回滚点：`89a38ec547809cf2db064186fddf08270212f1c0` / `totk/scaffold`。
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据。
 
 ### 已完成清单
@@ -178,6 +178,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-007 裁剪批 7a（`4392313`）：删 `dm/host/dm_turnsmooth.c`（转向回跳平滑，独占观测门 19 `OBS_ERR_SMOOTH` 与 20 `OBS_MODEL_YAW`）、`dm/host/dm_shoprefresh.c`（商人「刷新货架」）、`dm/ios/tools/turn_trace.py`；观测门两侧同步收口（`dm/host/dm.h` 的枚举去 19/20、`OBS_MAX` 21→19；`dm/tools/patch_nso.py` 的 OBS 表去两条；`dm/host/hle.c` 的门号越界检查要求两侧同时收）；另清 `diag.c` 四处（含把错挂在删除行上的「首领连战」注释移回 `dm_bossrush_c2s` 那行）、`Makefile` 的 `SRC`、`touch_layout.py` 两处注释、`uireg/affected.tsv`、`dm/host/README*.md`。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b6` exit 0，APK 19,265,999 字节（比 trim-b5 小 16,384 字节）；规则域测试 `totk-run-v1` exit 0 / `cuts 0 obs 0`、`touch-run-v4` exit 1；`git grep -e dm_turnsmooth -e dm_shoprefresh -e OBS_ERR_SMOOTH -e OBS_MODEL_YAW -- dm` 0 命中。
 - NA-008 裁剪批 7b（`6b261f7`）：删 `dm/host/dm_lootfilter.c`（掉落过滤）、`dm/host/dm_autobuff.c`（增益技能自动补），并清掉隐藏调用点 —— `dm_lootfilter_hidden`（`dm_potpick.c`、`dm_pouch.c`）、`dm_autobuff_srv_tick`（`diag.c`）、`dm_autobuff_pump`／`dm_autobuff_test_drop`（`dm_potpick.c`）、`dm_lootfilter_pump`／`dm_lootfilter_test_dump`（`dm_potpick.c`）；连 `hle_fs.c` 的 `g_dm_mount_seed_hook` 钩子机制整条摘掉（唯一登记者是掉落过滤的构造函数；`DM_TOUCH_DEFAULTS` 开关在别处仍在用，不会被孤立）。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b7` exit 0，APK 19,200,463 字节（比 trim-b6 小 65,536 字节）；`git grep -e dm_lootfilter -e dm_autobuff -e g_dm_mount_seed_hook -- dm` 0 命中（**用前缀查**，词边界会漏掉 `dm_lootfilter_hidden` 这类符号）。
 - NA-009 裁剪批 7c（`b4d3557`）：删 `dm/host/dm_beltauto.c`（打开背包时自动把药水补进腰带；只有 `dm_beltauto_step`／`dm_beltauto_on_uimsg` 两个导出符号，无观测门、无构造器），并清掉 `diag.c`／`dm_world.c` 各一处调用、`dm_potpick.c` 两行提到它的实测记录注释、`Makefile` 的 `SRC`、白名单行、`uireg` 行、两个 `dm/host/README*.md` 表行。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b8` exit 0，APK 19,167,695 字节（比 trim-b7 小 32,768 字节）；`git grep -e dm_beltauto -- dm` 0 命中。自定义键 `pot_pick` 保持不变（仍由 `dm_potpick.c` 在用；`dm_custom.c` 的 `k_keys` 是位置数组，删键要整体重编号，另随 `dm_potpick` 那批做）。
+- NA-010 裁剪批 7d（`89a38ec`）：删 `dm/host/dm_potpick.c`（药水自动拾取），并把织在 `dm/host/diag.c` 里的六处一起拆掉（两处日志语义里的 `dm_potpick_auto` 三元、静态 `potpick_gate` 函数与其调用、`pk_auto` 变量与计算）；另清 `dm_world.c` 调用行、`dm_custom.h` 键注释、`Makefile` 的 `SRC`、两个 README 表行、`uireg` 行。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b9` exit 0，APK 19,151,311 字节（比 trim-b8 小 16,384 字节）；`git grep -e dm_potpick -- dm` 0 命中。自定义键 `pot_pick` 仍留在 `dm_custom.c` 的 `k_keys` 位置数组里（与 7b 后已死的 `loot_filter`／`auto_buff` 同一处理），但 `dm_custom.h` 的键注释只列活键，已删掉该条目。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
@@ -187,15 +188,15 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-010
+- ID：NA-011
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：`totk/scaffold` 的 HEAD 与 `origin/totk/scaffold` 同为 `b4d3557fd0a8ea67f27c2b37866a671e18674a7f`；代码工作区干净；`HANDOFF_LOG` 无未闭合 `[BEGIN]`。
-- 动作：裁剪批 7d —— 摘掉 `dm/host/dm_potpick.c`（药水自动拾取）。它与前几批不同：功能本体织在 `dm/host/diag.c` 里（自建的静态 `potpick_gate` 服务端一道 + 两处日志语义），所以本批要把 `diag.c` 里这几处一起拆掉，而不是只删文件。
-- 命令或编辑目标：先 `git grep -n -e dm_potpick -- dm`（**用前缀**）全量复核；再 `git rm dm/host/dm_potpick.c`；同一提交内修正 `dm/host/diag.c`（第 1294–1295 行的日志里 `dm_potpick_auto(id) ? "药水自动拾取发的" : "玩家点的"` 改成恒为「玩家点的」并去掉一个 `%s`；第 1298–1301 行四行「药水自动拾取的服务端一道」注释；第 1302–1314 行的 `potpick_gate` 函数；第 1338 行的 `if (potpick_gate(regs)) return;`；第 1348–1351 行的 `pk_auto` 变量与它的计算；第 1359–1360 行两条拾取日志里的 `pk_auto` 与格式串）、`dm/host/dm_world.c`（第 537 行 `dm_potpick_step` 调用行）、`dm/host/dm_custom.h`（第 7／10 行键注释里的 `pot_pick 药水自动拾取（dm_potpick.c）` 条目）、`dm/host/Makefile`（`SRC` 一项）、`dm/host/README.md` 与 `README.zh-CN.md`（`dm_potpick.c` 表行）、`dm/ios/tools/uireg/affected.tsv`（`dm/host/dm_potpick*` 行）；然后按「标准验证命令」跑 `dm\android\tools\ci_checks.py`（带 `DM_ANDROID_TOOLS=D:\Switch\.tools\android`）、`dm\android\tools\build.py --game-run --version trim-b9`、`tools\agent_handoff_check.py --verify`；最后 `git add -A`、`git commit -m "totk: drop D2R potion auto-pickup"`、`git push`。
-- 成功判据：`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run` exit 0 且产出 APK；`git grep -n -e dm_potpick -- dm` 0 命中；`dm/host/dm_custom.c` 的 `k_keys` 仍含 `pot_pick`（**有意保留**：那张位置数组里 `loot_filter`／`auto_buff` 两个键在 7b 之后已是无消费者的死键，同一处理；删键要整体重编号并连带 iOS 自定义页与中英表，TotK 侧整页重建时一起消失）；提交只含本批文件；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold` 相同。
-- 失败判据：任一验证命令非零退出，或 `ci_checks.py` 出现失败项；APK 未产出；提交混入 `casc_overlay.py`、`dm/data/**`、其余 `dm_*.c` 或交接控制面文件。
-- 回滚点：`b4d3557fd0a8ea67f27c2b37866a671e18674a7f` / `totk/scaffold`（单次提交，必要时 `git revert`）。
+- 前置条件：`totk/scaffold` 的 HEAD 与 `origin/totk/scaffold` 同为 `89a38ec547809cf2db064186fddf08270212f1c0`；代码工作区干净；`HANDOFF_LOG` 无未闭合 `[BEGIN]`。
+- 动作：裁剪批 7e —— 摘掉 `dm/host/dm_townwp.c`（进局落在城镇小站旁，宿主调用 0x8a/0x8b）。它与 NA-002／NA-004 摘掉的宿主调用同族，要一起收口的四处是：登记表两行（中英各两条）、枚举两项、`dm/host/hle_hostcall.c` 的两个 case、`dm/tools/patch_nso.py` 的两个剪口条目（`0x5d8040`／`0x5d8400`）与注释。选它是因为 30 个剩余模块里有 17 个牵连 `dm/ios/Sources/*`（iOS 应用源码，本机构建验证不了），`dm_townwp` 不牵连。
+- 命令或编辑目标：先 `git grep -n -e dm_townwp -- .`（**用前缀，且不要排除 `dm/verify`／`dm/ios/tools`**，这两处也有引用）全量复核；再 `git rm dm/host/dm_townwp.c`；同一提交内修正 `dm/host/hle.h`（0x8a/0x8b 登记行中英各两条 + 枚举 `SVC_HOST_JOIN_SPAWN`／`SVC_HOST_JOIN_CORPSE`）、`dm/host/hle_hostcall.c`（两个 case）、`dm/tools/patch_nso.py`（0x8a/0x8b 剪口条目与注释）、`dm/host/diag.c`（第 979 行 `dm_townwp_tick` 调用行）、`dm/host/Makefile`（`SRC` 一项）、`dm/host/README.md` 与 `README.zh-CN.md`（表行）、`dm/ios/tools/uireg/affected.tsv`（`dm/host/dm_townwp*` 行）、`dm/ios/tools/uireg/uireg.py`（两行注释）、`dm/verify/touchcases/no_move_taps/script.txt`（那行注释：它说明「进局落在小站上」所以 8 下点右移 600；出生点规则摘掉后落点回到原版，这个位移是否要撤属 D2R 产品侧判断，本机无法验证，只把注释改成写明现状）；然后按「标准验证命令」跑 `dm\android\tools\ci_checks.py`（带 `DM_ANDROID_TOOLS=D:\Switch\.tools\android`）、`dm\android\tools\build.py --game-run --version trim-b10`、`tools\agent_handoff_check.py --verify`；最后 `git add -A`、`git commit -m "totk: drop D2R town waypoint spawn"`、`git push`。
+- 成功判据：`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run` exit 0 且产出 APK；`git grep -n -e dm_townwp -- .` 除 `docs/HANDOFF*` 外 0 命中；`dm/host/hle.h` 的宿主调用枚举与 `dm/tools/patch_nso.py` 的剪口门号仍自洽（不得出现引用已摘掉的宿主调用号）；提交只含本批文件；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold` 相同。
+- 失败判据：任一验证命令非零退出，或 `ci_checks.py` 出现失败项；APK 未产出；提交混入 `dm_dropfilter.c`／`dm_drophaptic.c`（牵连 iOS 应用源码，另立批次）、`casc_overlay.py`、`dm/data/**`、其余 `dm_*.c` 或交接控制面文件。
+- 回滚点：`89a38ec547809cf2db064186fddf08270212f1c0` / `totk/scaffold`（单次提交，必要时 `git revert`）。
 - 需要写入的证据：`git grep` 原始输出；`ci_checks.py` 计分行与退出码；`build.py --game-run` 退出码与 APK 路径、大小；`git status --short`；commit hash；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold`。
 
 ## 长操作两阶段日志
@@ -273,6 +274,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - `4392313`：裁剪批 7a —— 删除 D2R 的转向回跳平滑与商人「刷新货架」。
 - `6b261f7`：裁剪批 7b —— 删除 D2R 的掉落过滤与增益自动补。
 - `b4d3557`：裁剪批 7c —— 删除 D2R 的「开背包自动补腰带」。
+- `89a38ec`：裁剪批 7d —— 删除 D2R 的药水自动拾取（含 `diag.c` 里的服务端一道）。
 
 ## 本机环境
 
@@ -300,7 +302,7 @@ $env:PYTHONUTF8 = '1'
 
 1. ~~提交交接控制面~~ —— 完成（`c405782`、`8965544`）。
 2. ~~提交两处 TotK 适配代码~~ —— 完成（`1d915ab`）。
-3. 小步裁剪 D2R 专属资产，每批后跑 `ci_checks` 与完整 `build.py --game-run`：批 1 = 宿主侧 TACT/CASC —— 完成（`b54f782`）；批 2 = bootlist 清单工具与验证面 —— 完成（`1a2f535`）；批 3 = Granny 段解码 —— 完成（`62139f0`）；批 4 = vendored `dm/third_party/libdeflate` 与文档行 —— 完成（`bf7b33f`）；批 5 = 过场 movie 空播 —— 完成（`abb0040`）；批 6 = D2R 的 CUTS/OBS 表 + `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；批 7 = 36 个 `dm_*.c` 与派生表 / i18n 表 —— 分小批推进，7a = 转向回跳平滑 + 商人「刷新货架」—— 完成（`4392313`）；7b = 掉落过滤 + 增益自动补 —— 完成（`6b261f7`）；7c = 开背包自动补腰带 —— 完成（`b4d3557`）；7d = 药水自动拾取（NA-010）；批 7 的后续按同一模式：每个模块连同它的观测门、调用点、文档与白名单一起摘。
+3. 小步裁剪 D2R 专属资产，每批后跑 `ci_checks` 与完整 `build.py --game-run`：批 1 = 宿主侧 TACT/CASC —— 完成（`b54f782`）；批 2 = bootlist 清单工具与验证面 —— 完成（`1a2f535`）；批 3 = Granny 段解码 —— 完成（`62139f0`）；批 4 = vendored `dm/third_party/libdeflate` 与文档行 —— 完成（`bf7b33f`）；批 5 = 过场 movie 空播 —— 完成（`abb0040`）；批 6 = D2R 的 CUTS/OBS 表 + `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；批 7 = 36 个 `dm_*.c` 与派生表 / i18n 表 —— 分小批推进，7a = 转向回跳平滑 + 商人「刷新货架」—— 完成（`4392313`）；7b = 掉落过滤 + 增益自动补 —— 完成（`6b261f7`）；7c = 开背包自动补腰带 —— 完成（`b4d3557`）；7d = 药水自动拾取 —— 完成（`89a38ec`）；7e = 进局落在城镇小站旁（NA-011）；批 7 的后续按同一模式：每个模块连同它的观测门、调用点、文档与白名单一起摘。
 4. 准备 TotK 本体、更新、`prod.keys`、`hactool`，完成 M0 实测表。
 5. 解决着色器事实表来源，给出 M2 前 go/no-go 结论。
 6. 按 M1–M6 验收门推进。
