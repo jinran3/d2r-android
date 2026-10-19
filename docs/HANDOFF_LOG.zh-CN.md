@@ -3,6 +3,38 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 01:05 Asia/Shanghai — [TOTK] NA-021 裁剪批 7o（首领连战 + 刷怪积分牌）进行中
+
+[BEGIN] na-021-bossrush-killboard-trim
+
+- 命令：`git rm dm/host/dm_bossrush.c dm/host/dm_bossrush.h dm/host/dm_kills.c`，并连带清掉宿主侧（`diag.c` 的每拍 / 收包 / UI 消息与那行 include、`dm_actions.c` 的积分牌面板泵、`hle_time.c` 的强制恐怖地带、`hle_hid.c` 的「显示物品」键按下次数、`dm_padmode.c` 两处注释、`dm_bossrush.h` 里 `dm_game_notice` 与 `dm_door_label` 两条声明与它们的实现）、iOS 侧（`touch_layout.py` 的积分牌那一族 `KB_*` / `_kb_*` 与编年史页签条那一段 `_chronicle_killboard`；页签条因此回到原版三个）、中英表 30 行（`dmBr*` / `dmKb*` / `dmPadLegDiff`）并重出 `dm/host/dm_i18n_tab.h`、`uireg/uireg.py` 里测积分牌的两局（`kba` / `kbb`）、`uireg/affected.tsv` 两行、白名单两行、`native_write_scan.py` 的可见位守卫名单、`mode_scan.py` 的登记表、`dm/host/Makefile` 的 `SRC` 两项、两个 README 的表行与说明，然后 `ci_checks.py` + `build.py --game-run --version trim-b20` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉首领连战与刷怪积分牌后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`8947e25ee6695704924ec90d3c5a4ef94c1b45a0`
+- 备注：这一批的 `[BEGIN]` 是在动手之后才补记的（当时先把活干完了才想起写）——命令与回滚点按实际做的事写，不美化。
+
+[END] na-021-bossrush-killboard-trim
+
+- 退出码：`build.py --game-run --version trim-b20` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，17,988,047 字节（2026-10-20 01:10:40；比 trim-b19 小 163,840 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除三个文件：`dm/host/dm_bossrush.c`（首领连战，440 行：哈洛加斯那扇门、十二关推进、强制恐怖地带）、`dm/host/dm_bossrush.h`、`dm/host/dm_kills.c`（刷怪积分牌，325 行：五幕的首领名单、三个难度勾选、排序、侧文件 `.sw_kills`）。
+- 宿主调用点：`dm/host/diag.c` 的 `#include "dm_bossrush.h"`、每拍 `dm_bossrush_tick` / `dm_kills_tick`、收包 `dm_bossrush_c2s`、UI 消息 `dm_kills_on_uimsg`；`dm/host/dm_actions.c` 的 `dm_kills_ui_pump`。
+- **只服务这两族的两样东西一起摘掉**：`dm_game_notice`（原版系统提示：聊天栏一行 + 系统提示框）与 `dm_door_label`（我们自己建的门的名牌：把门那一类物件的串键换成我们的键）—— 摘掉之后它们没有别的用户了，连 `dm_bossrush.h` 里那两条声明一起没了。
+- 两处「只给这一族用」的旁路机制：`dm/host/hle_time.c` 的强制恐怖地带（`g_dm_tz_time` / `g_dm_tz_live_ns` / `tz_site()` 那套「只有恐怖地带那几处取时钟拿到它」的判断，以及 `h_time_now` 里那一支）—— 由连战每拍续 1 秒，连战没了就没有人续；`dm/host/hle_hid.c` 的「显示物品」键（L）交给游戏的按下次数（`g_dm_l_presses`，只给连战的首领掉落读数用）。
+- iOS 布局：`dm/ios/tools/touch_layout.py` 摘掉积分牌那一族（`KB_ROW_H` / `KB_ICON` / `_kb_keys` / `_kb_text` / `_kb_check` / `_KB_SPACER` / `_kb_row` / `_kb_board` / `_kb_page`）与编年史页签条那一段（`_chronicle_killboard`：页签宽 266 → 320、页签数 3 → 4、帧数组、第四项「首领」、`ToggleChildPanel:TouchKillBoard`、把积分牌那一块插进面板）。**页签条因此回到原版的三个**（`tabCount` 3、宽 266、`@Unique` / `@Sets` / `@Runewords`），布局字典里那一项也回到 `_chronicle_touch` 本身。注意 `_kb_keys()` 是**从 `dm/host/dm_kills.c` 用正则读名单**的 —— 源文件删了它会直接报错，所以两处必须一起走。
+- 中英表：删 30 行（`dmBr*` 13 行 + `dmKb*` 16 行 + `dmPadLegDiff`，后者是积分牌手柄提示条上那个「难度」），删前逐个查过使用者、确认没有别人在用；重出 `dm/host/dm_i18n_tab.h`（250 → 220 条），`dm/ios/tools/dm_i18n.py --check` exit 0。
+- 闸门与文档：`dm/i18n/literal_whitelist.tsv` 删两行（`host/dm_bossrush.c` / `host/dm_kills.c`）；`dm/ios/tools/uireg/affected.tsv` 删两行（`dm/host/dm_kills*` / `dm/host/dm_bossrush*`）；UI 回归台里测积分牌的两局（`kba` 逐控件点、`kbb` 击杀局）随这一族一起删掉（那一段连同它自带的 `TABS` 与 `chron()` 辅助）；`dm/host/tests/native_write_scan.py` 的可见位守卫名单（`kb_show` 那一项与两行说明）；`dm/host/tests/mode_scan.py` 的登记表（`dm_kills.c` 那一项）；`dm/host/Makefile` 的 `SRC` 两项；`dm/host/README*.md` 的表行与说明。
+- 宽口径复核 `git grep -n -i -e dm_bossrush -e dm_kills -e dmBr -e dmKb -e TouchKB -e dm_door_label -e dm_game_notice -- dm/`：`dm/` 下 0 命中。
+- `dm\android\tools\build.py --game-run --version trim-b20`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：写本条目之前 9 项通过 / 1 项失败（失败的是「Agent 交接控制面」，因为 `[END]` 还没成对、HANDOFF 还没更新），收尾复跑 10 项通过 / 0 项失败。
+- **本机 NOT RUN 的部分**：`dm/ios` 侧的编译与打包（`touch_layout.py` 的编年史页签条改动未经 Xcode 构建验证）；`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）跑不了，涉及 `dm_cursor` / `dm_actions` / `diag` 的宿主单测未经本机执行验证；`dm/ios/tools/uireg/uireg.py` 未经 Mac 冒烟验证。
+
 ## 2026-10-20 01:00 Asia/Shanghai — [TOTK] NA-020 裁剪批 7n（大秘境 / 佣兵族）进行中
 
 [BEGIN] na-020-rift-trim

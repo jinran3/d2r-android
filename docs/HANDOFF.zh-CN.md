@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-20T01:15:00+08:00
+updated_at: 2026-10-20T01:40:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 1c11605233aa59eed7d5417594034d3582a17a60
+observed_head: 7db35be2ddd7381d29ef7fc6a356b967620b2fa5
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 1c11605233aa59eed7d5417594034d3582a17a60
+origin_head_at_checkpoint: 7db35be2ddd7381d29ef7fc6a356b967620b2fa5
 code_worktree: CLEAN
-next_action_id: NA-021
+next_action_id: NA-022
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,24 +140,24 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-20 01:15（Asia/Shanghai）
+- 快照时间：2026-10-20 01:40（Asia/Shanghai）
 - 当前阶段：M0 准备 / 脚手架
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：`1c11605233aa59eed7d5417594034d3582a17a60`（快照基线；允许是当前 HEAD 的祖先）
-- origin 对应分支：`origin/totk/scaffold`，检查点为 `1c11605233aa59eed7d5417594034d3582a17a60`（与观测 HEAD 相同）
+- 观测 HEAD：`7db35be2ddd7381d29ef7fc6a356b967620b2fa5`（快照基线；允许是当前 HEAD 的祖先）
+- origin 对应分支：`origin/totk/scaffold`，检查点为 `7db35be2ddd7381d29ef7fc6a356b967620b2fa5`（与观测 HEAD 相同）
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
-- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b19`，18,151,887 字节）
-- 本次会话目标：执行 NA-016（3D 画面加亮，裁剪批 7j）、NA-017（仓库族，7k）、NA-018（百宝囊，7l）、NA-019（iCloud 存档同步，7m）与 NA-020（大秘境 / 佣兵族，7n）。
+- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b20`，17,988,047 字节）
+- 本次会话目标：执行 NA-016（3D 画面加亮，7j）、NA-017（仓库族，7k）、NA-018（百宝囊，7l）、NA-019（iCloud 存档同步，7m）、NA-020（大秘境 / 佣兵族，7n）与 NA-021（连战 + 积分牌，7o）。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：裁剪批 7o（连战 + 积分牌，见 NA-021）、7p（免费回城）与派生表批、批 6；23 个 `dm_*.c` 的其余部分 —— 秘境 UI / 仓库与百宝囊 / 首领连战 / 刷怪积分牌几族彼此纠缠且牵连 `dm/i18n/ui_text.tsv` 文案与 `touch_layout.py` 面板，宜整族一次做完；16 个牵连 `dm/ios/Sources/*` 的 iOS 应用源码（本机构建验证不了，宜合批或等 TotK 侧重建 iOS 前端）；D2R 的 CUTS/OBS 表与 `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；`dm_custom.c` 的 `k_keys` 位置数组里已死键与 iOS 自定义页（TotK 侧整页重建时一起消失）；TotK 的过场策略（摘掉 D2R 的空播实现后 TotK 会走游戏自己的 movie 路径，宿主侧 movie 支持待定）；TotK 文件准备；M0 实测；着色器事实表来源。
-- 最近一次成功命令：`dm\android\tools\build.py --game-run --version trim-b19` exit 0（APK 18,151,887 字节）；`dm\android\tools\ci_checks.py` exit 0（10 项通过 / 0 项失败）；`tools\agent_handoff_check.py --verify` exit 0。
+- 未完成：裁剪批 7p（免费回城，见 NA-022）与派生表批、批 6；23 个 `dm_*.c` 的其余部分 —— 秘境 UI / 仓库与百宝囊 / 首领连战 / 刷怪积分牌几族彼此纠缠且牵连 `dm/i18n/ui_text.tsv` 文案与 `touch_layout.py` 面板，宜整族一次做完；16 个牵连 `dm/ios/Sources/*` 的 iOS 应用源码（本机构建验证不了，宜合批或等 TotK 侧重建 iOS 前端）；D2R 的 CUTS/OBS 表与 `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；`dm_custom.c` 的 `k_keys` 位置数组里已死键与 iOS 自定义页（TotK 侧整页重建时一起消失）；TotK 的过场策略（摘掉 D2R 的空播实现后 TotK 会走游戏自己的 movie 路径，宿主侧 movie 支持待定）；TotK 文件准备；M0 实测；着色器事实表来源。
+- 最近一次成功命令：`dm\android\tools\build.py --game-run --version trim-b20` exit 0（APK 17,988,047 字节）；`dm\android\tools\ci_checks.py` exit 0（10 项通过 / 0 项失败）；`tools\agent_handoff_check.py --verify` exit 0。
 - 最近一次失败命令及原因：NA-017 第一次完整构建挂在 `dm/host/dm_cursor.c:1425` 的 `!vb`（那个「编年史页挡住指针事件」的变量随编年史块一起摘了，却还有第二处用它）——改成恒真后重新构建通过，已写进日志；`dm\android\tools\ci_checks.py` 若不设 `PYTHONIOENCODING=utf-8`，「APK 版本折算（test_version）」一项会因本机 PowerShell 控制台默认 GBK 打印 `✓` 抛 `UnicodeEncodeError`（不是代码问题，设 `PYTHONIOENCODING=utf-8` 后即通过）；`dm\verify\test_accept.py` 与 `dm/host/tests/Makefile` 的 macOS 测试面在本机跑不了（NOT RUN，同上一轮的 WSL `bash` 限制），已在对应动作的判据里写明。`dm\verify\test_accept.py` 与 `dm/host/tests/Makefile` 的 macOS 测试面在本机跑不了（NOT RUN，同上一轮的 WSL `bash` 限制），已在对应动作的判据里写明。
-- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（18,151,887 字节，2026-10-20 00:56:58，`trim-b19`）
+- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（17,988,047 字节，2026-10-20 01:10:40，`trim-b20`）
 - 当前阻塞：缺少用户合法导出的 TotK 文件、`prod.keys`、`hactool`；`adb devices` 无设备。
 - 需要用户提供的材料：自己的 TotK 本体 + 更新、`prod.keys`、可用 `hactool`、一加 12（开启 USB 调试）。
-- 回滚点：`1c11605233aa59eed7d5417594034d3582a17a60` / `totk/scaffold`。
+- 回滚点：`7db35be2ddd7381d29ef7fc6a356b967620b2fa5` / `totk/scaffold`。
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据。
 
 ### 已完成清单
@@ -189,6 +189,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-018 裁剪批 7l（`b7ee3e8`）：整族删掉「百宝囊」——`dm/host/dm_pouch.c`（符文 / 宝石自动拾取进囊、囊里清单、背包「存放」按钮、囊的侧文件）、`dm/ios/tools/pouch_layout.py`（物品栏底部那块百宝囊框与「存放」按钮的布局）、`dm/ios/tools/gen_pouch_art.py`（框贴图生成）。连带清掉 `dm_world.c` / `diag.c` / `dm_cursor.c` 的调用、`hle_fs.c` 的提交前钩子再收一格（`[2]` → `[1]`，秘境进度 `[0]`）、`dm.h` 的 `dm_blob`、自定义开关 `gem_pick` / `store_btn`（`dm_custom.c` 的 `k_keys` / `k_def` / 读盘日志与 `touch_layout.py` 的 `_CUSTOM_KEYS` **两侧行序逐项核对一致**）、中英表 11 行（重出 `dm_i18n_tab.h`，368 → 357 条）、`gen_romfs_overlay.py` / `gen_assets.py` / `run.sh` / `check_hud_gen.sh` / `scan_literals.py` 的管线登记、四个 README。**UI 回归台**：删掉测自动存入的 sa 局，改掉 s 局那几步的判据，并**补上 NA-017 漏掉的一处**——测个人仓库多页与编年史仓库的 `pg1` / `pg2` / `vt1` / `vf1` / `vf2` 五局还在断言已经不会出现的日志，一并删掉，`affected.tsv` 里指向这六局的 13 行局名清掉，`uireg_pick.py` 的核心局清单去掉 `pg2` / `vt1`。**行为变化**：珍宝匣那一页还在，但「仓库页里新落下的符文 / 宝石自动转进高级仓库」与「符文拖进共享页时收包处改道」这两条写在 `dm_pouch.c` 里，随本批没了。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b17` exit 0，APK 18,594,255 字节（比 trim-b16 小 114,688 字节）；宽口径复核（`-e dm_pouch -e dmPouch -e TouchPouch -e TouchStore -e pouch -e gem_pick -e store_btn`）在 `dm/host` / `dm/ios` / `dm/i18n` / `dm/android` 的代码里 0 命中。
 - NA-019 裁剪批 7m（`b8bedff`）：整族删掉「iCloud 存档同步」——`dm/host/dm_cloudsync.c`（同步核心）、`dm/ios/Sources/cloud_ios.m`（iOS 侧 ubiquity 容器与 `dm_cloud_boot` / `flush` / `foreground`）、`dm/ios/tools/cloud_guard.sh`（本机测试的云端总闸）、`dm/host/tests/t_cloudsync.c`（同步核心单测）。宿主侧连带清掉三处「只有 iCloud 那一侧设它」的钩子（`hle_fs.c` 的 `g_dm_save_commit_hook`、`dm_uiscreen.c` 的 `g_dm_ingame_hook` 与 `g_dm_charsel_hook`、`diag.c` 的冲突提示调用）、自定义开关 `icloud`（两侧行序逐项核对一致，11 项对 11 项）、中英表两行（重出 `dm_i18n_tab.h`，357 → 355 条）、`project.yml` 的三行 iCloud 权限（**App 组那一行留着** —— 它服务的是苹果托管资源包）、`project_free.py` 的免费账号权限清单（六行 → 三行，正则与计数一起改）、`main.m` / `front_ios.m` 的调用、三个本机 shell 脚本里的总闸（`smoke_mac.sh` / `touch_e2e_mac.sh` / `uireg/run_mac.sh`）、以及 UI 回归台的 `rf3` 局。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b18` exit 0，APK 18,545,103 字节（比 trim-b17 小 49,152 字节）；宽口径复核（`-e dm_cloud -e cloud_ios -e cloud_guard -e icloud -e iCloud -e dmCloud`）在 `dm/` 的代码与文案里 0 命中。**iOS 侧本机编不了**：工程描述、权限、两个 `.m` 与三个 shell 脚本都未经 Xcode 构建 / `bash -n` 验证，已在日志里写明。
 - NA-020 裁剪批 7n（`1c11605`）：整族删掉「大秘境 / 佣兵」——`dm/host/dm_rift.c`（1139 行）、`dm_rift.h`、`dm_rift_ui.c`、`dm/ios/Sources/dm_rift_hud.m`、`dm/host/dm_doorspot.h` 与 `tests/t_doorspot.c`、`tests/t_rift_clock.c`、`dm/ios/tools/merc_slots.py`、`dm/ios/tools/gen_merc_art.py`。**四道分支门（0x89 / 0x8c / 0x8d / 0x8e）与三道观测门（15 / 16 / 17）两侧同收**：`hle.h` 的登记与枚举、`hle_hostcall.c` 的分派、`dm.h` 的枚举、`diag.c` 的 `event_msg_obs`、以及 `dm/tools/patch_nso.py` 里那 110 行门块与三行 `obs.append`。顺手修了 NA-013 留下的一个越界：`OBS_MAX` 当时被压成 18，而 18 号门（`OBS_NOTICE_INPUT`）一直在用 —— 宿主 `gate_register` 判 `id >= OBS_MAX` 就 die，带 18 号门的产物一装载就报「观测门编号越界 18」；本批把 `OBS_MAX` 修回 19。「打通秘境解锁技能硬点上限（20 → 40）」整套机制随秘境一起去掉（解锁条件就是 `dm_rift_cleared_any()`），积分牌的「秘境」页（act = 5）也去掉（页签与页数由六项变五项）。`dm_game_notice` 不用搬 —— 原以为 `dm_actions.c` 那个用户要跟着搬，实际那个用户属于技能硬点上限、随机制一起去掉了，剩下的只有首领连战与刷怪积分牌两个用户。中英表删 105 行（重出 `dm_i18n_tab.h`，355 → 250 条），`dm_i18n.py` 的秘境英文长度闸一并摘掉；iOS 侧摘掉编年史页签那一族的秘境内容、积分牌的秘境页与第六个页签、大秘境面板、秘境 HUD 那一画、「佣兵面板底图」那一步；白名单 7 行、`affected.tsv` 3 行、四个 README、单测与 `mode_scan.py` 的登记表同步。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b19` exit 0，APK 18,151,887 字节（比 trim-b18 小 393,216 字节）；宽口径复核（`-e dm_rift -e dmRift -e dmMerc -e gen_merc -e TouchRF -e dmKbRift -e dmSkillCap`）在 `dm/` 下 0 命中。**iOS 侧本机编不了**：布局与资源管线的改动未经 Xcode 构建验证，已在日志写明。
+- NA-021 裁剪批 7o（`7db35be`）：整族删掉「首领连战 + 刷怪积分牌」——`dm/host/dm_bossrush.c`（440 行）、`dm_bossrush.h`、`dm/host/dm_kills.c`（325 行）。连带清掉 `diag.c` 的每拍 / 收包 / UI 消息与那行 include、`dm_actions.c` 的积分牌面板泵、**只给这一族用的两样旁路机制**（`hle_time.c` 的强制恐怖地带 `g_dm_tz_time` / `tz_site()`、`hle_hid.c` 的「显示物品」键按下次数 `g_dm_l_presses`）、**只服务这两族的两个函数**（`dm_game_notice` 原版系统提示、`dm_door_label` 门名牌 —— 摘完后没有别的用户，连声明一起没了）、iOS 侧积分牌那一族（`KB_*` / `_kb_*`，注意 `_kb_keys()` 是**从 `dm_kills.c` 正则读名单**的，源文件删了它会直接报错）与编年史页签条的第四项「首领」（**页签条因此回到原版三个**：`tabCount` 3、宽 266、`@Unique` / `@Sets` / `@Runewords`）、中英表 30 行（重出 `dm_i18n_tab.h`，250 → 220 条）、回归台的两局（`kba` / `kbb`）、白名单与 `affected.tsv` 各两行、`native_write_scan.py` 的可见位守卫名单、`mode_scan.py` 的登记表、Makefile 的 `SRC` 两项、两个 README。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b20` exit 0，APK 17,988,047 字节（比 trim-b19 小 163,840 字节）；宽口径复核（`-e dm_bossrush -e dm_kills -e dmBr -e dmKb -e TouchKB -e dm_door_label -e dm_game_notice`）在 `dm/` 下 0 命中。这一批的 `[BEGIN]` 是事后补记的（日志里写明了）。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
@@ -198,22 +199,22 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-021
+- ID：NA-022
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：`totk/scaffold` 的 HEAD 与 `origin/totk/scaffold` 同为 `1c11605233aa59eed7d5417594034d3582a17a60`；代码工作区干净；`HANDOFF_LOG` 无未闭合 `[BEGIN]`。
-- 动作：裁剪批 7o —— 摘掉「首领连战 + 刷怪积分牌」一族：`dm/host/dm_bossrush.c`（440 行，连战那套门与十二关的推进）、`dm/host/dm_bossrush.h`、`dm/host/dm_kills.c`（325 行，积分牌：五幕的首领名单、难度勾选、排序、侧文件 `.sw_kills`）。两族都只服务 D2R 移植期的玩法，TotK 有自己的内容。
-- 命令或编辑目标：先 `git grep -n -i -e dm_bossrush -e dm_kills -e dmBr -e dmKb -e "TouchKB" -e "dm_game_notice" -e "dm_door_label" -- dm/` 全量复核（**文件名与符号名两种形态都要查**；`dm/host/dm_bossrush.c` 与 `dm_kills.c` 各 300–400 行，`dm/ios/tools/touch_layout.py` 里 `_kb_*` 那一族、编年史页签条那一族）；再 `git rm dm/host/dm_bossrush.c dm/host/dm_bossrush.h dm/host/dm_kills.c`；同一提交内清掉：
-  - 宿主调用点：`diag.c` 的每拍 `dm_bossrush_tick` / `dm_kills_tick`、收包 `dm_bossrush_c2s`、UI 消息 `dm_kills_on_uimsg` 与 `#include "dm_bossrush.h"`；`dm_actions.c` 的 `dm_kills_ui_pump`；`dm_padmode.c` 里提到 `dm_bossrush.c` 的两处注释（串表节点的读法）；`hle_hid.c` 的「显示物品」键按下次数（`g_dm_l_presses`，只给连战的首领掉落读数用）；`hle_time.c` 的强制恐怖地带（`g_dm_tz_time`，由连战每拍续 1 秒）与其说明；
-  - 只服务这两族的东西：`dm_game_notice`（原版系统提示）与 `dm_door_label`（我们自己建的门的名牌）现在只剩这两个用户 → 一起摘掉，`dm_bossrush.h` 里那两条声明随之没了；
-  - iOS 布局：`dm/ios/tools/touch_layout.py` 的积分牌那一族（`_kb_board` / `_kb_page` / `_kb_row` / `_kb_keys` / `_kb_text` / `_kb_check` / `KB_ICON` / `KB_ROW_H`，注意 `_kb_keys()` 是**从 `dm/host/dm_kills.c` 里正则读名单**的，源文件删了它就报错）、编年史页签条的第四项「首领」（页签条回到三个：`tabCount` 4 → 3、页签宽 320 → 266、帧数组与文字串回到原版三个、那个 `ToggleChildPanel:TouchKillBoard` 消息）；
-  - 中英表：删 29 行 `dmBr*` / `dmKb*`（含 `dmKbAct1–5` 幕名、排序三项、连战各关名与提示）；删前逐个查过使用者；删后**必须重出** `dm/host/dm_i18n_tab.h` 并让 `dm_i18n.py --check` 通过；`dm_i18n.py` 里若还有它们的英文长度闸一并摘掉；
-  - 闸门与文档：`dm/i18n/literal_whitelist.tsv` 的相关行、`dm/ios/tools/uireg/affected.tsv` 的相关行、UI 回归台里测积分牌的两局（`kba` / `kbb`，随这一族一起删）、`dm/host/tests/native_write_scan.py` 的可见位守卫名单（`kb_show` 那一项）、`mode_scan.py` 的登记表、`dm/host/Makefile` 的 `SRC` 两项、四个 README 的表行与说明；
-  然后按「标准验证命令」跑 `dm\android\tools\ci_checks.py`（带 `DM_ANDROID_TOOLS=D:\Switch\.tools\android` 与 `PYTHONIOENCODING=utf-8`）、`dm\android\tools\build.py --game-run --version trim-b20`、`tools\agent_handoff_check.py --verify`；最后 `git add -A dm`、`git commit -m "totk: drop D2R boss rush and kill board"`、`git push`。
-- 成功判据：`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b20` exit 0 且产出 APK；宽口径复核 `git grep -n -i -e dm_bossrush -e dm_kills -e dmBr -e dmKb -e "TouchKB" -- dm/` 在 `dm/host` / `dm/ios` / `dm/i18n` / `dm/android` 的代码与文案里 0 命中（`docs/` 的历史叙述与本交接文档除外）；`touch_layout.py` 里不再有从 `dm/host/dm_kills.c` 读名单的那段（源文件删了，它会直接报错）；`dm_i18n.py --check` exit 0 且 `dm/host/dm_i18n_tab.h` 与 `dm/i18n/ui_text.tsv` 一致；编年史页签条回到三个（原版形态：三个页签、宽 266）；提交只含本批文件（不含 `dm/data/**`、`casc_overlay.py`、派生表生成器与交接控制面文件）；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold` 相同。**本机 NOT RUN 的部分**：`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）跑不了，涉及 `dm_cursor` / `dm_actions` / `diag` 的宿主单测未经本机执行验证；`touch_layout.py` 的编年史页签条改动未经 iOS 构建验证；`ci_checks.py` 不覆盖 `dm/host/tests/`。
-- 失败判据：任一验证命令非零退出，或 `ci_checks.py` 出现失败项；APK 未产出；`dm_i18n.py --check` 失败；编年史页签条与布局对不上（`touch_layout.py` 里有断言，页签数 / 宽 / 文字串必须成组改）；提交混入 `dm/data/**`、`casc_overlay.py`、派生表生成器或交接控制面文件。
-- 回滚点：`1c11605233aa59eed7d5417594034d3582a17a60` / `totk/scaffold`（单次提交，必要时 `git revert`）。
-- 需要写入的证据：`git grep` 原始输出；`ci_checks.py` 计分行与退出码；`build.py --game-run` 退出码与 APK 路径、大小；`dm_i18n.py --check` 退出码；`git status --short`；commit hash；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold`；iOS 侧改了哪些文件的逐条说明（本机编不了）。
+- 前置条件：`totk/scaffold` 的 HEAD 与 `origin/totk/scaffold` 同为 `7db35be2ddd7381d29ef7fc6a356b967620b2fa5`；代码工作区干净；`HANDOFF_LOG` 无未闭合 `[BEGIN]`。
+- 动作：裁剪批 7p —— 摘掉「免费回城」一族：`dm/host/dm_freetp.c`（99 行：进局时挂上的「回城」技能、ZR 空键免费施放、前端点回城钮的请求）与它在 iOS 触控层的那一整套：触屏回城钮（技能弧上方那个圆钮）、手柄 ZR 那一格空着时的免费回城、以及触控层为它单独维护的那几个状态（`portal_pending` / `portal_binding_identity` / `portal_scene_epoch` / `portal_phase` / `dm_tc_cancel_portal`）。**注意这一批牵连 iOS 触控层**（`dm/ios/Sources/dm_touch_controls.c` / `.h` / `DmTouchOverlay.m` / `dm_gamepad.m` 与 `touch_layout.py` 里那个钮的摆放），本机编不了 iOS 侧，动手前先把范围看全。
+- 命令或编辑目标：先 `git grep -n -i -e dm_freetp -e dm_tp_request -e DM_TC_PORTAL -e portal_pending -e portal_phase -e portal_binding -e portal_scene -- dm/` 全量复核（**文件名与符号名两种形态都要查**；宿主侧只有 `diag.c` / `dm_actions.c` / `dm_gamepad.m` 三个调用点，但触控层里 `DM_TC_PORTAL` 出现十几次，`dm_touch_controls.c` 里有六处专门为它写的分支）；再 `git rm dm/host/dm_freetp.c`；同一提交内清掉：
+  - 宿主：`diag.c` 的每拍 `dm_freetp_server_step`、`dm_actions.c` 的 `dm_freetp_client_step`、`dm/host/Makefile` 的 `SRC` 一项、`dm/host/README*.md` 的表行与说明；
+  - iOS 触控层：`dm/ios/Sources/dm_touch_controls.h` 的 `DM_TC_PORTAL` 枚举项与 `dm_touch_controls.c` 里与它有关的那几处（摆放位置、按键映射、`portal_*` 那几个状态与 `dm_tc_cancel_portal`）、`DmTouchOverlay.m` 里那个钮（绘制、标签「回城」、图标、`visual_owner` 的 `overlay_portal_skill`）、`dm/ios/Sources/dm_gamepad.m` 里 ZR 空键免费回城那一支（`dm_freetp_zr_free` / `dm_tp_request`）、`dm/ios/tools/touch_layout.py` 里那个钮的布局；
+  - **枚举项摘掉后要核对后面的取值**：触控目标的编号是连着排的（`DM_TC_PORTAL` 在 `DM_TC_SKILL4` 与 `DM_TC_MENU` 之间），摘掉它后面几项的编号会变 —— 布局、按键映射、命中判定三处必须一起改，不能只删一行；
+  - 中英表：若还有只服务这一族的键（`dm/ios/Sources/DmTouchOverlay.m` 的标签数组里那个「回城」是写死的，不是中英表的键，要确认）一并删；删后重出 `dm/host/dm_i18n_tab.h` 并让 `dm_i18n.py --check` 通过；
+  - 闸门与文档：`dm/i18n/literal_whitelist.tsv`、`dm/ios/tools/uireg/affected.tsv` 的相关行、UI 回归台里测回城的那几局、`dm/ios/README*.md` 与 `dm/README*.md` 的说明；
+  然后按「标准验证命令」跑 `dm\android\tools\ci_checks.py`（带 `DM_ANDROID_TOOLS=D:\Switch\.tools\android` 与 `PYTHONIOENCODING=utf-8`）、`dm\android\tools\build.py --game-run --version trim-b21`、`tools\agent_handoff_check.py --verify`；最后 `git add -A dm`、`git commit -m "totk: drop D2R free town portal"`、`git push`。
+- 成功判据：`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b21` exit 0 且产出 APK；宽口径复核 `git grep -n -i -e dm_freetp -e dm_tp_request -e DM_TC_PORTAL -e portal_pending -e portal_phase -- dm/` 在 `dm/host` / `dm/ios` / `dm/i18n` / `dm/android` 的代码与文案里 0 命中（`docs/` 的历史叙述与本交接文档除外）；触控目标的编号在 `dm_touch_controls.h` 的枚举、布局里的摆放、按键映射三处一致（**这是本批最容易出错的地方，摘枚举项后必须逐个核**）；`dm_i18n.py --check` exit 0；提交只含本批文件（不含 `dm/data/**`、`casc_overlay.py`、派生表生成器与交接控制面文件）；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold` 相同。**本机 NOT RUN 的部分**：`dm/ios` 侧的编译与打包（触控层与布局的改动未经 Xcode 构建验证，这是本批最大的风险面）；`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）跑不了；`ci_checks.py` 不覆盖 `dm/host/tests/`。
+- 失败判据：任一验证命令非零退出，或 `ci_checks.py` 出现失败项；APK 未产出；触控目标编号错位（按错钮 / 命中判定串位）；`dm_i18n.py --check` 失败；提交混入 `dm/data/**`、`casc_overlay.py`、派生表生成器或交接控制面文件。
+- 回滚点：`7db35be2ddd7381d29ef7fc6a356b967620b2fa5` / `totk/scaffold`（单次提交，必要时 `git revert`；这一批碰 iOS 触控层，机器上编不了，若改到一半拿不准就 `git reset --hard` 回到这个点重来）。
+- 需要写入的证据：`git grep` 原始输出；`ci_checks.py` 计分行与退出码；`build.py --game-run` 退出码与 APK 路径、大小；`dm_i18n.py --check` 退出码；触控目标编号三处一致的逐条核对；`git status --short`；commit hash；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold`；iOS 侧改了哪些文件的逐条说明（本机编不了）。
 
 ## 长操作两阶段日志
 
@@ -301,6 +302,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - `b7ee3e8`：裁剪批 7l —— 删除 D2R 的百宝囊。
 - `b8bedff`：裁剪批 7m —— 删除 D2R 的 iCloud 存档同步。
 - `1c11605`：裁剪批 7n —— 删除 D2R 的大秘境与佣兵。
+- `7db35be`：裁剪批 7o —— 删除 D2R 的首领连战与刷怪积分牌。
 
 ## 本机环境
 
@@ -328,7 +330,7 @@ $env:PYTHONUTF8 = '1'
 
 1. ~~提交交接控制面~~ —— 完成（`c405782`、`8965544`）。
 2. ~~提交两处 TotK 适配代码~~ —— 完成（`1d915ab`）。
-3. 小步裁剪 D2R 专属资产，每批后跑 `ci_checks` 与完整 `build.py --game-run`：批 1 = 宿主侧 TACT/CASC —— 完成（`b54f782`）；批 2 = bootlist 清单工具与验证面 —— 完成（`1a2f535`）；批 3 = Granny 段解码 —— 完成（`62139f0`）；批 4 = vendored `dm/third_party/libdeflate` 与文档行 —— 完成（`bf7b33f`）；批 5 = 过场 movie 空播 —— 完成（`abb0040`）；批 6 = D2R 的 CUTS/OBS 表 + `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；批 7 = 36 个 `dm_*.c` 与派生表 / i18n 表 —— 分小批推进，7a = 转向回跳平滑 + 商人「刷新货架」—— 完成（`4392313`）；7b = 掉落过滤 + 增益自动补 —— 完成（`6b261f7`）；7c = 开背包自动补腰带 —— 完成（`b4d3557`）；7d = 药水自动拾取 —— 完成（`89a38ec`）；7e = 进局落在城镇小站旁 —— 完成（`ead836a`）；7f = 高价值掉落光柱 / 落地音 / 掉落震动一族 —— 完成（`c9aadb8`）；7g = 普通文字框的注释颜色码一族 —— 完成（`a4522ed`）；7h = 极乐世界模式 —— 完成（`a66b703`）；7i = 起名页随机取名 —— 完成（`c0e4fc9`）；7j = 3D 画面加亮 —— 完成（`7520d35`）；7k = 仓库族（编年史仓库 + 个人仓库 2–5 页）—— 完成（`8a23b42`）；7l = 百宝囊 —— 完成（`b7ee3e8`）；7m = iCloud 存档同步 —— 完成（`b8bedff`）；7n = 大秘境 / 佣兵族 —— 完成（`1c11605`）；7o = 连战 + 积分牌（NA-021）；批 7 的后续按同一模式：每个模块连同它的观测门、调用点、文档与白名单一起摘。
+3. 小步裁剪 D2R 专属资产，每批后跑 `ci_checks` 与完整 `build.py --game-run`：批 1 = 宿主侧 TACT/CASC —— 完成（`b54f782`）；批 2 = bootlist 清单工具与验证面 —— 完成（`1a2f535`）；批 3 = Granny 段解码 —— 完成（`62139f0`）；批 4 = vendored `dm/third_party/libdeflate` 与文档行 —— 完成（`bf7b33f`）；批 5 = 过场 movie 空播 —— 完成（`abb0040`）；批 6 = D2R 的 CUTS/OBS 表 + `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；批 7 = 36 个 `dm_*.c` 与派生表 / i18n 表 —— 分小批推进，7a = 转向回跳平滑 + 商人「刷新货架」—— 完成（`4392313`）；7b = 掉落过滤 + 增益自动补 —— 完成（`6b261f7`）；7c = 开背包自动补腰带 —— 完成（`b4d3557`）；7d = 药水自动拾取 —— 完成（`89a38ec`）；7e = 进局落在城镇小站旁 —— 完成（`ead836a`）；7f = 高价值掉落光柱 / 落地音 / 掉落震动一族 —— 完成（`c9aadb8`）；7g = 普通文字框的注释颜色码一族 —— 完成（`a4522ed`）；7h = 极乐世界模式 —— 完成（`a66b703`）；7i = 起名页随机取名 —— 完成（`c0e4fc9`）；7j = 3D 画面加亮 —— 完成（`7520d35`）；7k = 仓库族（编年史仓库 + 个人仓库 2–5 页）—— 完成（`8a23b42`）；7l = 百宝囊 —— 完成（`b7ee3e8`）；7m = iCloud 存档同步 —— 完成（`b8bedff`）；7n = 大秘境 / 佣兵族 —— 完成（`1c11605`）；7o = 连战 + 积分牌 —— 完成（`7db35be`）；7p = 免费回城（NA-022）；批 7 的后续按同一模式：每个模块连同它的观测门、调用点、文档与白名单一起摘。
 4. 准备 TotK 本体、更新、`prod.keys`、`hactool`，完成 M0 实测表。
 5. 解决着色器事实表来源，给出 M2 前 go/no-go 结论。
 6. 按 M1–M6 验收门推进。
