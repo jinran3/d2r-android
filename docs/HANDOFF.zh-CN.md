@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-20T04:05:00+08:00
+updated_at: 2026-10-20T06:40:00+08:00
 phase: M0
-state: BLOCKED_USER
+state: ACTIVE
 branch: totk/scaffold
-observed_head: 1b9b1e4676e2eee83d70cd50f5d9cfa98271f326
+observed_head: becd40b48789efb413cb8e694ad8c62d8590bb6f
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 1b9b1e4676e2eee83d70cd50f5d9cfa98271f326
+origin_head_at_checkpoint: becd40b48789efb413cb8e694ad8c62d8590bb6f
 code_worktree: CLEAN
-next_action_id: NA-026
+next_action_id: NA-028
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,24 +140,24 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-20 04:05（Asia/Shanghai）
-- 当前阶段：M0 准备 / 脚手架
+- 快照时间：2026-10-20 06:40（Asia/Shanghai）
+- 当前阶段：M0 准备 / 脚手架（TotK 文件已备好，勘察表已填）
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：`1b9b1e4676e2eee83d70cd50f5d9cfa98271f326`（NA-025 业务提交，已推送）
-- origin 对应分支：`origin/totk/scaffold`，检查点为 `1b9b1e4676e2eee83d70cd50f5d9cfa98271f326`（与观测 HEAD 相同）
+- 观测 HEAD：`becd40b48789efb413cb8e694ad8c62d8590bb6f`（NA-027 业务提交：Switch NCA / NSO 勘察工具）
+- origin 对应分支：`origin/totk/scaffold`，检查点为 `becd40b48789efb413cb8e694ad8c62d8590bb6f`
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
-- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b24`，17,725,903 字节）
-- 本次会话目标：执行 NA-025（裁剪批 7s，摘掉 iOS 自定义页）。
+- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b25`，17,725,903 字节）
+- 本次会话目标：NA-027（TotK 文件准备 + M0 勘察：解包 → 读构建号 → 填计划 §3 表）。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：批 6（D2R 的 CUTS/OBS 表 + `casc_overlay.py` + iOS 资产管线，阻塞在用户材料）；TotK 文件准备；M0 实测；着色器事实表来源。
-- 最近一次成功命令：`dm\android\tools\build.py --game-run --version trim-b24` exit 0（APK 17,725,903 字节）；`dm\android\tools\ci_checks.py` 收尾复跑 10 项通过 / 0 项失败；`tools\agent_handoff_check.py --verify` exit 0。
-- 最近一次失败命令及原因：NA-025 写入交接控制面前，`ci_checks.py` 曾报 1/1（仅「Agent 交接控制面」因 HANDOFF / 日志尚未更新）；更新控制面后已恢复 10 / 0。iOS 侧 Xcode / macOS 构建与 `dm/host/tests/Makefile` 的 `run:` 目标本机 NOT RUN。
-- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（17,725,903 字节，2026-10-20，`trim-b24`）
-- 当前阻塞：缺少用户合法导出的 TotK 文件、`prod.keys`、`hactool`；`adb devices` 无设备。
-- 需要用户提供的材料：自己的 TotK 本体 + 更新、`prod.keys`、可用 `hactool`、一加 12（开启 USB 调试）。
-- 回滚点：`1b9b1e4676e2eee83d70cd50f5d9cfa98271f326` / `totk/scaffold`。
+- 未完成：批 6（D2R 的 CUTS/OBS 表 + `casc_overlay.py` + iOS 资产管线；与 §4.3 的规则域接 TotK 一起做）；更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这一层）；着色器事实表来源（§4.4 go/no-go）；M0 真机实测（一加 12 仍未接）。
+- 最近一次成功命令：`dm\android\tools\build.py --game-run --version trim-b25` exit 0（APK 17,725,903 字节）；`dm\android\tools\ci_checks.py` 10 项通过 / 0 项失败；`tools\agent_handoff_check.py --verify` exit 0。
+- 最近一次失败命令及原因：hactool 1.4.0 解不开 TotK 更新包的 NCA3 BKTR 补丁段（`Invalid BKTR layout!`，它的 bktr 头布局早于 NCA3）——改用本仓库新写的 `dm/tools/switch_nca.py`（纯 Python，按 hactool 的算法重写）取 ExeFS，已与 hactool 在本体上逐字节比对一致。
+- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（17,725,903 字节，2026-10-20，`trim-b25`）；游戏文件工作区 `D:\Switch\totk-work`（仓库外）
+- 当前阻塞：一加 12 真机仍未接（`adb devices` 无设备）；着色器包（`*.bfsha.zs` / `*.sarc.zs`）是 zstd + 任天堂字典的编译包，本机没有那个字典，解不开。
+- 需要用户提供的材料：一加 12（开启 USB 调试）——游戏文件与 `prod.keys` 已由用户于 2026-10-20 提供。
+- 回滚点：`becd40b48789efb413cb8e694ad8c62d8590bb6f` / `totk/scaffold`。
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据。
 
 ### 已完成清单
@@ -194,6 +194,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-023 裁剪批 7q（`cc279c2`）：**派生表批** —— 三张「从游戏文件生成、内容不编进程序」的表里，编年史仓库表与关卡亮度表的宿主消费方已分别随 7k / 7j 摘掉 → 只剩经验表（`dm/host/dm_hud_exp.h`，底栏经验条用，`diag.c` 还在 `#include`）。本批把那两张表的替身（`dm_vault_tab.h` / `dm_bright_levels.inc`）、生成器（`gen_vault_table.py` / `gen_bright_levels.py`）、`shell_stubs.py` 里的替身清单与解析、`derived.tsv` 里 `VTPART`/`VTROW`/`VTSET`/`BRT` 四类行、以及 `make_package.py` / `build_package.py` / `Makefile` / `run.sh` / `gen_assets.py` / `d2rm_pack.py` / `check_hud_gen.sh` 的登记一起摘掉，派生表管线收缩成「经验表 + 技能图标索引」两张。顺手修了两处：`check_hud_gen.sh` 的「不许提交」清单里还留着**故意提交**的经验表替身（留着就每次都报红）；`shell_stubs.py` 判「这是不是替身」看的是 `k_exp[100]` 字符串在不在（替身里恰好有 `static uint32_t k_exp[100];` → 判不出来、脚本崩在 AttributeError），改成看真正的初始化式 `k_exp[100] = {`。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b22` exit 0，APK 17,955,279 字节（与上一版同大小 —— 派生表是替身、内容不进包）；**本机不用游戏文件就验了管线**：造一份「真实表」样式的 `dm_hud_exp.h` 跑 `shell_stubs.py data` → exit 0、`derived.tsv：经验 100、技能索引 0`、写出 10 行 `EXP`；`shell_stubs.py stubs` 写出的经验表替身与仓库里那一份逐字相同。**分两次提交**（协议：控制面单独提）：`cc279c2` = 业务代码，`ci_checks.py` + HANDOFF + LOG 走第二个提交。
 - NA-024 裁剪批 7r（`c3fb671`）：整族删掉「符文之语助手」——`dm/host/dm_runeword.c`（91 KB：把原版符文之语做成可翻页 / 可看细节 / 可一键镶嵌的清单面板，宿主自绘）与其布局（`touch_layout.py` 的 `TouchRw*` 那一族控件、`_RW` / `_inv_rw` / `pad_inv_rw` / `_rw_children_check`）、iOS 侧（`front_ios.m` 触点脚本的「await rw」指令）、宿主各处的调用与登记（`dm_cursor.c` 的清单命中与长按分支、`dm_actions.c` 的每拍泵、`diag.c` 的 UI 消息、`hle_hid.c` 的手柄过滤、`dm_mode_items.h`）、中英表四行（**220 → 216 条**）、单测替身桩与 `mode_scan.py`、回归台四局（`rw1` / `rw2` / `rwp` / `rwd`）与 `affected.tsv` / `usage*.md` / `uireg_pick.py`、白名单五行。**`dm_swapskill`（技能组切换）没动** —— 那是覆盖层上的独立开关；**「k 局」保留** —— 它测的是原版自己的镶嵌。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b23` exit 0，APK 17,775,055 字节（比 trim-b22 小 180,224 字节）；宽口径复核（`-e dm_runeword -e TouchRw -e dmRw -e "await rw"`）在 `dm/` 下 0 命中；`touch_layout.py` 本机 `py_compile` 通过。
 - NA-025 裁剪批 7s（`1b9b1e4`）：删除 `dm/host/dm_custom.c` / `.h`，摘掉宿主调用、iOS 自定义页布局与 15 行 `dmCustom*` 文案，语言开关按方案 (b) 一并移除（`hle_fs.c` 的 `settings_lang_apply` 删除，`dm_sys_lang()` 生产恒为简中，`DM_LANG` 仅作测试模拟）；基础覆盖层改为常驻物品注释，Android `nvn_vulkan.c` 的帧率接口固定 60。证据：`build.py --game-run --version trim-b24` exit 0、APK 17,725,903 字节；`dm_i18n.py --check` exit 0（201 条）；`scan_literals.py` exit 0（295 条）；`mode_scan.py` exit 0；宽口径 grep 在 `dm/host` / `dm/ios` / `dm/i18n` 代码与文案 0 命中；业务提交 `1b9b1e4` 已推送，HEAD 与 origin 相同。
+- NA-027 TotK 文件准备 + M0 勘察（`becd40b`）：用户提供了 TotK v1.4.2 合并 XCI（17,677,626,368 字节，Title ID `0100F2C0115B6000`）与 `prod.keys`；本机原先没有 `hactool`，已从上游发布版取得 1.4.0 win-x64 到仓库外 `D:\Switch\.tools\hactool`。**hactool 1.4.0 解不开更新包的 NCA3 BKTR 补丁段**（`Invalid BKTR layout!`），因此新写了 `dm/tools/switch_nca.py`（纯 Python，按 hactool 的 NCA3 头 XTS / 段 CTR / PFS0 / RomFS 算法重写，只依赖 pycryptodome + numpy）与 `dm/tools/nso_stats.py`（NSO 段、MOD0 动态表、符号 / 重定位统计）。实测数据：更新包（v1.4.2）四个模块的构建号 = main `5cb42b1cf25469fb0635fd046453d843`、sdk `5cf080e800530a7f25bd528ec875c27b`、subsdk0 `3308c1d216f788397d1451c8345a16cd`、rtld `82a3cf78789f9d9858c52379d8d2d129`（本体 v1.0.0 的 main 是 `082ce09b06e33a123cb1e2770f5f9147`）；模块 = main 45,769,200 / sdk 6,693,520 / subsdk0 3,501,008 字节 text + rtld 9,536 字节；动态符号合计 33,858（导入 1,356）、重定位合计 36,747；NVN 取址函数 534 个（D2R 是 523），加载函数在 main 的 0xbbfa90，槽走间接指针表；RomFS = 304,207 个文件 / 15.87 GB。证据：`switch_nca.py info/exefs/romfs-list/romfs-extract` exit 0（本体 ExeFS 与 hactool 逐字节一致）、`nso_stats.py` exit 0、`build.py --game-run --version trim-b25` exit 0、APK 17,725,903 字节、`ci_checks.py` 10 / 0。**本批 NOT RUN**：更新包 RomFS 的 BKTR 补丁应用（还没实现）、着色器包解码（缺任天堂 zstd 字典）、真机（一加 12 未接）。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
@@ -203,16 +204,16 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-026
-- 状态：BLOCKED
+- ID：NA-028
+- 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：NA-025 已提交并推送，HEAD / origin 均为 `1b9b1e4676e2eee83d70cd50f5d9cfa98271f326`；代码工作区干净；等待用户提供 TotK 本体 + 更新、`prod.keys`、可用 `hactool` 与一加 12 真机。
-- 动作：材料齐全后执行批 6（D2R 的 CUTS/OBS 表 + `casc_overlay.py` + iOS 资产管线）；在材料到位前不写业务代码。
-- 命令或编辑目标：收到材料后，从 HANDOFF 的批 6 条目开始，先核对 `dm/tools/patch_nso.py`、`dm/tools/casc_overlay.py` 与 iOS 资产管线的现状，再按单批规则修改；当前只等待，不执行业务命令。
-- 成功判据：用户材料齐全；批 6 的命令、产物与宽口径 grep 均有退出码证据；`ci_checks.py` 10 / 0；对应构建 exit 0；HANDOFF / LOG 更新并 `--verify` 通过。
-- 失败判据：材料仍缺失、设备不可用，或任一验证命令非零；此时保持 `BLOCKED_USER`，不写业务代码。
-- 回滚点：`1b9b1e4676e2eee83d70cd50f5d9cfa98271f326` / `totk/scaffold`。
-- 需要写入的证据：材料清单与 `adb devices` 输出；批 6 每条命令的退出码与产物；提交号；`git status --short`；`agent_handoff_check.py --verify` 退出码。
+- 前置条件：HEAD / origin 均为 `becd40b48789efb413cb8e694ad8c62d8590bb6f`；代码工作区干净；TotK v1.4.2 的四个模块构建号已实测（main `5cb42b1cf25469fb0635fd046453d843` 等，见「已完成清单」）。
+- 动作：裁剪批 6 + §4.3 接 TotK —— ① `dm/tools/patch_nso.py` 的规则域 `DM_RULESET=totk-run-v1` 从「空表占位」改成按 TotK 真实构建号取表（main / sdk / subsdk0 / rtld 四个构建号各自成表，CUTS/OBS 对 TotK 留空，D2R 那套玩法补丁不带过去）；② 摘掉 D2R 专属的 CUTS/OBS 表、`dm/tools/casc_overlay.py` 与 iOS 资产管线里 TotK 用不上的部分（TotK 是标准 RomFS，不走 CASC）。
+- 命令或编辑目标：先 `git grep -n -e RULE_BUILD -e RULESET -e CUTS -e OBS -- dm/tools/patch_nso.py` 与 `git grep -n -e casc_overlay -e d2rm_pack -- dm/` 复核现状；再改 `patch_nso.py` 的规则域表与 `dm/tools/casc_overlay.py`（若整族可摘则 `git rm`），随后跑 `python dm/tools/patch_nso.py` 的规则域正负向测试、`ci_checks.py`、`build.py --game-run --version trim-b26`。
+- 成功判据：`DM_RULESET=totk-run-v1` 对 TotK 的 main 跑通（不再报「构建号不符」）、`DM_RULESET=touch-run-v4` 仍 exit 1；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b26` exit 0 且产出 APK；宽口径 grep 复核被摘的 D2R 专属符号在 `dm/` 下 0 命中；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold` 相同。
+- 失败判据：规则域正负向测试不符合预期、`ci_checks.py` 有失败项、构建非零退出，或摘除后宿主链接缺符号（未定义符号）——此时回滚本批。
+- 回滚点：`becd40b48789efb413cb8e694ad8c62d8590bb6f` / `totk/scaffold`。
+- 需要写入的证据：规则域正负向测试的退出码与输出、`ci_checks.py` 计分行、`build.py` 退出码与 APK 路径大小、宽口径 grep 输出、提交号、`git status --short`、HANDOFF / LOG 更新与 `--verify` 退出码。**本机 NOT RUN 的部分**：iOS 侧编译与打包（无 Xcode / macOS）、真机（一加 12 未接）。
 
 ## 长操作两阶段日志
 

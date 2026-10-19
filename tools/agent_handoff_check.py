@@ -28,6 +28,7 @@ CONTROL_PLANE = {
     "docs/HANDOFF.zh-CN.md",
     "docs/HANDOFF_LOG.zh-CN.md",
     "docs/TOTK_PORT_PROGRESS.zh-CN.md",
+    "docs/TOTK_PORT_SCAFFOLD.zh-CN.md",   # 计划文档与进度文档一样属交接控制面 | the plan document is part of the control plane just like the progress document
     "dm/android/tools/ci_checks.py",
     "tools/agent_handoff_check.py",
     "tools/test_agent_handoff_check.py",

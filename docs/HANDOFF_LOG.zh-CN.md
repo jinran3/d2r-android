@@ -1,7 +1,44 @@
 # Agent 交接会话日志
 
 > 只追加，不覆盖。最新记录放在最上方。
-> 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+> 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。## 2026-10-20 06:40 Asia/Shanghai — [TOTK] NA-027 TotK 文件准备 + M0 勘察完成
+
+- 会话目标：用户提供了 TotK v1.4.2 合并 XCI 与 `prod.keys`，按计划 §8 第 2 步把游戏文件解到仓库外工作区，读出 NSO 构建号与模块清单，填计划 §3 的表。
+- 结果：TotK 的四个模块构建号、模块大小、动态符号 / 重定位数、NVN 取址函数数、RomFS 规模全部实测到手（见下方证据）；§3 的表已填。
+- 工具：hactool 1.4.0 解不开更新包的 NCA3 BKTR 补丁段（`Invalid BKTR layout!`），因此新写 `dm/tools/switch_nca.py`（纯 Python 的 NCA3 读 / 解包）与 `dm/tools/nso_stats.py`（NSO 段与动态表统计）——两个工具都只依赖仓库已在用的 pycryptodome / numpy / lz4，且已提交（`becd40b`）。
+
+证据（本条目对应的命令与退出码）：
+
+- 材料核验：XCI 17,677,626,368 字节（`The Legend Of Zelda Tears Of The Kingdom v1.4.2 [0100F2C0115B6000] [v655360] (1G+1U).xci`）、`prod.keys` 13,560 字节、`title.keys` 1,224 字节；D 盘余量 183 GB（解包后仍余 130 GB）。`hactool` 本机原先没有，从上游发布版取得 1.4.0 win-x64 到仓库外 `D:\Switch\.tools\hactool`。
+- `hactool -t xci --securedir=...`：exit 0，拆出 6 个 NCA + 2 个 CNMT（本体程序内容 17,148,870,656 字节 = 完整 RomFS；更新程序内容 523,810,304 字节 = RomFS 为 BKTR 补丁）。
+- `switch_nca.py info`：exit 0 —— 本体 = Program / 标题 `0100f2c0115b6000` / master key 修订 0xE（段 0 ExeFS 46,153,728 字节、段 1 RomFS 17,102,602,240 字节、段 2 PFS0 96 KB）；更新 = Program / master key 修订 0xF（段 0 ExeFS 45,236,224 字节、段 1 RomFS 478,557,696 字节且 crypt=bktr）。
+- `switch_nca.py exefs`（本体）：exit 0，5 个文件 46,119,308 字节；与 hactool 解出的同名文件 **SHA-256 逐个一致**（main / sdk / subsdk0 / rtld）。
+- `switch_nca.py exefs`（更新包，hactool 解不出的那份）：exit 0 —— main 35,621,994 / sdk 6,201,403 / subsdk0 3,367,061 / rtld 10,109 字节。
+- 构建号（`dm/tools/nso.py` 读 NSO 头 0x40–0x50）：更新 v1.4.2 = main `5cb42b1cf25469fb0635fd046453d843`、sdk `5cf080e800530a7f25bd528ec875c27b`、subsdk0 `3308c1d216f788397d1451c8345a16cd`、rtld `82a3cf78789f9d9858c52379d8d2d129`；本体 v1.0.0 的 main = `082ce09b06e33a123cb1e2770f5f9147`。
+- `nso_stats.py`（更新包四个模块）：exit 0 —— text/ro/data = 45,769,200/10,154,076/4,967,776、6,693,520/5,025,004/349,416、3,501,008/1,876,516/199,560、9,536/2,604/4,104 字节；动态符号 706/23,039/10,110/3（未定义即导入 680/9/664/3）；重定位 2,070/19,027/15,648/2；**合计 33,858 符号 / 36,747 重定位 / 1,356 导入**（D2R 参考：38,837 / 116,034 / 264 强制接管）。
+- NVN 取址面（`dm/gfx/tools/nvn_slots.py` 的思路，按 TotK 重新定位）：加载函数在 main 的 **0xbbfa90–0xbc3510**，全部 534 个 `adrp+add` 指向 nvn 名字的引用都落在这一个函数里，**取址函数 534 个**（D2R 是 523），槽走间接指针表（`adrp x8,表页; ldr x8,[x8,#imm]; str x0,[x8]`），与 D2R 的直接 `str x0,[xn,#imm]` 形式不同；产出 TotK 的槽表留在仓库外 `D:\Switch\totk-work\nvn_slots_totk.tsv`（接口信息入库要先开 Issue，故不入库）。
+- `switch_nca.py romfs-list`：exit 0 —— **304,207 个文件 / 17,043,238,905 字节（15.87 GB）**；`romfs-extract --filter Shader/` exit 0，13 个着色器包 14.3 MB 取出（`material...bfsha.zs` 13.5 MB 最大）。
+- 着色器包结构：头是 zstd 魔数（`28 b5 2f fd`），但裸 zstd 解不开（`Dictionary mismatch`）——任天堂用了自带的 zstd 字典，本机没有该字典；故 §4.4 方案 D「从自带着色器缓存读反射」目前只能确认「包是编译后的 BFSHA/SARC，不是反射表」，能否反推维度 / 格式仍待解码。
+- 本体 RomFS 全量解包：后台 `switch_nca.py romfs-extract` 运行中（仓库外 `D:\Switch\totk-work\base\RomFS-py`，进度 80,000/304,207 文件、7.91 GB 时记录），工具速度约 145 文件/秒（hactool 同任务约 30 文件/秒，故改用本工具）。
+- `build.py --game-run --version trim-b25`：exit 0，APK 17,725,903 字节（与 trim-b24 同大小 —— 本批只加了两个工具，不进包）。
+- `ci_checks.py`：10 项通过 / 0 项失败；`agent_handoff_check.py --verify` exit 0。
+- **本批 NOT RUN**：更新包 RomFS 的 BKTR 补丁应用（未实现，最终数据集还差这层）、着色器包解码（缺任天堂 zstd 字典）、真机（一加 12 未接）、iOS 侧编译（无 Xcode / macOS）。
+- 下一步：NA-028 —— 裁剪批 6 + §4.3 接 TotK（`patch_nso.py` 的规则域按 TotK 真实构建号取表 + 摘 D2R 的 CUTS/OBS 表 / `casc_overlay.py` / iOS 资产管线）。
+
+## 2026-10-20 04:40 Asia/Shanghai — [TOTK] NA-027 TotK 文件准备（解包）进行中
+
+- 会话目标：用户已提供 TotK 本体+更新的合并 XCI 与 `prod.keys`；按计划 §8 第 2 步把游戏文件解到仓库外工作区，读出 NSO 构建号与模块清单，填计划 §3 的表。
+- 前置核验：XCI 存在（17,677,626,368 字节，Title ID `0100F2C0115B6000`、v655360、1G+1U）；`prod.keys`（13,560 字节）与 `title.keys`（1,224 字节）存在；D 盘余量 183.1 GB；`hactool` 本机原先没有，已从上游发布版取得 1.4.0 win-x64 到 `D:\Switch\.tools\hactool`（仓库外，不提交）；`adb devices` 仍无设备。
+
+[BEGIN] na-027-totk-extract
+
+- 命令：`hactool -k <prod.keys> --disablekeywarns --suppresskeys -t xci --securedir=<work>\nca <xci>` → 判定本体/更新 → `hactool -t nca --basenca=<本体> --exefsdir=<work>\ExeFS --romfsdir=<work>\RomFS <更新>` → `python dm/tools/nso.py` 读构建号。
+- 工作目录：`D:\Switch\d2r-android`（游戏文件落在 `D:\Switch\totk-work`，仓库外）
+- 预期结果：ExeFS 与 RomFS 完整取出；每个 NSO 的段布局与构建号有输出。
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`c453c584a19393c224b0399502969fcfdb05cd26`
+
+
 ## 2026-10-20 04:05 Asia/Shanghai — [TOTK] NA-025 裁剪批 7s 完成
 
 [BEGIN] na-025-custom-trim
@@ -28,6 +65,13 @@
 - `usage.md` / `usage.zh-CN.md` 无自定义页引用，保持不变；`uireg/affected.tsv` 删除 `dm/host/dm_custom*` 行；白名单删除 `host/dm_custom.c` 行。
 - 本批未改 `dm/ios/Sources/dm_touch_controls.c/.h`，因此没有触发触控层 `-Werror` 专项；iOS 布局改动本机未用 Xcode 验证。
 
+
+[END] na-027-totk-extract
+
+- 退出码：`switch_nca.py info/exefs/romfs-list/romfs-extract` exit 0；`nso_stats.py` exit 0；`build.py --game-run --version trim-b25` exit 0；`ci_checks.py` 10 项通过 / 0 项失败；`agent_handoff_check.py --verify` exit 0。
+- 产物：`dm/android/build/D2R-Android-port.apk` 17,725,903 字节（`trim-b25`）；游戏文件工作区 `D:\Switch\totk-work`（仓库外：ExeFS、本体 RomFS、Shader 包、NSO 平铺映像、NVN 槽表）
+- 结果：SUCCESS
+- 备注：hactool 1.4.0 解不开更新包的 NCA3 BKTR 补丁段，改用本仓库新写的 `dm/tools/switch_nca.py`；本体 ExeFS 与 hactool 逐字节一致。更新包的 BKTR 补丁应用、着色器包解码、真机实测本批 NOT RUN。
 
 ## 2026-10-20 03:45 Asia/Shanghai — [TOTK] 会话收尾（交给新会话）
 

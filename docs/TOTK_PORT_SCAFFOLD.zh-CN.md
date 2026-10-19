@@ -73,13 +73,16 @@ d2r-android 里**约六成是可以直接搬运的通用基础设施**（Android
 
 | 维度 | D2R（已知，来自 `docs/ANDROID_PORT_PROGRESS.zh-CN.md`） | TotK（待测） | 影响 |
 |---|---|---|---|
-| NSO 模块数 | 3（main 55.1MB、sdk 15.5MB、subsdk0 8.5MB） | **待测**（TotK 通常有更多 subsdk） | L3 装载器、包布局 `game/` 项数 |
-| 动态符号 / 重定位 | 38,837 符号 / 116,034 重定位 / 264 强制接管 | **待测** | L7 HLE 覆盖工作量；`hle_inventory.py` 直接可用 |
-| NVN 取址函数数 | 523 个，其中 216 有实际调用点、203 实现 / 13 空实现 | **待测** | L8/L9 覆盖工作量 |
-| 着色器键数 | 20,795 | **待测**（预计远大于此） | 翻译时长、包体积、预热清单 |
-| RomFS 大小 | 8.4 GB | **待测**（TotK 本体+更新约 16GB+） | 见 §5「4GB zip 限制」 |
+| NSO 模块数 | 3（main 55.1MB、sdk 15.5MB、subsdk0 8.5MB） | **3 + rtld**（v1.4.2：main text 45.77MB、sdk 6.69MB、subsdk0 3.50MB、rtld 9.5KB） | L3 装载器、包布局 `game/` 项数 |
+| 动态符号 / 重定位 | 38,837 符号 / 116,034 重定位 / 264 强制接管 | **33,858 符号 / 36,747 重定位 / 1,356 导入**（main 706·680·2,070；sdk 23,039·9·19,027；subsdk0 10,110·664·15,648；rtld 3·3·2） | L7 HLE 覆盖工作量；`hle_inventory.py` 直接可用 |
+| NVN 取址函数数 | 523 个，其中 216 有实际调用点、203 实现 / 13 空实现 | **534 个**（加载函数 main 0xbbfa90–0xbc3510；槽走间接指针表，与 D2R 的直接 `str` 不同；「有调用点」一栏待按 TotK 的读法重算） | L8/L9 覆盖工作量 |
+| 着色器键数 | 20,795 | **待测**：着色器包 13 个 / 14.3 MB（`Shader/*.bfsha.zs` + `ApplicationPackage...sarc.zs`），是 zstd + 任天堂字典的**编译包**，本机无字典解不开 | 翻译时长、包体积、预热清单 |
+| RomFS 大小 | 8.4 GB | **15.87 GB / 304,207 个文件**（本体 NCA 17.1 GB 的 IVFC 数据层；更新包是 BKTR 补丁，应用后还要加一层） | 见 §5「4GB zip 限制」 |
 | 存储格式 | 暴雪 CASC/TACT（`hle_tact` 自管块解码） | 标准 RomFS（游戏自读） | 反而**更简单**，`hle_fs.c` 的 `rom:/` 直读即可 |
 | 真机基线 | Adreno 830（OPD2409）60 FPS | Adreno 750（一加 12）未测 | Turnip 驱动选型 |
+
+
+**已填的格子来自 2026-10-20 的实测**（TotK v1.4.2，Title ID `0100F2C0115B6000`）：构建号 = main `5cb42b1cf25469fb0635fd046453d843`、sdk `5cf080e800530a7f25bd528ec875c27b`、subsdk0 `3308c1d216f788397d1451c8345a16cd`、rtld `82a3cf78789f9d9858c52379d8d2d129`（本体 v1.0.0 的 main = `082ce09b06e33a123cb1e2770f5f9147`）。测量用的是本仓库新写的 `dm/tools/switch_nca.py`（纯 Python 解 NCA3 / ExeFS / RomFS；hactool 1.4.0 解不开更新包的 NCA3 BKTR 补丁段）与 `dm/tools/nso_stats.py`（NSO 段与 MOD0 动态表统计）。游戏文件与密钥都只在本机，仓库里不放。
 
 ---
 
