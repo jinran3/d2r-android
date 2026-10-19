@@ -3,6 +3,42 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 01:00 Asia/Shanghai — [TOTK] NA-020 裁剪批 7n（大秘境 / 佣兵族）进行中
+
+[BEGIN] na-020-rift-trim
+
+- 命令：`git rm dm/host/dm_rift.c dm/host/dm_rift.h dm/host/dm_rift_ui.c dm/ios/Sources/dm_rift_hud.m dm/host/dm_doorspot.h dm/host/tests/t_doorspot.c dm/host/tests/t_rift_clock.c dm/ios/tools/merc_slots.py`，并连带清掉宿主侧（`diag.c` 的每拍与 UI 消息、观测门 15 那道「拦原版难度提示」、`dm_actions.c` 的面板泵与「打通秘境解锁技能硬点上限」、`dm_cursor.c` 的佣兵装备位提示、`dm_world.c` 的客户端泵、`dm_kills.c` 的秘境统计行、`hle.h` 的四道分支门登记、`hle_fs.c` 的提交前钩子、`dm.h` 的观测门枚举、`dm_bossrush.c` 的 `dm_game_notice` 搬到 `dm_actions.c`）、iOS 侧（`front_ios.m` 的秘境 HUD、`touch_layout.py` 的 `_rift_panel`、`gen_romfs_overlay.py` 的秘境段）、中英表约 90 行并重出 `dm/host/dm_i18n_tab.h`（含 `dm_i18n.py` 的英文长度闸）、`dm/tools/patch_nso.py` 的三道观测门与四道分支门（两侧同收）、白名单、`uireg/affected.tsv` 与 UI 回归台里测秘境的几局、四个 README，然后 `ci_checks.py` + `build.py --game-run --version trim-b19` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉大秘境与佣兵后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`fdfe9ce274b9af573457b6ca0fe6dad3102a8f5e`
+
+[END] na-020-rift-trim
+
+- 退出码：`build.py --game-run --version trim-b19` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，18,151,887 字节（2026-10-20 00:56:58；比 trim-b18 小 393,216 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除九个文件：`dm/host/dm_rift.c`（秘境爬塔、佣兵面板与装备位、秘境门与回城门，1139 行）、`dm/host/dm_rift.h`、`dm/host/dm_rift_ui.c`（秘境面板的界面，223 行）、`dm/ios/Sources/dm_rift_hud.m`（iOS 那层 HUD，87 行）、`dm/host/dm_doorspot.h`（秘境结算处两扇门的落点）与 `dm/host/tests/t_doorspot.c`、`dm/host/tests/t_rift_clock.c`、`dm/ios/tools/merc_slots.py`（佣兵装备位的布局）、`dm/ios/tools/gen_merc_art.py`（那块底图的生成脚本）。
+- **四道分支门（两侧同收）**：`0x89`（秘境出口改道）、`0x8c`（秘境里存档的当前幕）、`0x8d` / `0x8e`（佣兵加装备位与它的客户端校验）。宿主侧：`dm/host/hle.h` 的登记（中英各四条）与 `SVC_HOST_RIFT_EXIT` / `SAVE_ACT` / `MERC_SLOT` / `MERC_SLOT_CL` 四个枚举值、`dm/host/hle_hostcall.c` 的四处分派。改写器侧：`dm/tools/patch_nso.py` 里对应的四段门块（注释 + 门块 + `cuts` 登记，110 行）。
+- **三道观测门（两侧同收）**：`15`（客户端事件包，秘境局里拦原版「游戏难度设为 N」）、`16`（服务端按关卡号换关，秘境出口改道）、`17`（服务端任务事件，秘境首领只打不派任务）。宿主侧：`dm/host/dm.h` 的枚举、`dm/host/diag.c` 的 `event_msg_obs` 与 `dm_quiet_difficulty_msg`（连 `g_quiet_diff` 与那段说明一并摘掉）。改写器侧：`patch_nso.py` 里那三行 `obs.append`。
+- **顺手修了一个编号越界**：观测门编号 18（`OBS_NOTICE_INPUT`）一直在用，而 `OBS_MAX` 在 NA-013 摘掉 14 号门时被压成了 18 —— 宿主 `gate_register` 判 `id >= OBS_MAX` 就 die，于是带 18 号门的产物一装载就报「观测门编号越界 18」。本批把 `OBS_MAX` 修回 19（18 号门照常用，19 是上界）。
+- **「打通秘境解锁技能硬点上限」整条跟着没了**：上限 20 → 40 这套机制的解锁条件就是 `dm_rift_cleared_any()`（`dm/host/dm_actions.c` 的 `dm_skill_cap` / `skill_cap_pump` / 数据表改写 / 「卡在上限」的判定与提示）。秘境摘掉后它永远解锁不了，所以整套机制连同 `dmSkillCapLocked` 那句提示一起去掉。
+- **积分牌的「秘境」页跟着没了**：`dm/host/dm_kills.c` 的第六项（act = 5）本来就是秘境成绩页（`dm_rift_stats` / `dm_rift_swept`），摘掉后页签与页数由六项变五项（`act` 上界 5 → 4、两处页签循环 6 → 5、难度与排序两个下拉不再需要为它隐藏）。
+- 宿主其余调用点：`dm/host/diag.c` 的每拍 `dm_rift_tick`、收包 `dm_rift_c2s`、UI 消息 `dm_rift_ui_on_uimsg`；`dm/host/dm_actions.c` 的 `dm_rift_ui_pump`；`dm/host/dm_world.c` 的 `dm_rift_client_pump`；`dm/host/dm_cursor.c` 的佣兵装备位提示（`merc_lock_hit` 与「点空格不挪光标」那一段）、只服务秘境的 `dm_ui_send` 与「别的模块请求一键重开」那条通道（`g_rs_ext` / `dm_restart_request`）。
+- **共享函数不用搬**：原以为 `dm_game_notice` 得搬到 `dm_actions.c`（那里有个用它的提示），实际那个提示属于技能硬点上限、随机制一起去掉了；剩下只有首领连战与刷怪积分牌两个用户，函数仍住在 `dm_bossrush.c`、声明仍在 `dm_bossrush.h`。
+- iOS 与布局：`dm/ios/tools/touch_layout.py` 摘掉编年史页签那一族的秘境内容（`_rf_*` 辅助与常量、`_rift_board`、`_rift_panel`）、积分牌的秘境页（`_kb_rift_row` / `_kb_rift_page`）与第六个页签（页签文字那一行原本是 `('@dmKbAct%d' % (i + 1)) if i < 5 else '@dmKbRift'`）；`dm/ios/tools/gen_romfs_overlay.py` 去掉大秘境面板那一段（借「消息记录」面板外壳做的那份）；`dm/ios/Sources/front_ios.m` 去掉秘境 HUD 那一画与信息层说明里的那半句；`dm/ios/tools/gen_assets.py` 去掉「佣兵面板底图」那一步；`dm/host/dm_widget.h` 那条说明里的例子（`TouchRF_M1`）换成泛指。
+- 中英表：删 105 行（`dmRift*` 92 行 + `dmKbRift*` 9 行 + `dmMercSlotLocked` + `dmSkillCapLocked` + `dmKbRift`），删前逐个查过使用者、确认没有别人在用；重出 `dm/host/dm_i18n_tab.h`（355 → 250 条），`dm/ios/tools/dm_i18n.py --check` exit 0；`dm_i18n.py` 里那组秘境英文长度闸（`EN_LIMITS` 的 `dmRift*` / `dmKbRift*` 十几行）与它的说明一并摘掉。
+- 闸门与文档：`dm/i18n/literal_whitelist.tsv` 删 7 行（`host/dm_rift.c` 六行 + `host/dm_rift_ui.c` 一行）；`dm/ios/tools/uireg/affected.tsv` 删三行（`dm/host/dm_rift*` / `merc_slots.py` / `gen_merc_art.py`）与说明里「秘境要真机专项」那半句；`dm/host/README*.md` 与 `dm/README*.md` 的表行与说明；`dm/host/Makefile` 的 `SRC` 两项；`dm/host/tests/Makefile` 的 `t_doorspot` / `t_rift_clock` 规则与 `run:` 列表里那两项；`dm/host/tests/t_touch_mac.c` 与 `t_touch_tick_stub.c` 各三个替身桩；`dm/host/tests/mode_scan.py` 的登记表（`dm_rift_ui.c` 两项去掉，`dm_cursor.c` 的「替玩家按键 / 发消息」38 → 36：摘掉 `dm_ui_send` 时连它里面的 `fe_send` 一起少了两处）。
+- UI 回归台：测秘境的几局（`kba` / `kbb` / `dc` / `tp`）本身与秘境无关，**保留**（`kba` 点的是五个幕的页签，本来就没点第六项）；`dc` 局那两句说明里提到「秘境图上点继续会崩」的地方改成「秘境已随裁剪批 7n 摘掉，这一局作为普通野外的基线保留」。
+- 宽口径复核 `git grep -n -i -e dm_rift -e dmRift -e dmMerc -e gen_merc -e TouchRF -e dmKbRift -e dmSkillCap -- dm/`：`dm/` 下 0 命中。
+- `dm\android\tools\build.py --game-run --version trim-b19`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：写本条目之前 9 项通过 / 1 项失败（失败的是「Agent 交接控制面」，因为 `[END]` 还没成对、HANDOFF 还没更新），收尾复跑 10 项通过 / 0 项失败。
+- **本机 NOT RUN 的部分**：`dm/ios` 侧的编译与打包（`touch_layout.py` / `gen_romfs_overlay.py` / `gen_assets.py` / `front_ios.m` 的改动未经 Xcode 构建验证；`dm/ios/project.yml` 的 `sources: - Sources` 是整目录，删掉 `dm_rift_hud.m` 不需要改工程描述）；`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）跑不了，涉及 `dm_cursor` / `dm_actions` / `dm_kills` 的宿主单测未经本机执行验证；`dm/ios/tools/uireg/uireg.py` 的几局未经 Mac 冒烟验证。
+
 ## 2026-10-20 00:45 Asia/Shanghai — [TOTK] NA-019 裁剪批 7m（iCloud 存档同步）进行中
 
 [BEGIN] na-019-icloud-trim
