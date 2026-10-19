@@ -2,6 +2,35 @@
 
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+## 2026-10-19 22:05 Asia/Shanghai — [TOTK] NA-016 裁剪批 7j（3D 画面加亮）进行中
+
+[BEGIN] na-016-bright-trim
+
+- 命令：`git rm dm/host/dm_bright.c`、清掉 `diag.c` 的每拍调用与 Android 前端的 `dm_bright_load()`、`Makefile` 的 `SRC`、`dm/host/README*.md` 的表行、`dm_derived_rt.h` 与 `nvn_mtl.m` 里提到它的注释，然后 `ci_checks.py` + `build.py --game-run --version trim-b15` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：宿主不再做 3D 画面加亮后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`af0ddc3a1bc4eb5187de796ec8506c0a2b3ea03c`
+
+[END] na-016-bright-trim
+
+- 退出码：`build.py --game-run --version trim-b15` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，18,954,703 字节（2026-10-19 23:08:50；比 trim-b14 小 32,768 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除：`dm/host/dm_bright.c` —— 「3D 画面加亮」的宿主侧动态曝光实现（按所在关卡的类型与原版自算的环境亮度算曝光 k = 1–4，每帧喂给图形层的 `dm_bright_k()`）。
+- 调用点：`dm/host/diag.c` 拍入口那行 `dm_bright_server_tick(regs[0])`（顺带删掉测试开关 `DM_TEST_DAYTIME`）；`dm/android/native/frontend_activity.c` 的 `boot()` 里那行 `dm_bright_load()`（启动时从数据包 `derived.tsv` 填亮度表）；`dm/host/Makefile` 的 `SRC` 一项；两个 `dm/host/README*.md` 的表行。
+- 图形层刻意不动：`dm/gfx/nvn/nvn_mtl.m` 的 `bright_lut` 整段保留，但宿主侧的强定义已随 `dm_bright.c` 摘除，只剩 `__attribute__((weak)) float dm_bright_k(void) { return 1.0f; }` 缺省；`bright_lut` 里 `if (!(k > 1.005f)) return;` 于是直接返回、不重写调色表 → 画面保持原版亮度，图形层零改动、也不会误加亮。
+- 注释收口：`dm/host/dm_derived_rt.h`（说明亮度表的宿主消费方已摘除）与 `dm/gfx/nvn/nvn_mtl.m` 两处中英注释改成「宿主侧实现已摘除，只剩弱符号缺省 1.0」。
+- 刻意保留（归到后面的「派生表批」一起摘）：`dm/host/dm_bright_levels.inc`（替身）与 `dm/tools/gen_bright_levels.py`（生成器）仍在仓库里，但宿主已无人消费它们；那一批要连带 `dm/tools/shell_stubs.py` 管线、`make_package.py`、`ci_checks.py` 等属控制面改动，按协议分两次提交。
+- 宽口径复核 `git grep -n -i -e dm_bright -e bright_levels -e bright -- .`：`dm_bright.c`、`dm_bright_load`、`dm_bright_server_tick`、`DM_TEST_DAYTIME` 在代码里 0 命中（只剩 `docs/ANDROID_PORT_PROGRESS*` 的历史叙述与本日志）。文件名形态（`dm_bright.c`）与符号形态（`dm_bright_k` / `dm_bright_load` / `dm_bright_server_tick`）两种都查了。
+- `dm\android\tools\build.py --game-run --version trim-b15`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：本机 PowerShell 控制台默认 GBK，`test_version` 一项会因打印 `✓` 抛 `UnicodeEncodeError`（不是代码问题）；设 `PYTHONIOENCODING=utf-8` 后该项通过。写本条目之前「Agent 交接控制面」一项必然失败（`[END]` 尚未成对 + HANDOFF 未更新），收尾复跑 10 项通过 / 0 项失败。
+- 与原计划的偏差：原 NA-016 写的是「个人仓库 2–5 页」（`dm/host/dm_pages.c`）。本批改做 3D 画面加亮，个人仓库那部分并入 NA-017（仓库族：`dm_vault.c` / `dm_vault_ui.c` / `dm_pages.c` 一起摘，因为共享辅助函数只在这族内用）。偏差原因与新范围已写进 HANDOFF 的「下一步唯一动作」。
+
 ## 2026-10-19 23:20 Asia/Shanghai — [TOTK] NA-015 裁剪批 7i（起名页随机取名）进行中
 
 [BEGIN] na-015-namegen-trim

@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-19T22:50:59+08:00
+updated_at: 2026-10-19T23:15:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: c0e4fc981832067c90d8039d9aeb47ec29592c6d
+observed_head: 7520d356da2e7d893369cd3351d9f42a5915098b
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: c0e4fc981832067c90d8039d9aeb47ec29592c6d
+origin_head_at_checkpoint: 7520d356da2e7d893369cd3351d9f42a5915098b
 code_worktree: CLEAN
-next_action_id: NA-016
+next_action_id: NA-017
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,24 +140,24 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-19 22:50（Asia/Shanghai）
+- 快照时间：2026-10-19 23:15（Asia/Shanghai）
 - 当前阶段：M0 准备 / 脚手架
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：`c0e4fc981832067c90d8039d9aeb47ec29592c6d`（快照基线；允许是当前 HEAD 的祖先）
-- origin 对应分支：`origin/totk/scaffold`，检查点为 `c0e4fc981832067c90d8039d9aeb47ec29592c6d`（与观测 HEAD 相同）
+- 观测 HEAD：`7520d356da2e7d893369cd3351d9f42a5915098b`（快照基线；允许是当前 HEAD 的祖先）
+- origin 对应分支：`origin/totk/scaffold`，检查点为 `7520d356da2e7d893369cd3351d9f42a5915098b`（与观测 HEAD 相同）
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
-- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b14`，18,987,471 字节）
-- 本次会话目标：执行 NA-015 —— 摘掉起名页的随机取名（裁剪批 7i）。
+- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b15`，18,954,703 字节）
+- 本次会话目标：执行 NA-016 —— 摘掉 D2R 的「3D 画面加亮」（裁剪批 7j）。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：裁剪批 7j（个人仓库 2–5 页，见 NA-016）；23 个 `dm_*.c` 的其余部分 —— 秘境 UI / 仓库与百宝囊 / 首领连战 / 刷怪积分牌几族彼此纠缠且牵连 `dm/i18n/ui_text.tsv` 文案与 `touch_layout.py` 面板，宜整族一次做完；16 个牵连 `dm/ios/Sources/*` 的 iOS 应用源码（本机构建验证不了，宜合批或等 TotK 侧重建 iOS 前端）；D2R 的 CUTS/OBS 表与 `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；`dm_custom.c` 的 `k_keys` 位置数组里已死键与 iOS 自定义页（TotK 侧整页重建时一起消失）；TotK 的过场策略（摘掉 D2R 的空播实现后 TotK 会走游戏自己的 movie 路径，宿主侧 movie 支持待定）；TotK 文件准备；M0 实测；着色器事实表来源。
-- 最近一次成功命令：`dm\android\tools\ci_checks.py` exit 0（10 项通过 / 0 项失败）；`dm\android\tools\build.py --game-run --version trim-b14` exit 0；`tools\agent_handoff_check.py --verify` exit 0。
-- 最近一次失败命令及原因：本轮无仓库命令失败；`dm\verify\test_accept.py` 与 `dm/host/tests/Makefile` 的 macOS 测试面在本机跑不了（NOT RUN，同上一轮的 WSL `bash` 限制），已在对应动作的判据里写明。
-- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（18,987,471 字节，2026-10-19 22:49:28，`trim-b14`）
+- 未完成：裁剪批 7k（仓库族：编年史仓库 + 个人仓库 2–5 页，见 NA-017）；23 个 `dm_*.c` 的其余部分 —— 秘境 UI / 仓库与百宝囊 / 首领连战 / 刷怪积分牌几族彼此纠缠且牵连 `dm/i18n/ui_text.tsv` 文案与 `touch_layout.py` 面板，宜整族一次做完；16 个牵连 `dm/ios/Sources/*` 的 iOS 应用源码（本机构建验证不了，宜合批或等 TotK 侧重建 iOS 前端）；D2R 的 CUTS/OBS 表与 `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；`dm_custom.c` 的 `k_keys` 位置数组里已死键与 iOS 自定义页（TotK 侧整页重建时一起消失）；TotK 的过场策略（摘掉 D2R 的空播实现后 TotK 会走游戏自己的 movie 路径，宿主侧 movie 支持待定）；TotK 文件准备；M0 实测；着色器事实表来源。
+- 最近一次成功命令：`dm\android\tools\build.py --game-run --version trim-b15` exit 0（APK 18,954,703 字节）；`dm\android\tools\ci_checks.py` exit 0（10 项通过 / 0 项失败）；`tools\agent_handoff_check.py --verify` exit 0。
+- 最近一次失败命令及原因：`dm\android\tools\ci_checks.py` 若不设 `PYTHONIOENCODING=utf-8`，「APK 版本折算（test_version）」一项会因本机 PowerShell 控制台默认 GBK 打印 `✓` 抛 `UnicodeEncodeError`（不是代码问题，设 `PYTHONIOENCODING=utf-8` 后即通过）；`dm\verify\test_accept.py` 与 `dm/host/tests/Makefile` 的 macOS 测试面在本机跑不了（NOT RUN，同上一轮的 WSL `bash` 限制），已在对应动作的判据里写明。`dm\verify\test_accept.py` 与 `dm/host/tests/Makefile` 的 macOS 测试面在本机跑不了（NOT RUN，同上一轮的 WSL `bash` 限制），已在对应动作的判据里写明。
+- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（18,954,703 字节，2026-10-19 23:08:50，`trim-b15`）
 - 当前阻塞：缺少用户合法导出的 TotK 文件、`prod.keys`、`hactool`；`adb devices` 无设备。
 - 需要用户提供的材料：自己的 TotK 本体 + 更新、`prod.keys`、可用 `hactool`、一加 12（开启 USB 调试）。
-- 回滚点：`c0e4fc981832067c90d8039d9aeb47ec29592c6d` / `totk/scaffold`。
+- 回滚点：`7520d356da2e7d893369cd3351d9f42a5915098b` / `totk/scaffold`。
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据。
 
 ### 已完成清单
@@ -184,6 +184,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-013 裁剪批 7g（`a4522ed`）：删 `dm/host/dm_textbox.c`、`dm_textbox_core.c` 与 `dm_textbox_core.h`（普通文字框的注释颜色码改写）。**观测门 14 两侧同收**：`dm/host/dm.h` 的枚举去掉 `OBS_TEXTBOX = 14`、`OBS_MAX` 19 → 18，`dm/tools/patch_nso.py` 的 OBS 表里 14 = `0xadc434` 那条一并去掉（只改一侧会撞 `gate_obs_set` 的越界 die）。另清 `diag.c` 的安装调用、`dm_runeword.c` 的对照表改写（`loc_tb` 改原样透传 —— 清单里的名字本来就不在表里，行为不变）、生成器 `annot_strings.py` 不再出那张对照表（`gen_romfs_overlay.py` 的写表调用一并去掉，两个脚本用 `ast.parse` 验过语法）、单测 `t_textbox.c` 与 `dm/host/tests/Makefile` 里它的规则与 run 列表引用。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b12` exit 0，APK 19,085,775 字节（比 trim-b11 小 32,768 字节）；宽口径复核（`-i -e dm_textbox -e OBS_TEXTBOX -e DM_TEXTBOX`）除 `docs/HANDOFF*` 外 0 命中。
 - NA-014 裁剪批 7h（`a66b703`）：删 `dm/host/dm_elysium.c` 与 `dm_elysium.h`（「极乐世界」模式：D2R 特有的按角色开关，局内暗金掉率 ×5、套装 ×3）。连带清掉 `diag.c`／`dm_actions.c` 的两处调用与 include、`dm_cursor.c` 的建角页勾选框（触屏与手柄两条路径的读取、Y 键翻勾、「返回」判定里排除那一行的条件）、`dm_cursor.h` 的 `dm_fe_bliss` 声明、`touch_layout.py` 的 `_BLISS` 布局块（函数随之改名 `pad_charopt`）、`dm/i18n/ui_text.tsv` 的三行并**重出** `dm/host/dm_i18n_tab.h`（`dm_i18n.py --check` exit 0，397 条）、`uireg.py` 的「e」局两行勾选框断言与整个 v / v2 两局、`uireg/affected.tsv` 五行的 `v` 标记、两个单测替身桩、README 与白名单行。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b13` exit 0，APK 19,003,855 字节（比 trim-b12 小 81,920 字节）；宽口径复核（含中文「极乐世界」）除 `docs/HANDOFF*`／`docs/UPSTREAM_README*`／`docs/TOTK_PORT_SCAFFOLD*` 外 0 命中。**中间失败两次**（都是我的编辑失误：把含 `pl`/`pd` 声明的行整行替换成了注释、摘 Y 键翻勾时少留一个右括号），按编译器定位修回后第三次构建通过，过程与教训已写进日志。
 - NA-015 裁剪批 7i（`c0e4fc9`）：删 `dm/host/dm_namegen.c`（起名页留空时按音节拼随机名）与单测 `t_namegen.c`；连带清掉 `dm_actions.h` 的 `dm_name_gen` 声明、`front_ios.m` 起名页那段自动填名（**这是 D2R iOS 产品的一个增强功能下线，原版自带的「随机名字」键仍是玩家入口**）、`dm_cursor.c` 里随之失效的 `g_fe_name_no_accept` 机制、`dm/host/tests/Makefile` 的 `t_namegen` 目标与 `run:` 列表、`dm/host/Makefile` 的 `SRC`、两个 README 表行、`uireg/affected.tsv` 一行。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b14` exit 0，APK 18,987,471 字节（比 trim-b13 小 16,384 字节）；宽口径复核（`-e dm_namegen -e dm_name_gen -e name_gen -e g_fe_name_no_accept`）除 `docs/HANDOFF*` 外 0 命中（文件名与符号名的下划线写法不同，两种形态都查了）。
+- NA-016 裁剪批 7j（`7520d35`）：删 `dm/host/dm_bright.c`（「3D 画面加亮」的宿主侧动态曝光：按关卡类型与原版自算的环境亮度算曝光 k = 1–4，每帧喂图形层的 `dm_bright_k()`）；连带清掉 `diag.c` 拍入口的 `dm_bright_server_tick`（顺带删掉测试开关 `DM_TEST_DAYTIME`）、`frontend_activity.c` 的 `dm_bright_load()`、`dm/host/Makefile` 的 `SRC`、两个 README 表行。**图形层刻意不动**：`dm/gfx/nvn/nvn_mtl.m` 的 `bright_lut` 整段保留，宿主强定义摘除后只剩 `__attribute__((weak))` 的缺省 `1.0`，`if (!(k > 1.005f)) return;` 于是不重写调色表 → 画面保持原版亮度。`dm/host/dm_bright_levels.inc` 与 `dm/tools/gen_bright_levels.py` 仍在仓库里但已无人消费，归到后面的「派生表批」一起摘。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b15` exit 0，APK 18,954,703 字节（比 trim-b14 小 32,768 字节）；宽口径复核（`-e dm_bright -e bright_levels -e bright`，文件名与符号两种形态）里 `dm_bright.c` / `dm_bright_load` / `dm_bright_server_tick` / `DM_TEST_DAYTIME` 在代码中 0 命中。**与原计划的偏差**：原 NA-016 写的是「个人仓库 2–5 页」，本批改做 3D 画面加亮，个人仓库那部分并入 NA-017 的仓库族。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
@@ -193,16 +194,30 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-016
+- ID：NA-017
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：`totk/scaffold` 的 HEAD 与 `origin/totk/scaffold` 同为 `c0e4fc981832067c90d8039d9aeb47ec29592c6d`；代码工作区干净；`HANDOFF_LOG` 无未闭合 `[BEGIN]`。
-- 动作：裁剪批 7j —— 摘掉「个人仓库 2–5 页」（`dm/host/dm_pages.c`）：D2R 的编年史仓库附加页（仓库本体 `dm_vault.c` 保留，只摘个人页这个子功能）。它是 23 个剩余模块里既不牵连 iOS 应用源码、也不牵连 `dm/i18n/ui_text.tsv` 文案与 `touch_layout.py` 面板的少数几个之一，代价最低。
-- 命令或编辑目标：先 `git grep -n -e dm_pages -e 'dm_page' -- .` 全量复核（**前缀与符号名两种形态都要查**）；再 `git rm dm/host/dm_pages.c`（若另有同名头文件一并删）；同一提交内修正 `dm/host/diag.c`（每拍调用）、`dm/host/dm.h`（声明）、`dm/host/dm_cursor.c`、`dm/host/dm_vault.c`、`dm/host/hle_fs.c`（存档挂载 / 提交前的钩子位）里对它的调用与声明、`dm/host/tests/` 下两处替身（`t_touch_mac.c`、`t_touch_tick_stub.c`）、`dm/host/Makefile` 的 `SRC` 一项、`dm/host/README.md` 与 `README.zh-CN.md`（表行）、`dm/ios/tools/uireg/affected.tsv`（相关行）、`dm/i18n/literal_whitelist.tsv`（若有其行）；然后按「标准验证命令」跑 `dm\android\tools\ci_checks.py`（带 `DM_ANDROID_TOOLS=D:\Switch\.tools\android`）、`dm\android\tools\build.py --game-run --version trim-b15`、`tools\agent_handoff_check.py --verify`；最后 `git add -A`、`git commit -m "totk: drop D2R personal stash pages"`、`git push`。
-- 成功判据：`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run` exit 0 且产出 APK；`git grep -n -e dm_pages -- .` 除 `docs/HANDOFF*` 外 0 命中；`dm/host/hle_fs.c` 里那组「提交前钩子」不再有空位（摘掉后要确认没有留下未使用的槽位或悬空引用）；提交只含本批文件；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold` 相同。**本机 NOT RUN 的部分**：`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）在本机跑不了，涉及 `dm_cursor` 的宿主单测未经本机执行验证；`ci_checks.py` 不覆盖该目录。
-- 失败判据：任一验证命令非零退出，或 `ci_checks.py` 出现失败项；APK 未产出；提交混入 `casc_overlay.py`、`dm/data/**`、其余 `dm_*.c` 或交接控制面文件。
-- 回滚点：`c0e4fc981832067c90d8039d9aeb47ec29592c6d` / `totk/scaffold`（单次提交，必要时 `git revert`）。
-- 需要写入的证据：`git grep` 原始输出；`ci_checks.py` 计分行与退出码；`build.py --game-run` 退出码与 APK 路径、大小；`git status --short`；commit hash；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold`。
+- 前置条件：`totk/scaffold` 的 HEAD 与 `origin/totk/scaffold` 同为 `7520d356da2e7d893369cd3351d9f42a5915098b`；代码工作区干净；`HANDOFF_LOG` 无未闭合 `[BEGIN]`。
+- 动作：裁剪批 7k —— 整族摘掉「编年史仓库 + 个人仓库多页」：`dm/host/dm_vault.c`（编年史仓库本体：存取已鉴定暗金 / 套装件）、`dm/host/dm_vault_ui.c`（储藏箱第六页「编年史」的整套 UI：格子、部位页签、套装页、搜索框、说明框）、`dm/host/dm_pages.c`（个人仓库 2–5 页）。这族共享的辅助函数（`dm_item_write` / `dm_item_make` / `dm_save_blobs` / `dm_blobs_have` / `dm_blobs_free` / `dm_stash_name`）只在本族内用，所以整族一起摘最干净；原计划 NA-016 的「个人仓库 2–5 页」本来就落在这个族里。
+- 命令或编辑目标：先 `git grep -n -e dm_vault -e dmVault -e dm_pages -e dm_page -e DM_PS_VAULT -- .` 全量复核（**文件名与符号名两种形态都要查**；`dm/host/dm_vault_ui.c` 里 `dm_vault*` 出现 49 次、`dm/host/dm_cursor.c` 里 31 次、`dm/i18n/ui_text.tsv` 里 25 行、`dm/host/dm_i18n_tab.h` 里 24 行）；再 `git rm dm/host/dm_vault.c dm/host/dm_vault_ui.c dm/host/dm_pages.c`；同一提交内清掉：
+  - `dm/host/diag.c`：每拍调用 `dm_pages_tick` / `dm_vault_tick` 与 UI 消息 `dm_vault_on_uimsg`；
+  - `dm/host/dm_actions.c`：`dm_vault_ui_pump`；
+  - `dm/host/dm_cursor.c`：编年史页的命中 / 拖拽 / 提示框 / 存放判定与个人页页码（`ui_pages_pump` 一带），连同 `dm/host/dm_cursor.h` 的 `DM_PS_VAULT` 枚举位与 `dm_ui_drag_lift` 注释；**枚举位摘掉后要逐个核对 `DM_PS_*` 其余位的取值**（`dm_ui_panel_state()` 是位掩码，不能让剩下的位错位）；
+  - `dm/host/dm.h` 的 `dm_blob` 类型（`dm_pages.c` 的 `dm_save_blobs` 用；摘后确认无人用再删）；
+  - `dm/host/dm_pouch.c`：「存放」路径原本把暗金 / 套装件存进编年史，摘掉后要改成不搬进编年史（`dm_vault_request_deposit` / `dm_vault_put_pending` / `dm_vault_ready` / `dm_vault_has` 四个调用点与 `to_vault` 分支、相关计数与日志）；
+  - `dm/host/hle_fs.c`：`g_dm_pre_commit_hook[4]` 里槽位 `[0]`（个人仓库多页）与 `[1]`（编年史）空出来后要重编号 `[2]`（百宝囊）与 `[3]`（秘境进度）并同步注释，**不能留悬空槽位**；
+  - `dm/host/dm_padmode.c`（第六页按住 Y 存编年史的提示与说明）、`dm/host/dm_rift_ui.c`（一处引用）；
+  - `dm/android/native/frontend_activity.c` 的 `dm_vault_load()`；
+  - `dm/ios/tools/wide_stash.py`：摘掉第六页「编年史」那套 `TouchVault*` 控件与相关页签 / 文字引用，**保留加宽（10 → 14 列）那部分**；
+  - `dm/i18n/ui_text.tsv`：24 行 `dmVault*`（含 `dmVaultPart0–10`、`dmVaultTierN/X/E`、`dmVaultSearch*`、`dmVaultSetStats` 等）与只服务于仓库页的行（`dmStoreVault`、`dmStashVaultTab`、`dmPadLegView/Prev/Next` 若确认只被仓库用）；删后**必须重出** `dm/host/dm_i18n_tab.h`（`python dm/ios/tools/dm_i18n.py --header > dm/host/dm_i18n_tab.h`）并让 `dm_i18n.py --check` 通过；
+  - `dm/i18n/literal_whitelist.tsv` 三行、`dm/ios/tools/uireg/affected.tsv` 两行；
+  - `dm/host/tests/t_touch_mac.c` 与 `t_touch_tick_stub.c` 里那 20 个替身桩、`dm/host/tests/native_write_scan.py`（扫 `dm_vault_ui.c` 全文与 `ui_pages_pump`）、`dm/host/tests/mode_scan.py` 的 `PADMODE` 字典项；
+  - `dm/host/Makefile` 的 `SRC` 三项、两个 `dm/host/README*.md` 的表行。
+  然后按「标准验证命令」跑 `dm\android\tools\ci_checks.py`（带 `DM_ANDROID_TOOLS=D:\Switch\.tools\android` 与 `PYTHONIOENCODING=utf-8`）、`dm\android\tools\build.py --game-run --version trim-b16`、`tools\agent_handoff_check.py --verify`；最后 `git add -A dm`、`git commit -m "totk: drop D2R chronicle vault and personal stash pages"`、`git push`。**本批不碰**：`dm/host/dm_vault_tab.h` 与 `dm/ios/tools/gen_vault_table.py`（派生表批）、`dm/ios/tools/check_hud_gen.sh` 与 `dm/ios/run.sh`（派生表 / 资产管线批）、`dm/ios/Sources/*` 的 iOS 应用源码（16 个模块那批）。
+- 成功判据：`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b16` exit 0 且产出 APK；宽口径复核 `git grep -n -i -e dm_vault -e dmVault -e dm_pages -e dm_page -e DM_PS_VAULT -e vault -- dm` 里，`dm/host`／`dm/ios`／`dm/i18n` 的代码与文案 0 命中（`docs/` 的历史叙述与本交接文档除外；`dm/host/dm_vault_tab.h`、`dm/ios/tools/gen_vault_table.py`、`dm/ios/tools/check_hud_gen.sh`、`dm/ios/run.sh` 这四处属派生表 / 资产管线批，本批允许保留，须在日志里写明）；`dm/host/hle_fs.c` 的 `g_dm_pre_commit_hook` 槽位连续、无悬空（摘掉的两槽要么重编号要么整列删掉，且 `dm_pouch.c` / `dm_rift.c` 的注册顺序与槽号一致）；`dm_i18n.py --check` exit 0 且 `dm/host/dm_i18n_tab.h` 与 `dm/i18n/ui_text.tsv` 一致；`DM_PS_*` 剩余位的取值没被摘掉的 `DM_PS_VAULT` 带走；提交只含本批文件（不含 `dm/data/**`、`casc_overlay.py`、派生表生成器、`dm/ios/Sources/**` 与交接控制面文件）；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold` 相同。**本机 NOT RUN 的部分**：`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）跑不了，涉及 `dm_cursor` 的宿主单测未经本机执行验证；`wide_stash.py` 改动未经 iOS 构建验证；`ci_checks.py` 不覆盖 `dm/host/tests/`。
+- 失败判据：任一验证命令非零退出，或 `ci_checks.py` 出现失败项；APK 未产出；`hle_fs.c` 留下悬空钩子槽位或槽号与注册顺序对不上；`dm_i18n.py --check` 失败；`DM_PS_*` 位掩码错位；提交混入 `dm/data/**`、`casc_overlay.py`、派生表生成器、`dm/ios/Sources/**` 或交接控制面文件。
+- 回滚点：`7520d356da2e7d893369cd3351d9f42a5915098b` / `totk/scaffold`（单次提交，必要时 `git revert`）。
+- 需要写入的证据：`git grep` 原始输出；`ci_checks.py` 计分行与退出码；`build.py --game-run` 退出码与 APK 路径、大小；`dm_i18n.py --check` 退出码；`git status --short`；commit hash；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold`。
 
 ## 长操作两阶段日志
 
@@ -285,6 +300,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - `a4522ed`：裁剪批 7g —— 删除 D2R 的文字框注释颜色码改写（含观测门 14）。
 - `a66b703`：裁剪批 7h —— 删除 D2R 的「极乐世界」模式。
 - `c0e4fc9`：裁剪批 7i —— 删除 D2R 的起名页随机取名。
+- `7520d35`：裁剪批 7j —— 删除 D2R 的「3D 画面加亮」。
 
 ## 本机环境
 
@@ -312,7 +328,7 @@ $env:PYTHONUTF8 = '1'
 
 1. ~~提交交接控制面~~ —— 完成（`c405782`、`8965544`）。
 2. ~~提交两处 TotK 适配代码~~ —— 完成（`1d915ab`）。
-3. 小步裁剪 D2R 专属资产，每批后跑 `ci_checks` 与完整 `build.py --game-run`：批 1 = 宿主侧 TACT/CASC —— 完成（`b54f782`）；批 2 = bootlist 清单工具与验证面 —— 完成（`1a2f535`）；批 3 = Granny 段解码 —— 完成（`62139f0`）；批 4 = vendored `dm/third_party/libdeflate` 与文档行 —— 完成（`bf7b33f`）；批 5 = 过场 movie 空播 —— 完成（`abb0040`）；批 6 = D2R 的 CUTS/OBS 表 + `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；批 7 = 36 个 `dm_*.c` 与派生表 / i18n 表 —— 分小批推进，7a = 转向回跳平滑 + 商人「刷新货架」—— 完成（`4392313`）；7b = 掉落过滤 + 增益自动补 —— 完成（`6b261f7`）；7c = 开背包自动补腰带 —— 完成（`b4d3557`）；7d = 药水自动拾取 —— 完成（`89a38ec`）；7e = 进局落在城镇小站旁 —— 完成（`ead836a`）；7f = 高价值掉落光柱 / 落地音 / 掉落震动一族 —— 完成（`c9aadb8`）；7g = 普通文字框的注释颜色码一族 —— 完成（`a4522ed`）；7h = 极乐世界模式 —— 完成（`a66b703`）；7i = 起名页随机取名 —— 完成（`c0e4fc9`）；7j = 个人仓库 2–5 页（NA-016）；批 7 的后续按同一模式：每个模块连同它的观测门、调用点、文档与白名单一起摘。
+3. 小步裁剪 D2R 专属资产，每批后跑 `ci_checks` 与完整 `build.py --game-run`：批 1 = 宿主侧 TACT/CASC —— 完成（`b54f782`）；批 2 = bootlist 清单工具与验证面 —— 完成（`1a2f535`）；批 3 = Granny 段解码 —— 完成（`62139f0`）；批 4 = vendored `dm/third_party/libdeflate` 与文档行 —— 完成（`bf7b33f`）；批 5 = 过场 movie 空播 —— 完成（`abb0040`）；批 6 = D2R 的 CUTS/OBS 表 + `casc_overlay.py` + iOS 资产管线（与 §4.3/§4.4 合并做，阻塞在用户材料）；批 7 = 36 个 `dm_*.c` 与派生表 / i18n 表 —— 分小批推进，7a = 转向回跳平滑 + 商人「刷新货架」—— 完成（`4392313`）；7b = 掉落过滤 + 增益自动补 —— 完成（`6b261f7`）；7c = 开背包自动补腰带 —— 完成（`b4d3557`）；7d = 药水自动拾取 —— 完成（`89a38ec`）；7e = 进局落在城镇小站旁 —— 完成（`ead836a`）；7f = 高价值掉落光柱 / 落地音 / 掉落震动一族 —— 完成（`c9aadb8`）；7g = 普通文字框的注释颜色码一族 —— 完成（`a4522ed`）；7h = 极乐世界模式 —— 完成（`a66b703`）；7i = 起名页随机取名 —— 完成（`c0e4fc9`）；7j = 3D 画面加亮 —— 完成（`7520d35`）；7k = 仓库族（编年史仓库 + 个人仓库 2–5 页，NA-017）；批 7 的后续按同一模式：每个模块连同它的观测门、调用点、文档与白名单一起摘。
 4. 准备 TotK 本体、更新、`prod.keys`、`hactool`，完成 M0 实测表。
 5. 解决着色器事实表来源，给出 M2 前 go/no-go 结论。
 6. 按 M1–M6 验收门推进。
