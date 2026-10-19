@@ -2,6 +2,32 @@
 
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+## 2026-10-20 04:05 Asia/Shanghai — [TOTK] NA-025 裁剪批 7s 完成
+
+[BEGIN] na-025-custom-trim
+
+- 命令：`git rm dm/host/dm_custom.c dm/host/dm_custom.h`，并同步宿主调用点、iOS 自定义页布局、`gen_romfs_overlay.py` 变体说明、中英表与单测桩；随后跑 `dm_i18n.py --check`、`scan_literals.py`、`mode_scan.py`、`ci_checks.py`、`build.py --game-run --version trim-b24`。
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：自定义页与 `dm_custom*` 符号清零，语言读取无未定义符号，构建产出 APK，交接控制面单独提交。
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`9f0351d01161f8b3171c50e8b0055e5a221a3324`
+
+[END] na-025-custom-trim
+
+- 退出码：`build.py --game-run --version trim-b24` exit 0；`dm_i18n.py --check` exit 0（201 条）；`scan_literals.py` exit 0（295 条中文字面量）；`mode_scan.py` exit 0；`ci_checks.py` 写控制面前 9 项通过 / 1 项失败（仅交接控制面待更新），控制面收尾复跑 10 项通过 / 0 项失败；`agent_handoff_check.py --verify` exit 0。
+- 产物：`dm/android/build/D2R-Android-port.apk`，17,725,903 字节（`trim-b24`）
+- 结果：SUCCESS
+- 备注：语言开关采用方案 (b)：`hle_fs.c` 的 `settings_lang_apply` 与 `dm_custom_lang_explicit()` 一并删除，`dm_sys_lang()` 生产恒为简中，`DM_LANG` 仅作宿主 / 测试模拟；iOS 侧 Xcode / macOS 构建、`dm/host/tests/Makefile` 的 `run:` 目标本机 NOT RUN。
+
+证据（本条目对应的命令与退出码）：
+
+- 宽口径 `git grep -n -i -e dm_custom -e TouchCustom -e dmCustom -e _CUSTOM_ -e sw_custom -- dm/host dm/ios dm/i18n`：0 命中（仅 `dm/android/prebuilt/turnip/vulkan.purple.so` 二进制命中）。
+- 符号复核 `git grep -e dm_custom_get -e dm_custom_init -e dm_custom_ui_pump -e dm_custom_on_uimsg -e dm_custom_lang_explicit -e dm_fps_setting -- dm/`：0 命中。
+- `dm/host/dm_custom.c`、`dm/host/dm_custom.h` 删除；`dm/host/dm_i18n_tab.h` 重出并与 `dm/i18n/ui_text.tsv` 一致；`dm_i18n.py --check` exit 0。
+- `git diff --check` exit 0；业务提交 `1b9b1e4676e2eee83d70cd50f5d9cfa98271f326`（35 文件，67 增 / 503 删）；`git push` exit 0；HEAD 与 `origin/totk/scaffold` 同为 `1b9b1e4676e2eee83d70cd50f5d9cfa98271f326`。
+- `usage.md` / `usage.zh-CN.md` 无自定义页引用，保持不变；`uireg/affected.tsv` 删除 `dm/host/dm_custom*` 行；白名单删除 `host/dm_custom.c` 行。
+- 本批未改 `dm/ios/Sources/dm_touch_controls.c/.h`，因此没有触发触控层 `-Werror` 专项；iOS 布局改动本机未用 Xcode 验证。
+
 
 ## 2026-10-20 03:45 Asia/Shanghai — [TOTK] 会话收尾（交给新会话）
 
