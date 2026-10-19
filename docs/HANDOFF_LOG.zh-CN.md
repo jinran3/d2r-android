@@ -3,6 +3,45 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 03:45 Asia/Shanghai — [TOTK] 会话收尾（交给新会话）
+
+- 本次会话（接续 NA-015 之后）依次做完并推送了：NA-016（3D 画面加亮，`7520d35`）、NA-017（仓库族，`8a23b42`）、NA-018（百宝囊，`b7ee3e8`）、NA-019（iCloud 存档同步，`52f5953`）、NA-020（大秘境 / 佣兵族，`7db35be`）、NA-021（连战 + 积分牌，`7db35be` 之后）、NA-022（免费回城，`52f5953` 之后）、NA-023（派生表批，`cc279c2`）、NA-024（符文之语助手，`c3fb671`）；每个批次的提交号与证据都在下面各自的条目里。
+- 当前 HEAD = `c3fb671`（`totk/scaffold`，与 `origin/totk/scaffold` 同步），代码工作区干净，`ci_checks.py` 10 通过 / 0 项失败，`agent_handoff_check.py --verify` 通过，最新产物 `dm/android/build/D2R-Android-port.apk` 17,775,055 字节（`trim-b23`）。
+- **下一步唯一动作 = NA-025**：裁剪批 7s —— 摘掉 iOS 自定义页（`dm_custom.c` 一族 + 布局 + 15 行文案），其中要先定「语言开关（`lang_en`）」的去留（`hle_fs.c` 挂存档时读它来决定游戏语言）。
+- 本会话踩过的两个坑，已经写进对应条目的证据里，改 iOS 触控层之后一定要用 `-Werror` 编译一遍 `dm/ios/tests/t_*.c`（本机可用 MinGW 的 `cc`）：① Android 构建不带 `-Werror`，被改坏的注释 / 未用参数它只当警告放过；② 编辑脚本里 `continue` 不删行会死循环（NA-024 那次卡住就是这个）。
+
+[END] na-024-runeword-trim
+
+- 退出码：`build.py --game-run --version trim-b23` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，17,775,055 字节（2026-10-20 03:18:14；比 trim-b22 小 180,224 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 提交：`c3fb671`（业务代码；控制面在下一条）。
+- 删除 `dm/host/dm_runeword.c`（91 KB：把原版符文之语做成一个可翻页 / 可看细节 / 可一键镶嵌的清单面板，宿主自绘）。
+- 宿主侧：`dm_cursor.c` 去掉清单的四个声明、`rw_hit()` 命中函数、清单开着时「点任何地方都吃掉」那一段、以及长按带孔底材开清单那一支；`dm_actions.c` 的每拍 `dm_runeword_pump()`；`diag.c` 的 `dm_runeword_on_uimsg`；`hle_hid.c` 的手柄 `dm_runeword_pad_filter`（清单开着时十字键 / A / B / L / R 归清单）；`dm_mode_items.h` 的「符文之语清单」登记；`dm_widget.h` 的一句注释；`dm/host/Makefile` 的 `SRC` 一项。**`dm_swapskill`（技能组切换）没动** —— 那是覆盖层上的独立开关，`dm_actions.c` 里另有用户。
+- iOS 与布局：`dm/ios/tools/touch_layout.py` 去掉 `_RW`（`TouchRwBox` 那一族控件）、`_rw_text` / `_rw_children_check` / `_inv_rw` / `pad_inv_rw` 与那一大段说明，`PRESENT` 里手柄版物品栏那一项（原来挂 `_inv_rw`）也去掉；`dm/ios/Sources/front_ios.m` 去掉触点脚本的「await rw」指令（等一键合成结束）与它在「全部步执行完」判定里的那个状态位。
+- 中英表：删 `dmRwTitle` / `dmRwLevel` / `dmRwHint` / `dmRwGo` 四行，重出 `dm/host/dm_i18n_tab.h`（220 → 216 条），`dm/ios/tools/dm_i18n.py --check` exit 0。
+- 单测与登记：`dm/host/tests/t_touch_mac.c` 与 `t_touch_tick_stub.c` 里那五个替身桩、`dm/host/tests/mode_scan.py` 的登记表（`dm_runeword.c` 那一项）。
+- UI 回归台：删掉 `rw1` / `rw2` / `rwp` / `rwd` 四局（`rwd` 是详情页里的一键合成）、`affected.tsv` 六行里指向这四局的局名、`usage.md` / `usage.zh-CN.md` 的那一行、`uireg_pick.py` 的核心局说明。**「k 局」保留** —— 它测的是原版自己的镶嵌（把两枚符文按顺序镶进 2 孔软帽），不是我们的清单。
+- 白名单：`host/dm_runeword.c` 五行（`@job_stop` / `@list_close` / `@job_readback` / 「储藏箱格」/「背包格」）。
+- 宽口径复核 `git grep -n -i -e dm_runeword -e TouchRw -e dmRw -e "await rw" -- dm/`：`dm/` 下 0 命中。
+- `dm\android\tools\build.py --game-run --version trim-b23`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：写本条目之前 9 项通过 / 1 项失败（失败的是「Agent 交接控制面」，因为 `[END]` 还没成对、HANDOFF 还没更新），收尾复跑 10 项通过 / 0 项失败。
+- **本机 NOT RUN 的部分**：`dm/ios` 侧的编译与打包（`touch_layout.py` 与 `front_ios.m` 的改动未经 Xcode 构建验证 —— 但 `touch_layout.py` 本机 `py_compile` 通过）；`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）跑不了。
+
+## 2026-10-20 03:25 Asia/Shanghai — [TOTK] NA-024 裁剪批 7r（符文之语助手）进行中
+
+[BEGIN] na-024-runeword-trim
+
+- 命令：`git rm dm/host/dm_runeword.c`，并连带清掉宿主侧（`dm_cursor.c` 的清单命中与长按分支、`dm_actions.c` 的每拍泵、`diag.c` 的 UI 消息、`hle_hid.c` 的手柄过滤、`dm_mode_items.h` 的登记、`dm_widget.h` 的注释、`Makefile` 的 `SRC`）、iOS 侧（`touch_layout.py` 的 `TouchRw*` 那一族控件与 `_RW` / `_inv_rw` / `pad_inv_rw` / `_rw_children_check`、`front_ios.m` 触点脚本的「await rw」指令）、中英表四行（`dmRwTitle` / `dmRwLevel` / `dmRwHint` / `dmRwGo`）并重出 `dm/host/dm_i18n_tab.h`、单测替身桩与 `mode_scan.py` 的登记表、UI 回归台里测符文之语清单的四局（`rw1` / `rw2` / `rwp` / `rwd`）与 `affected.tsv` / `usage*.md` / `uireg_pick.py` 的对应行、白名单五行、两个 README 的表行，然后 `ci_checks.py` + `build.py --game-run --version trim-b23` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉符文之语助手后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`ba1e89c9c0b3a74402e78df5cbba01ce33977de7`
+
 ## 2026-10-20 02:40 Asia/Shanghai — [TOTK] NA-023 裁剪批 7q（派生表批）进行中
 
 [BEGIN] na-023-derived-tables-trim
