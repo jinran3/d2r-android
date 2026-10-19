@@ -1291,25 +1291,8 @@ static int cube_pickup_rewrite(const uint64_t *regs, uint8_t out[4 + 25]) {
     if (!tk_rd(cube + 8, &cid, 4) || !tk_rd(cube + 0x38, &pp, 8) || !pp || !tk_rd(pp + 0x10, &cx, 4) || !tk_rd(pp + 0x14, &cy, 4)) return 0;
     uint32_t cxy = (cx & 0xffff) | cy << 16, txy = (tx & 0xffff) | ty << 16;
     memcpy(out, in, 4); out[4] = 0x5f; memcpy(out + 5, &id, 4); memcpy(out + 9, &cid, 4); memcpy(out + 13, in + 9, 8); memcpy(out + 21, &cxy, 4); memcpy(out + 25, &txy, 4);
-    static int logged; if (logged++ < 40) { uint32_t code = ((uint32_t (*)(uint64_t))(m->base + 0x570260))(u); int dm_potpick_auto(uint32_t);
-        LOG("规则：背包放不下，拾取物品 %u（%.4s，%s）改进方块 %u（方块格 %u,%u）", id, (const char *)&code, dm_potpick_auto(id) ? "药水自动拾取发的" : "玩家点的", cid, tx & 0xffff, ty); }
-    return 1;
-}
-// 药水自动拾取的服务端一道（说明见 dm_potpick.c 文件头）：自动拾取发出的 0x16 在处理这一刻用原版腰带找位 main+0x561de0(物品栏, 物品, &槽, 1)
-// 对服务端状态再核一次，放不进腰带就丢包（返回 1），药留在地上——不进背包、不进魔盒。玩家自己点的 0x16 不在自动拾取的表里，不经过这里。
-// Server-side pass of potion auto-pickup (see the dm_potpick.c file header): at the moment a 0x16 sent by auto-pickup is handled, check server state once more with the original game's belt slot search main+0x561de0(inventory object, item, &slot, 1);
-// if it does not fit in the belt, drop the packet (return 1) and the potion stays on the ground -- not into the inventory, not into the cube. A 0x16 the player tapped themselves is not in the auto-pickup table and does not pass through here.
-static int potpick_gate(const uint64_t *regs) {
-    int dm_potpick_auto(uint32_t); uint8_t in[4 + 17]; uint32_t id;
-    if (regs[1] != 17 || !tk_rd(regs[0], in, sizeof in) || in[4] != 0x16) return 0;
-    memcpy(&id, in + 5, 4); if (!dm_potpick_auto(id)) return 0;
-    module_t *m = main_mod(); uint64_t G = g_lastG, p = g_player_unit, u = 0, inv = 0;
-    if (!m || !in_game() || !p || !tk_rd(G + 0x2e30 + 8 * (id & 0x7f), &u, 8)) return 0;
-    for (int k = 0; u && k < 4096; k++) { uint32_t t = 0, i = 0; if (!tk_rd(u, &t, 4) || !tk_rd(u + 8, &i, 4)) return 0; if (t == 4 && i == id) break; if (!tk_rd(u + 0x158, &u, 8)) return 0; }
-    uint32_t mode = 0, slot = 0; if (!u || !tk_rd(u + 0xC, &mode, 4) || mode != 3 || !tk_rd(p + 0x90, &inv, 8) || !inv) return 0;
-    uint32_t code = ((uint32_t (*)(uint64_t))(m->base + 0x570260))(u);
-    if (((int (*)(uint64_t, uint64_t, uint32_t *, int))(m->base + 0x561de0))(inv, u, &slot, 1)) { static int ok; if (ok++ < 40) LOG("药水自动拾取：物品 %u（%.4s）到服务端时腰带放得进（槽 %u），放行", id, (const char *)&code, slot); return 0; }
-    static int dr; if (dr++ < 40) LOG("药水自动拾取：物品 %u（%.4s）到服务端时腰带已放不下 → 不捡，留在地上（丢包第 %d 次）", id, (const char *)&code, dr);
+    static int logged; if (logged++ < 40) { uint32_t code = ((uint32_t (*)(uint64_t))(m->base + 0x570260))(u);
+        LOG("规则：背包放不下，拾取物品 %u（%.4s，玩家点的）改进方块 %u（方块格 %u,%u）", id, (const char *)&code, cid, tx & 0xffff, ty); }
     return 1;
 }
 static int dm_move_allowed(void) { extern _Atomic uint64_t g_dm_move_allow_until_ns; struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint64_t)t.tv_sec * 1000000000ull + (uint64_t)t.tv_nsec < atomic_load(&g_dm_move_allow_until_ns); }   // 由目标触发的走近（dm_world.c） | Approach triggered by a target (dm_world.c)
@@ -1335,7 +1318,6 @@ void c2s_deliver(uint64_t *regs) {   // svc #0x81：收包泵 → 0x632510(包, 
     static void (*recv)(uint64_t, uint64_t, uint64_t, uint64_t);
     if (!recv) { module_t *m = NULL; for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) m = &g_mod[i];
                  recv = (void (*)(uint64_t, uint64_t, uint64_t, uint64_t))(m->base + 0x632510); }
-    if (potpick_gate(regs)) return;
     uint8_t cube[4 + 25]; if (cube_pickup_rewrite(regs, cube)) { recv((uint64_t)(uintptr_t)cube, 25, regs[2], regs[3]); return; }
     // 捡物品包（0x16）记一行去向（腰带案：玩家手动点地上的药捡起来原先不打日志，线上日志缺这一环）：物品码、谁发的、处理完落在哪个容器 / 页 / 格。
     // 处理是同步的（收包泵里直接分发），所以投递前记下 id 与码、投递后读这件在服务端的位置。封顶：每 25 拍最多 4 行，超出的只计数、下一行带出，刷怪掉落高峰冲不爆日志。
@@ -1345,10 +1327,10 @@ void c2s_deliver(uint64_t *regs) {   // svc #0x81：收包泵 → 0x632510(包, 
     // Handling is synchronous (dispatched directly in the packet receive pump), so record the id and code before delivery and read the item's server-side
     // position after delivery. Cap: at most 4 lines per 25 ticks; the excess is only counted and reported on the next line, so monster-drop peaks cannot
     // flood the log.
-    uint32_t pk_id = 0, pk_code = 0; int pk_auto = 0;
-    { uint8_t in[4 + 17]; int dm_potpick_auto(uint32_t); module_t *m = main_mod();
+    uint32_t pk_id = 0, pk_code = 0;
+    { uint8_t in[4 + 17]; module_t *m = main_mod();
       if (m && in_game() && regs[1] == 17 && tk_rd(regs[0], in, sizeof in) && in[4] == 0x16) { memcpy(&pk_id, in + 5, 4); uint64_t u = dm_diag_srv_item(pk_id);
-          if (u) { pk_code = ((uint32_t (*)(uint64_t))(m->base + 0x570260))(u); pk_auto = dm_potpick_auto(pk_id); } else pk_id = 0; } }
+          if (u) { pk_code = ((uint32_t (*)(uint64_t))(m->base + 0x570260))(u); } else pk_id = 0; } }
     recv(regs[0], regs[1], regs[2], regs[3]);
     if (pk_id) { static uint32_t win, used, skipped; uint32_t t = cur_tick(); if (t - win >= 25) { win = t; used = 0; }
         if (used >= 4) skipped++;
@@ -1356,8 +1338,8 @@ void c2s_deliver(uint64_t *regs) {   // svc #0x81：收包泵 → 0x632510(包, 
             if (!u || !tk_rd(u + 0xc, &mode, 4) || !tk_rd(u + 0x10, &d, 8) || !d) snprintf(where, sizeof where, "服务端已没有这件（叠进了别的一叠 / 金币等）");
             else if (mode == 3) snprintf(where, sizeof where, "还在地上（没捡成）");
             else { tk_rd(d + 0x55, &page, 1); if (tk_rd(u + 0x38, &pp, 8) && pp) { tk_rd(pp + 0x10, &x, 4); tk_rd(pp + 0x14, &y, 4); } snprintf(where, sizeof where, "容器 %u 页 %u 格 %d,%d", mode, page, (int)x, (int)y); }
-            if (skipped) LOG("拾取：物品 %u（%.4s，%s）→ %s（此前另有 %u 条没记）", pk_id, (const char *)&pk_code, pk_auto ? "药水自动拾取发的" : "玩家点的", where, skipped);
-            else LOG("拾取：物品 %u（%.4s，%s）→ %s", pk_id, (const char *)&pk_code, pk_auto ? "药水自动拾取发的" : "玩家点的", where);
+            if (skipped) LOG("拾取：物品 %u（%.4s，玩家点的）→ %s（此前另有 %u 条没记）", pk_id, (const char *)&pk_code, where, skipped);
+            else LOG("拾取：物品 %u（%.4s，玩家点的）→ %s", pk_id, (const char *)&pk_code, where);
             skipped = 0; } }
 }
 static uint64_t unit_by_id(uint64_t G, uint32_t id) {   // 玩家表 G+0x2230：128 桶、next=+0x158（tick_state_format.md 同口径） | Player table G+0x2230: 128 buckets, next=+0x158 (same convention as tick_state_format.md)

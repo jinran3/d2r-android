@@ -89,7 +89,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 
 | File | What it does |
 |---|---|
-| `dm_potpick.c` | Picks up matching potions automatically when the belt is not full |
 | `dm_dropfilter.c` | The light beam and landing sound for high-value drops |
 | `dm_drophaptic.c` | Haptic feedback when a high-value item lands, in three strengths |
 | `dm_freetp.c` | Free town portal: reuses the original town portal skill directly |

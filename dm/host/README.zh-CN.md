@@ -89,7 +89,6 @@ English: [README.md](README.md)
 
 | 文件 | 管什么 |
 |---|---|
-| `dm_potpick.c` | 腰带不满时自动捡起对应的药水 |
 | `dm_dropfilter.c` | 高价值掉落的光柱与落地音 |
 | `dm_drophaptic.c` | 高价值物品落地时的震动，分三档 |
 | `dm_freetp.c` | 免费回城：直接复用原版的回城技能 |
