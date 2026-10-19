@@ -3,6 +3,43 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 02:40 Asia/Shanghai — [TOTK] NA-023 裁剪批 7q（派生表批）进行中
+
+[BEGIN] na-023-derived-tables-trim
+
+- 命令：`git rm dm/host/dm_vault_tab.h dm/host/dm_bright_levels.inc dm/ios/tools/gen_vault_table.py dm/tools/gen_bright_levels.py`，并连带清掉 `dm/tools/shell_stubs.py`（替身清单、`parse()` 里读那两张表的几段、`data()` 里 `VTPART` / `VTROW` / `VTSET` / `BRT` 四类行、`stubs()` 里那两个替身）、`dm/host/dm_derived_rt.h` 的说明、`dm/android/tools/make_package.py` 的 `generators` 元组、`dm/android/tools/build_package.py` 的 `derived.tsv` 说明、`dm/host/Makefile` 的 `GENH` 与两条生成规则、`dm/ios/run.sh` 的 `make` 目标清单、`dm/ios/tools/check_hud_gen.sh` 的「不许提交」清单、`dm/ios/tools/gen_assets.py` 的说明、`dm/tools/d2rm_pack.py` 的生成器循环与亮度表那一段，然后 `ci_checks.py` + `build.py --game-run --version trim-b22` + `agent_handoff_check.py --verify`；**分两次提交**：第一次只含业务代码，第二次把 `dm/android/tools/ci_checks.py`（替身检查）与 HANDOFF、LOG 一起提
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：派生表管线收缩成「只有经验表（+ 技能图标索引）」后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`a8213ef3239cac2de06fd90df699eca2204cbd90`
+
+[END] na-023-derived-tables-trim
+
+- 退出码：`build.py --game-run --version trim-b22` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，17,955,279 字节（2026-10-20 02:28:06；与 trim-b21 同大小 —— 派生表是替身，内容不进包）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除四个文件：`dm/host/dm_vault_tab.h`（编年史仓库表的运行时替身）、`dm/host/dm_bright_levels.inc`（关卡亮度表的替身）、`dm/ios/tools/gen_vault_table.py`（编年史仓库表生成器）、`dm/tools/gen_bright_levels.py`（亮度表生成器）。这两张表的宿主消费方已分别随裁剪批 7k / 7j 摘掉，表与生成器一并没了。
+- 派生表管线收缩成「经验表 + 技能图标索引」两张：
+  - `dm/tools/shell_stubs.py`：`paths()` 只返回经验表与技能图标索引两处；`parse()` 只读经验表（编年史表与亮度表的解析全部去掉）；`data()` 只写 `EXP` 与 `TAROW` 两类行（`VTPART` / `VTROW` / `VTSET` / `BRT` 四类去掉）；`stubs()` 只写经验表与技能图标索引两个替身（编年史表与亮度表那两个替身去掉）；文件头的说明从「三份」改成「只剩两张」；
+  - `dm/host/dm_derived_rt.h` 的说明（共用读取器本身不动，`EXP` 那条路径没动）；
+  - `dm/android/tools/make_package.py` 的 `generators` 元组（只留 `dm_hud_exp.h`）与 docstring；`dm/android/tools/build_package.py` 的 `derived.tsv` 说明；
+  - `dm/host/Makefile` 的 `GENH`（只留 `dm_hud_exp.h`）与那两条生成规则；`dm/ios/run.sh` 的 `make` 目标清单；`dm/ios/tools/gen_assets.py` 的说明；
+  - `dm/tools/d2rm_pack.py` 的生成器循环（只留经验表）与亮度表那一段；`dm/ios/tools/shell_build.sh` 里 `VTROW` / `VTSET` 那段「壳里不许有游戏内容」的扫描（那两类行没有了）与「三份生成文件」的说法。
+- 顺手带走的两个上一批的漏网：`dm/tools/d2rm_pack.py` 与 `dm/ios/tools/shell_build.sh` 里还在拷「佣兵面板底图」那一档（`mercslots`，随裁剪批 7o 摘掉的 `gen_merc_art.py` 已经不生成它了）。
+- `dm/ios/tools/check_hud_gen.sh` 的「不许提交」清单：去掉那两份已删的表。**顺带修了一处本来就红的地方**：清单里还留着 `dm/host/dm_hud_exp.h`，而它正是**故意提交**的运行时替身（里面没有数据），留着这条就等于每次都报红 —— 一并去掉。
+- 文档：`dm/README.md` / `dm/README.zh-CN.md`（「三份表」的说法与表格里那两行）、`dm/host/README*.md`（Makefile 那行）、`dm/ios/README*.md`（build 流程那行）、`dm/tools/README*.md`（`gen_bright_levels.py` 那行）、`dm/ios/tools/uireg/affected.tsv`（`gen_vault_table.py` 那行）。
+- **本机验证**（不用游戏文件）：造一份「真实表」样式的 `dm_hud_exp.h` 丢进临时目录，跑 `python dm/tools/shell_stubs.py data dm <输出> --tables <临时目录>` → exit 0，输出 `derived.tsv：经验 100、技能索引 0`，写出 10 行 `EXP`（100 个值）；`python dm/tools/shell_stubs.py stubs dm --tables <临时目录>` → exit 0，写出的经验表替身与仓库里那一份逐字相同（只有注释的换行折行差，代码一样）。
+- 顺手把替身识别改严了一处：原来判「这是不是替身」看的是 `k_exp[100]` 这个字符串在不在文件里，而替身里恰好有 `static uint32_t k_exp[100];` → 判不出来，脚本会崩在一个难懂的 AttributeError 上；改成看真正的初始化式 `k_exp[100] = {`。
+- 宽口径复核 `git grep -n -e dm_vault_tab -e dm_bright_levels -e gen_vault_table -e gen_bright_levels -e VTPART -e VTROW -e VTSET -e BRT -- dm/`：`dm/` 下 0 命中（只剩 `dm/android/tools/ci_checks.py` 那两条，在控制面提交里改掉）。
+- `dm\android\tools\build.py --game-run --version trim-b22`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：写本条目之前 9 项通过 / 1 项失败（失败的是「Agent 交接控制面」：本批改了控制面文件 `ci_checks.py`，它的「派生表是运行时替身」那一项查的正是被摘掉的两张表；改完并与 HANDOFF、LOG 一起提交后收尾复跑 10 项通过 / 0 项失败）。
+- **提交分两次**（协议要求：交接控制面单独提，不与业务代码混提）：`cc279c2` = 业务代码（不含 `dm/android/tools/ci_checks.py`）；第二个提交 = `dm/android/tools/ci_checks.py` + HANDOFF + LOG。
+- **本机 NOT RUN 的部分**：`dm/ios/run.sh` 与 `check_hud_gen.sh` 的改动未经 Mac 冒烟验证（那两个脚本要 macOS 与 Xcodegen）；`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）跑不了。
+
 [END] na-022-freetp-trim
 
 - 退出码：`build.py --game-run --version trim-b21` exit 0

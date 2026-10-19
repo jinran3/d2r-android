@@ -89,14 +89,12 @@ def hygiene():
 
 
 def table_stubs():
-    """三张派生表必须是**运行时替身**，不能是真实数据：仓库里不许出现游戏内容。
-    The three derived tables must be **runtime stubs**, never real data: the repository must hold no game content.
-    A real table loses the stub marker and is tens of kilobytes; either way this fails loudly instead of shipping
-    game content in a clean checkout."""
+    """派生表（现在只剩经验表）必须是**运行时替身**，不能是真实数据：仓库里不许出现游戏内容。
+    The derived table (only the experience table is left) must be a **runtime stub**, never real data: the repository
+    must hold no game content. A real table loses the stub marker and is tens of kilobytes; either way this fails
+    loudly instead of shipping game content in a clean checkout."""
     expected = (
         ("dm/host/dm_hud_exp.h", "dm_derived_rt.h"),
-        ("dm/host/dm_vault_tab.h", "dm_derived_rt.h"),
-        ("dm/host/dm_bright_levels.inc", "DM_BRIGHT_COUNT"),
     )
     bad = []
     for relative, marker in expected:
