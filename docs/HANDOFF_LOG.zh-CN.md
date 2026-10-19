@@ -2,6 +2,33 @@
 
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+## 2026-10-19 23:40 Asia/Shanghai — [TOTK] NA-013 裁剪批 7g（文字框注释颜色码）进行中
+
+[BEGIN] na-013-textbox-trim
+
+- 命令：`git rm dm/host/dm_textbox.c dm/host/dm_textbox_core.c dm/host/dm_textbox_core.h`、收掉观测门 14（`dm/host/dm.h` 的枚举 + `dm/tools/patch_nso.py` 的 OBS 表条目）、清掉 `diag.c` 的安装调用、`dm_runeword.c` 的对照表调用、单测 `t_textbox.c` 与 Makefile、`Makefile` 的 `SRC`、两个 README 表行、`uireg` 行，然后 `ci_checks.py` + `build.py --game-run --version trim-b12` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉文字框颜色码一族后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`31188dcf69cb7de62f8c45b985afa06fdbe0f197`
+[END] na-013-textbox-trim
+
+- 退出码：`build.py --game-run --version trim-b12` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，19,085,775 字节（2026-10-19 22:13:40；比 trim-b11 小 32,768 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除：`dm/host/dm_textbox.c`（挂观测门 14，在文字框「文字变了」入口按对照表改写颜色码）、`dm/host/dm_textbox_core.c` 与 `dm_textbox_core.h`（对照表的纯逻辑，`dm_runeword.c` 借它改写本地化串）。
+- **观测门 14 两侧同收**：`dm/host/dm.h` 的枚举去掉 `OBS_TEXTBOX = 14` 且 `OBS_MAX` 19 → 18；`dm/tools/patch_nso.py` 的 OBS 表里 14 = `0xadc434` 那条一并去掉。只改一侧的话，宿主会撞 `gate_obs_set` 的「观测门编号越界」die（NA-007 摘 `dm_turnsmooth` 时已踩过一次）。
+- 调用点：`dm/host/diag.c` 的 `dm_textbox_install` 安装行；`dm/host/dm_runeword.c` 去掉 `#include "dm_textbox_core.h"` 与对照表改写（`loc_tb` 改成原样透传 —— 符文之语清单的名字本来就不在表里，行为不变）。
+- 生成器侧：`dm/ios/tools/annot_strings.py` 不再出那张对照表（`TEXTBOX_TABLE`／`apply_textbox`／`textbox_table`／`write_textbox_table` 与相关注释一起摘掉），`dm/ios/tools/gen_romfs_overlay.py` 里写表的调用也去掉；注释版串仍照旧写进字符串表。改后用 `ast.parse` 验过两个脚本的语法。
+- 单测与清单：`dm/host/tests/t_textbox.c` 删除，`dm/host/tests/Makefile` 里它的编译规则与 `run:` 列表引用去掉；`dm/host/Makefile` 的 `SRC` 两项、两个 `dm/host/README*.md` 的表行、`dm/ios/tools/uireg/affected.tsv` 一行。**本机 NOT RUN**：`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）本机跑不了，被删的 `t_textbox` 未经本机执行验证；`ci_checks.py` 不覆盖该目录。
+- 宽口径复核 `git grep -n -i -e dm_textbox -e OBS_TEXTBOX -e DM_TEXTBOX -- .`：除 `docs/HANDOFF*` 外 0 命中。
+- `dm\android\tools\build.py --game-run --version trim-b12`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：提交后在干净树上复跑 exit 0，10 项通过 / 0 项失败。
+
 ## 2026-10-19 23:15 Asia/Shanghai — [TOTK] NA-012 裁剪批 7f（高价值掉落：光柱 / 落地音 / 震动）进行中
 
 [BEGIN] na-012-dropoverlay-trim
