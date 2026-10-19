@@ -12,7 +12,6 @@ static uintptr_t write_after_read;
 static uint32_t write_after_read_value;
 static uint64_t dirty_generation=1;
 void dm_guest_write_prepare(void *p, size_t n) { (void)n; if(p==tracked_vertices)dirty_generation++; }
-int dm_fps_setting(void) { return 60; }
 void dm_shot_written(const char *p, int ok) { (void)p; (void)ok; }
 uint64_t dm_android_clock_ns(clockid_t clock) { struct timespec t; assert(!clock_gettime(clock, &t)); return (uint64_t)t.tv_sec * 1000000000ull + t.tv_nsec; }
 int dm_android_read_memory(uintptr_t address, void *destination, size_t size) {

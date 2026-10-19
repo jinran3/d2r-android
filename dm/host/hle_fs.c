@@ -328,8 +328,8 @@ static void settings_seed(const char *save_dir) {
     char *brace = strchr(buf, '{'); int had = brace != NULL; size_t o = 0; int added = 0;
     o += (size_t)snprintf(out + o, sizeof out - o, "{");
     for (size_t i = 0; i < sizeof kv / sizeof kv[0]; i++) if (!strstr(buf, kv[i][0])) { o += (size_t)snprintf(out + o, sizeof out - o, "\n    %s: %s,", kv[i][0], kv[i][1]); added++; }
-    // 首次安装按系统语言定原版的文字语言和语音语言（dm_sys_lang()，见 dm_i18n.c；只在没有设置文件时）。已有设置文件不补这两个键（老玩家照旧）；之后由自定义页的语言开关改（settings_lang_apply）
-    // On first install the original game's text and voice languages are set from the system language (dm_sys_lang(), see dm_i18n.c; only when there is no settings file). An existing settings file does not get these two keys added (existing players stay as they are); afterwards they are changed by the language switch on the Custom page (settings_lang_apply)
+    // 首次安装按 dm_sys_lang()（现恒为简中）定原版的文字语言和语音语言（见 dm_i18n.c；只在没有设置文件时）。已有设置文件不补这两个键（老玩家照旧）。
+    // On first install the original game's text and voice languages are set from dm_sys_lang() (now always Simplified Chinese; see dm_i18n.c; only when there is no settings file). An existing settings file does not get these two keys added (existing players stay as they are).
     if (first) { int dm_sys_lang(void); o += (size_t)snprintf(out + o, sizeof out - o, "\n    \"Language\": %d,\n    \"VoiceLanguage\": %d,", dm_sys_lang(), dm_sys_lang()); added += 2; }
     if (!added) return;
     if (had) { const char *rest = brace + 1; const char *q = rest; while (*q == ' ' || *q == '\n' || *q == '\r' || *q == '\t') q++;
@@ -339,33 +339,7 @@ static void settings_seed(const char *save_dir) {
     mkdir(dir, 0755); char tmp[1300]; snprintf(tmp, sizeof tmp, "%s.seed", path);
     f = fopen(tmp, "wb"); if (!f || fwrite(out, 1, o, f) != o) { if (f) fclose(f); LOG("【红】设置缺省：写 %s 失败", tmp); return; }
     fclose(f); if (rename(tmp, path)) { LOG("【红】设置缺省：改名到 %s 失败", path); return; }
-    LOG("设置缺省：%s 补了 %d 个键（显示物品 = 开关式 / 说明条热键 = 关 / 小地图放右、进局自动开%s；已有的键不动）", path, added, first ? " / 首次安装按系统语言写 Language" : "");
-}
-// 语言开关（自定义页标题行那一格，dm_custom.c 的 lang_en）：玩家点过「应用」后设置文件里有明确的值，每次挂存档（游戏读设置之前）按它把原版设置文件的
-// Language（文字）和 VoiceLanguage（语音，语音跟着切）改成 0 英文 / 8 简中。只在「与开关不符」时改：开关 = 英文而文字不是 0；开关 = 中文而文字是 0。
-// 所以开关关着时玩家若在原版里选了繁中等别的语言，不会被改回简中。两个键缺哪个补哪个。没点过应用（-1）= 一个字不动
-// Language switch (the cell in the title row of the Custom page, lang_en in dm_custom.c): once the player has tapped 「应用」(Apply) the settings file holds an explicit value, and on every save mount (before the game reads its settings) the original game's settings file has its
-// Language (text) and VoiceLanguage (voice; the voice switches along with it) changed to 0 English / 8 Simplified Chinese accordingly. It is changed only when it "does not match the switch": switch = English but text is not 0; switch = Chinese but text is 0.
-// So with the switch off, if the player has chosen another language such as Traditional Chinese in the original game, it is not changed back to Simplified Chinese. Whichever of the two keys is missing is added. Apply never tapped (-1) = nothing is touched
-static int json_int_set(char *buf, size_t cap, const char *key, int val) {   // 把 "key": N 的 N 换成 val（没有这个键就插在第一个 { 之后）；返回 1 = 改了 | Replace the N of "key": N with val (if the key is absent, insert it after the first {); returns 1 = changed
-    char *k = strstr(buf, key); char num[16]; snprintf(num, sizeof num, "%d", val);
-    if (!k) { char *b = strchr(buf, '{'); char ins[96]; int m = snprintf(ins, sizeof ins, "\n    %s: %s,", key, num); if (!b || strlen(buf) + (size_t)m + 1 >= cap) return 0;
-        memmove(b + 1 + m, b + 1, strlen(b + 1) + 1); memcpy(b + 1, ins, (size_t)m); return 1; }
-    char *v = strchr(k + strlen(key), ':'); if (!v) return 0; v++; while (*v == ' ' || *v == '\t') v++; char *e = v; if (*e == '-') e++; while (*e >= '0' && *e <= '9') e++;
-    if (e == v || atoi(v) == val) return 0; size_t nl = strlen(num); if (strlen(buf) + nl + 1 >= cap) return 0;
-    memmove(v + nl, e, strlen(e) + 1); memcpy(v, num, nl); return 1; }
-static void settings_lang_apply(const char *save_dir) {
-    int dm_custom_lang_explicit(void); int en = dm_custom_lang_explicit(); if (en < 0) return;
-    char path[1200]; snprintf(path, sizeof path, "%s/Settings/Settings.json", save_dir); static char buf[66000]; FILE *f = fopen(path, "rb"); if (!f) return;
-    size_t n = fread(buf, 1, 65535, f); fclose(f); if (n == 65535) return; buf[n] = 0;
-    const char *k = strstr(buf, "\"Language\""), *c = k ? strchr(k + 10, ':') : NULL; int cur = c ? atoi(c + 1) : 8;   // 没写 = 游戏缺省（宿主报简中） | Not written = game default (the host reports Simplified Chinese)
-    if ((en && cur == 0) || (!en && cur != 0)) { const char *vk = strstr(buf, "\"VoiceLanguage\""), *vc = vk ? strchr(vk + 15, ':') : NULL; int vcur = vc ? atoi(vc + 1) : cur;
-        if ((en && vcur == 0) || (!en && vcur != 0)) return; }   // 文字、语音都已与开关相符 | Text and voice already match the switch
-    int want = en ? 0 : 8, ch = json_int_set(buf, sizeof buf, "\"Language\"", want) | json_int_set(buf, sizeof buf, "\"VoiceLanguage\"", want); if (!ch) return;
-    char tmp[1300]; snprintf(tmp, sizeof tmp, "%s.lang", path); f = fopen(tmp, "wb"); size_t m = strlen(buf);
-    if (!f || fwrite(buf, 1, m, f) != m) { if (f) fclose(f); LOG("【红】语言开关：写 %s 失败", tmp); return; }
-    fclose(f); if (rename(tmp, path)) { LOG("【红】语言开关：改名到 %s 失败", path); return; }
-    LOG("语言开关：设置文件的 Language / VoiceLanguage 改成 %d（%s；原文字语言 %d）", want, en ? "英文" : "简中", cur);
+    LOG("设置缺省：%s 补了 %d 个键（显示物品 = 开关式 / 说明条热键 = 关 / 小地图放右、进局自动开%s；已有的键不动）", path, added, first ? " / 首次安装写简中 Language" : "");
 }
 // 事务式存档当前的工作目录（游戏读写的那份；宿主自己的旁路文件写在这里才会随 Commit 进已提交版）。没挂载存档时返回 NULL
 // The current working directory of the transactional save (the copy the game reads and writes; the host's own side files must be written here to enter the committed version with Commit). Returns NULL when no save is mounted
@@ -382,7 +356,7 @@ HLE_FORCE("_ZN2nn2fs13MountSaveDataEPKcRKNS_7account3UidE", "fsp-srv；存档 �
     char dd[1024]; strlcpy(dd, d, sizeof dd); size_t L = strlen(dd); while (L > 1 && dd[L - 1] == '/') dd[--L] = 0;   // 去掉结尾斜杠（.work / .new 拼在同级） | strip trailing slashes (.work / .new are appended at the same level)
     stash_seed(dd);
     low_vision_off(dd);
-    settings_seed(dd); settings_lang_apply(dd);
+    settings_seed(dd);
     return mount_ex(name, dd, 0, 1);
 }
 static _Atomic uint64_t g_save_commits;   // 成功提交过几次（前端进后台时等「游戏这次存盘已提交」用） | number of successful commits (used by the front end when going to background to wait for "the game's current save has been committed")

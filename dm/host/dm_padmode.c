@@ -244,7 +244,7 @@ void dm_padmode_on_uimsg(const char *cat, const char *act, const char *arg) {   
     if (!cur) { LOG("【红】手柄暂停菜单：游戏难度没读到当前档位，不动"); return; }
     int to = cur % 8 + 1; dm_hud_request_players(to); atomic_store(&g_diff_pend, to); LOG("手柄暂停菜单：游戏难度 %d → %d", cur, to);
 }
-static uint64_t pm_find(uint64_t w, const char *name, int dep) {   // 按名字找控件：名字 +8、子控件 +0x58、个数 +0x60（同 dm_custom.c） | Find a widget by name: name +8, children +0x58, count +0x60 (same as dm_custom.c)
+static uint64_t pm_find(uint64_t w, const char *name, int dep) {   // 按名字找控件：名字 +8、子控件 +0x58、个数 +0x60（同原版控件查找） | Find a widget by name: name +8, children +0x58, count +0x60 (same as the original widget lookup)
     if (!w || dep > 6) return 0; const char *nm = (const char *)rd8(w + 8); if (nm && !strcmp(nm, name)) return w;
     uint64_t ch = rd8(w + 0x58), n = rd8(w + 0x60); for (uint64_t i = 0; ch && i < n && i < 256; i++) { uint64_t r = pm_find(rd8(ch + 8 * i), name, dep + 1); if (r) return r; }
     return 0;

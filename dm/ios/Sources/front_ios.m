@@ -345,7 +345,6 @@ static void restart_cover_hook(int on) { dispatch_async(dispatch_get_main_queue(
     if(im) _mgImg[name]=im; return im;
 }
 - (void)mapGoalSync {
-    static int old=-1; if(old<0) { int dm_custom_get(const char *key); old=dm_custom_get("item_notes")!=0; }   // 旧译名开关重启生效，启动读一次（名牌字跟游戏显示的一致） | The old translation names switch takes effect on restart; read once at launch (nameplate text matches what the game shows)
     dm_map_goal_view v; float cell=0; int mode=dm_ui_map_geom(&cell), n=dm_map_goals(&v); int rw=0,rh=0; dm_screen_real(&rw,&rh);
     CGRect wr=world_rect(self); float mm[4]; BOOL haveMini=dm_ui_minimap_rect(mm);
     BOOL show=mode && n>0 && !_navigation && !_info.hidden && rw>0 && cell>0 && (mode==2 || haveMini);
@@ -361,7 +360,7 @@ static void restart_cover_hook(int on) { dispatch_async(dispatch_get_main_queue(
         BOOL inside=CGRectContainsPoint(area,p) && !(mode==2 && p.x>wr.origin.x+wr.size.width*0.72 && p.y>wr.origin.y+H*0.45);   // 全屏地图右下是技能区 | The bottom right of the fullscreen map is the skill area
         int art=v.art[i], sym=art>=64; UIImage *lab=nil, *mark=nil;
         if(inside && sym) mark=[self mgImage:[NSString stringWithFormat:@"sym_%d.png",art-64]];
-        else { int id=sym ? 0 : art; lab=!dm_lang_zh() ? [self mgImage:[NSString stringWithFormat:@"label_%d_en.png",id]] : (old && dm_lang_index()==8 ? [self mgImage:[NSString stringWithFormat:@"label_%d_old.png",id]] : nil);   // 简中 / 繁体用中文名牌，其余原版 enUS 名牌；旧译名只跟简中（注释一系只写 zhCN） | Simplified / Traditional Chinese use the Chinese name label, everything else the original enUS name label; legacy translated names apply to Simplified Chinese only (the notes family is written only into zhCN)
+        else { int id=sym ? 0 : art; lab=!dm_lang_zh() ? [self mgImage:[NSString stringWithFormat:@"label_%d_en.png",id]] : (dm_lang_index()==8 ? [self mgImage:[NSString stringWithFormat:@"label_%d_old.png",id]] : nil);   // 简中 / 繁体用中文名牌，其余原版 enUS 名牌；旧译名只跟简中（注释一系只写 zhCN） | Simplified / Traditional Chinese use the Chinese name label, everything else the original enUS name label; legacy translated names apply to Simplified Chinese only (the notes family is written only into zhCN)
             lab=lab ?: [self mgImage:[NSString stringWithFormat:@"label_%d.png",id]]; if(inside) mark=[self mgImage:@"cross.png"]; }
         if(!inside) {   // 画面外：沿 玩家点 → 终点 的方向收到可见范围边上（全屏地图再让开右下技能区），只写名字 | Off-screen: clamp along the player point → goal direction to the edge of the visible range (the fullscreen map additionally avoids the bottom-right skill area), name only
             CGFloat tx=p.x>o.x ? (CGRectGetMaxX(area)-o.x)/(p.x-o.x) : p.x<o.x ? (CGRectGetMinX(area)-o.x)/(p.x-o.x) : 1e9, ty=p.y>o.y ? (CGRectGetMaxY(area)-o.y)/(p.y-o.y) : p.y<o.y ? (CGRectGetMinY(area)-o.y)/(p.y-o.y) : 1e9, t=MIN(tx,ty);

@@ -69,8 +69,7 @@ with tempfile.TemporaryDirectory() as t:
     lp,lt=touch_layout.read_layout(romfs,'controller/console/mainmenubuttonribbonhd.json'); o=os.path.join(tpad,'pad_ribbon.json'); open(o,'w',encoding='utf-8').write(touch_layout.pad_ribbon(lt)); PR[lp.lower()]=o   # 手柄版主菜单按钮栏：拿掉「电影动画」 | Controller layout main menu button ribbon: remove 「电影动画」(Cinematics)
     lp,lt=touch_layout.read_layout(romfs,'controller/hudmonsterhealthhd.json'); o=os.path.join(tpad,'pad_bosspct.json'); open(o,'w',encoding='utf-8').write(touch_layout.pad_boss_pct(lt)); PR[lp.lower()]=o   # 手柄版怪物血条：加百分比 | Controller layout monster health bar: add the percentage
     lp,lt=touch_layout.read_layout(romfs,'controller/console/characteroptionspanelhd.json'); o=os.path.join(tpad,'pad_charopt.json'); open(o,'w',encoding='utf-8').write(touch_layout.pad_charopt(lt)); PR[lp.lower()]=o   # 手柄版建角模式页 | Controller-version character-creation mode page
-    for rel,fn in (('controller/console/settingspanelhd.json',touch_layout.pad_settings),('controller/console/videooptionspanelhd.json',touch_layout.pad_custom_page)):   # 手柄版选项页：「视频」页签换成「自定义」页 | Controller options page: the "Video" tab is replaced by the "Custom" page
-        lp,lt=touch_layout.read_layout(romfs,rel); o=os.path.join(tpad,'pad_'+rel.replace('/','_')); open(o,'w',encoding='utf-8').write(fn(lt)); PR[lp.lower()]=o
+    lp,lt=touch_layout.read_layout(romfs,'controller/console/settingspanelhd.json'); o=os.path.join(tpad,'pad_settingspanelhd.json'); open(o,'w',encoding='utf-8').write(touch_layout.pad_settings(lt)); PR[lp.lower()]=o   # 手柄版选项页：只保留可用的三个页签 | Controller options page: keep only the three usable tabs
     PR.update(wide_stash.build(romfs,tpad,PR)[0])   # 储藏箱 10 → 14 列（编年史仓库第 1 步）：表、底图、宽外框、布局；要在触摸布局之后（储藏箱 / 外框布局叠在那份上） | Stash 10 → 14 columns (chronicle vault step 1): table, base image, wide outer frame, layout; must come after the touch layout (the stash / outer frame layout stacks on that copy)
     cb=Image.open(os.path.join(HERE,'..','NativeHUD','touch','close.png')).convert('RGBA')
     open(os.path.join(t,'close.sprite'),'wb').write(b'SpA1'+struct.pack('<HHIIIIII',31,cb.width,cb.width,cb.height,0,1,0,0)+struct.pack('<II',cb.width*cb.height*4,4)+cb.tobytes())
@@ -184,39 +183,14 @@ with tempfile.TemporaryDirectory() as t:
             for k,o,v in TS: f.write('%s\t%s\t%s\n' % (k,o,v.replace('\\','\\\\').replace('\n','\\n').replace('\t','\\t')))
         open(os.path.join(dst,'ctrl_touch'),'w').write('触屏版布局在 layouts/xtouch_lay、ztouch_console_lay、0touch_console_switch_lay（dm_padmode.c 见到本文件才改写前缀）\n')
         return new[0], os.path.getsize(os.path.join(dst,'data',new[0]))
+    import annot_strings
+    ta,stats=annot_strings.build(romfs,t,REPL); REPL.update(ta)   # 自定义页开关已摘除：物品注释 / 旧译名常驻基础覆盖层 | The Custom page switch has been removed: item notes and legacy names are always in the base overlay
+    print(f'annot_strings：{stats}')
     n0,z0=emit(REPL,out,'')
     print(f'romfs_overlay：{n0} {z0} 字节，底图 {w}x{h}；前端布局 {len(tl)} 个、挪走键位提示 {ntl} 处')
-    for d in (out+'_astc',out+'_astc_variants'): shutil.rmtree(d,ignore_errors=True); os.makedirs(d)
+    for d in (out+'_astc',): shutil.rmtree(d,ignore_errors=True); os.makedirs(d)
     if ASTC:
         idx=os.path.join(ASTC,'pack_index.tsv'); assert os.path.isfile(idx) and os.path.isfile(os.path.join(ASTC,'pack.json')), 'DM_ASTC_PACK 目录里缺 pack_index.tsv / pack.json：'+ASTC
         na,za=emit(REPL,out+'_astc','astc_',idx); shutil.copyfile(os.path.join(ASTC,'pack.json'),os.path.join(out+'_astc','pack.json'))
         assert na==n0, f'ASTC 版覆盖层的新数据档 {na} 与 BC 版 {n0} 不同名（预取清单按名字找档）'
         print(f'romfs_overlay_astc：{na} {za} 字节（贴图指向补充包 {ASTC}）')
-    # 走覆盖层的自定义开关（按组合出全部 2^n 份，App 启动按 dm_custom_get 挑一份，重启生效；开关到第 4 个再换「拼表」方案）。
-    # 每项 = (自定义页的键, 模块名)：模块提供 build(romfs, 临时目录, 前面已换的 repl) → ({包内逻辑路径: 本地文件}, 统计)，在传入的 repl 之上改（同一文件多个特性都改时自然叠加）。
-    # out 本身 = 全关（宿主验收 / 触摸链用它）；其余组合写到 out_variants/<键+键…>/data，各带 features.txt。
-    # Custom page switches that go through the overlay (all 2^n copies are produced by combination; at launch the App picks one by dm_custom_get, effective after restart; switch to the "table-stitching" scheme once there is a 4th switch).
-    # Each entry = (customization page key, module name): the module provides build(romfs, temp dir, the repl replaced so far) → ({logical path in package: local file}, stats), modifying on top of the passed-in repl (naturally stacking when several features change the same file).
-    # out itself = all off (host acceptance / the touch chain use it); the other combinations are written to out_variants/<key+key...>/data, each with its features.txt.
-    FEATURES=[('item_notes','annot_strings')]   # 物品注释与旧译名；以后走覆盖层的开关在这里追加一项 | Item notes and old translated names; future switches that go through the overlay append an entry here
-    import importlib, itertools
-    shutil.rmtree(out+'_variants',ignore_errors=True)
-    for r in range(1,len(FEATURES)+1):
-        for combo in itertools.combinations(FEATURES,r):
-            RS=dict(REPL); touched=set(); stats={}
-            for key,mod in combo:
-                ta,st=importlib.import_module(mod).build(romfs,t,RS); RS.update(ta); touched|=set(ta); stats[key]=st
-            # 除特性文件外逐文件相同：没被本组合的特性改过的路径必须原样指向全关那份的文件
-            # File-by-file identical except for feature files: paths not changed by this combination's features must point unchanged to the files of the all-off copy
-            diff=[k for k in RS if k not in touched and RS[k]!=REPL.get(k)]
-            if diff: raise SystemExit('gen_romfs_overlay：组合 %s 除特性文件外与全关那份不一致：%s' % ([k for k,_ in combo],diff))
-            name='+'.join(k for k,_ in combo); dst=os.path.join(out+'_variants',name)
-            n1,z1=emit(RS,dst,name+'_')
-            for key,mod in combo:   # 特性模块自带的旁路文件（不进 CASC 的，如物品注释的文字框对照表）写在变体目录根上，宿主按 DM_ROMFS_OVERLAY 找 | Sidecar files that feature modules bring along (those not in CASC, e.g. the item notes' text box mapping table) are written at the variant directory root; the host finds them via DM_ROMFS_OVERLAY
-                m=importlib.import_module(mod)
-            with open(os.path.join(dst,'features.txt'),'w') as f: f.write('\n'.join(k for k,_ in combo)+'\n'+''.join(f'{p}\n' for p in sorted(touched)))
-            print(f'romfs_overlay_variants/{name}：{n1} {z1} 字节；改了 {len(touched)} 个文件；{stats}')
-            if ASTC:   # 同一组合的 ASTC 版：索引另出，旁路文件（features.txt、文字框对照表…）照抄 | ASTC version of the same combination: the index is emitted separately, sidecar files (features.txt, text box mapping table...) are copied as is
-                da=os.path.join(out+'_astc_variants',name); emit(RS,da,name+'_astc_',os.path.join(ASTC,'pack_index.tsv'))
-                for f in os.listdir(dst):
-                    if f!='data': shutil.copyfile(os.path.join(dst,f),os.path.join(da,f))

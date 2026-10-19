@@ -334,7 +334,7 @@ void uimsg_subscribe(void (*fn)(const char *cat, const char *act, const char *ar
 #define UIH_MONSTERHEALTH 0xd3a07a5ecad1a9a3ull
 #define UIH_SETINFO       0x40ffba2d98a3ff97ull
 static void monres_on_setinfo(const uint64_t *regs, uint64_t payload) {
-    int dm_custom_get(const char *key); if (!dm_custom_get("item_notes") || dm_lang_index() != 8) return;   // 物品注释一系只有简中版（英文版：别的语言不显示；注释只写进 zhCN 一列） | the item-notes family exists only in Simplified Chinese (English version: not shown in other languages; notes are written only into the zhCN column)
+    if (dm_lang_index() != 8) return;   // 物品注释一系只有简中版（英文版：别的语言不显示；注释只写进 zhCN 一列） | the item-notes family exists only in Simplified Chinese (English version: not shown in other languages; notes are written only into the zhCN column)
     module_t *mm = NULL; for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) mm = &g_mod[i];
     uint64_t unit = regs[19], name = 0; uint32_t type = 0; vm_size_t got = 0;
     if (!mm || !unit || vm_read_overwrite(mach_task_self(), unit, 4, (vm_address_t)&type, &got) || type != 1) return;   // 只认怪物（单位类型 1） | Monsters only (unit type 1)

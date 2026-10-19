@@ -18,7 +18,6 @@
 //            whether a point can be added = main+0xc368b0(skill id).
 #include "dm_actions.h"
 #include "dm_cursor_item.h"
-#include "dm_custom.h"
 #include "dm_input.h"
 #include "dm_hud.h"
 #include <unistd.h>
@@ -167,7 +166,7 @@ static void a_send(uint8_t *b, uint64_t root, uint64_t cat, uint64_t act, int32_
 //   生命：状态 100 healthpot（misc.txt hp* 的 state）。不用它的属性 74 hpregen：装备的「生命回复」也记在 74 上，戴着就一直非 0。
 //   状态位：[单位+0x88] 属性表（+0x1c 最高位 = 扩展表）+0xb30 起按 状态号 / 32 一个字的位图（游戏自己读法见 main+0x6240f4，置位见 0x5bd510）。
 // 发出喝药后等药效出现，1 秒（25 拍）没出现算这次没喝成，再按数值重判。两种同时低时先喝红。
-// 开关：「自定义」设置 auto_mana（dm_custom.c，键名沿用只管蓝药时的旧名，现管红蓝两种），缺省开
+// 自动喝药常开（自定义页开关已摘除）：键名沿用只管蓝药时的旧名，现管红蓝两种。
 // Auto potion: life uses two tiers (see ap_life_pick below: red potion below 50%, purple potion below 30%, one more red potion if there is no purple), mana < 30% of the maximum drinks a blue potion (mp1–mp5) -- inventory first (page 0), and the belt if the inventory has none; also drinks in town.
 // Life / mana are read with the game's own stat getter function main+0x5b9290(unit, stat id, 0) (including equipment / charm bonuses, same definition as the character page), 6 / 7 life, 8 / 9 mana, fixed point ×256.
 // Drinking goes through the original g_use path (belt-cell branch 0x2cecf0 / inventory 0x3c0098, both build the 0x26 packet themselves), no click simulation.
@@ -176,7 +175,7 @@ static void a_send(uint8_t *b, uint64_t root, uint64_t cat, uint64_t act, int32_
 //   life: state 100 healthpot (state of hp* in misc.txt). Its stat 74 hpregen is not used: the "life regeneration" of equipment is also recorded on 74, so it stays non-zero as long as such gear is worn.
 //   State bits: [unit+0x88] stat table (top bit of +0x1c = extended table), a bitmap from +0xb30 with one word per state id / 32 (for how the game itself reads it see main+0x6240f4, for setting see 0x5bd510).
 // After a drink is sent, wait for the effect to appear; if it has not appeared within 1 second (25 ticks) this drink counts as failed, and it is judged again by the values. When both are low, red is drunk first.
-// Switch: the 「自定义」(Custom) setting auto_mana (dm_custom.c; the key name keeps the old name from when it only handled blue potions and now covers both red and blue), on by default
+// The auto-potion feature is always on (the Custom page switch has been removed); the key name keeps the old name from when it only handled blue potions and now covers both red and blue.
 uint32_t dm_cur_tick(void);
 static int a_has_state(uint64_t u, int st) {
     uint64_t sl = *(uint64_t *)(u + 0x88); if (!sl || st < 0 || st > 0x1fe || !(*(uint32_t *)(sl + 0x1c) >> 31)) return 0;
@@ -239,16 +238,16 @@ static int auto_pot_mana(uint8_t *b, uint64_t pl, uint32_t t) {   // 法力：�
     return 1;
 }
 // 佣兵自动喂药：同上面的生命两档；玩家自己生命低于 30% 那一档时先不喂（药先紧着玩家）。
-// 走现成的喂佣兵路径（g_use + g_use_merc，同腰带双击：原版自己判这瓶能不能喂、目标 = 佣兵单位）。开关：「自定义」设置 merc_pot，缺省关（会多耗玩家的药）。
+// 走现成的喂佣兵路径（g_use + g_use_merc，同腰带双击：原版自己判这瓶能不能喂、目标 = 佣兵单位）。
 // 佣兵单位 id = [0x2d33528] 链表里类型 7、属主 = 玩家、[+0x20] == 0 的那条（同下面喂佣兵处）；生命与药效读服务端那只的真值（diag.c dm_diag_srv_merc）——
 // 客户端那只的生命是服务端发来的比例，进局头两百多拍没发过、是没初始化的值，不能拿来决定消耗玩家的药
 // Mercenary auto-feed potions: the same two life tiers as above; while the player's own life is in the below-30% tier, do not feed yet (potions go to the player first).
-// Goes through the existing feed-mercenary path (g_use + g_use_merc, same as the belt double-tap: the original game itself judges whether this potion can be fed, target = the mercenary unit). Switch: the 「自定义」(Custom) setting merc_pot, off by default (it uses up more of the player's potions).
+// Goes through the existing feed-mercenary path (g_use + g_use_merc, same as the belt double-tap: the original game itself judges whether this potion can be fed, target = the mercenary unit).
 // Mercenary unit id = the entry in the [0x2d33528] linked list with type 7, owner = the player, and [+0x20] == 0 (same as the feed-mercenary code below); life and potion effect are read from the true values of the server-side one (diag.c dm_diag_srv_merc) --
 // the client-side one's life is a ratio sent by the server, which has not been sent during the first two-hundred-odd ticks after joining a game and is an uninitialized value, so it must not be used to decide to consume the player's potions
 static int auto_merc_pot(uint8_t *b, uint64_t pl, uint32_t t) {
-    static int env = -2; if (env == -2) { const char *e = getenv("DM_MERC_POT"); env = e ? e[0] != '0' : -1; }   // 测试强制：DM_MERC_POT=0 关 / 其余开，优先于自定义页 | Test override: DM_MERC_POT=0 off / anything else on, takes priority over the Custom page
-    if (!(env >= 0 ? env : dm_custom_get("merc_pot"))) return 0;
+    static int env = -2; if (env == -2) { const char *e = getenv("DM_MERC_POT"); env = e ? e[0] != '0' : -1; }   // 测试强制：DM_MERC_POT=0 关 / 其余开；未设时佣兵自动喂药常开 | Test override: DM_MERC_POT=0 off / anything else on; when unset, mercenary auto-feeding is always on
+    if (!(env >= 0 ? env : 1)) return 0;
     static ap_life s; int (*gs)(uint64_t, int, int) = (void *)(b + 0x5b9290);
     { int v = gs(pl, 6, 0), mx = gs(pl, 7, 0); if (mx <= 0 || (long long)v * 100 < (long long)mx * ap_pct(1)) return 0; }   // 玩家自己缺血：药先紧着玩家 | The player is low on life: potions go to the player first
     uint32_t mid = 0xffffffffu; for (uint64_t e = *(uint64_t *)(b + 0x2d33528); e; e = *(uint64_t *)(e + 0x30)) if (*(uint32_t *)(e + 4) == 7 && *(uint32_t *)(e + 0xc) == *(uint32_t *)(pl + 8) && !*(uint32_t *)(e + 0x20)) { mid = *(uint32_t *)(e + 8); break; }
@@ -265,7 +264,7 @@ static void auto_pot_pump(uint8_t *b, uint64_t pl) {
     uint32_t t = dm_cur_tick(); if (!t) return;
     uint32_t mode = *(uint32_t *)(pl + 0xc); if (mode == 0 || mode == 17 || mode == 0x11) return;   // 死亡中 / 已死 / 玩家状态不允许用物品（同 g_use 的挡法） | Dying / dead / the player state does not allow using items (same blocking as g_use)
     if (((uint64_t (*)(void))(b + 0x2aa7c0))() || atomic_load(&g_use)) return;   // 手上拿着东西 / 已有一件在等着用 | Holding something in hand / one item is already waiting to be used
-    if (dm_custom_get("auto_mana") && (auto_pot_life(b, pl, t) || auto_pot_mana(b, pl, t))) return;   // 一拍只发一件（g_use 一次一件），先红后蓝 | Only one is sent per tick (g_use handles one at a time), red first, then blue
+    if (auto_pot_life(b, pl, t) || auto_pot_mana(b, pl, t)) return;   // 一拍只发一件（g_use 一次一件），先红后蓝 | Only one is sent per tick (g_use handles one at a time), red first, then blue
     auto_merc_pot(b, pl, t);   // 玩家这一拍没喝药才轮到佣兵 | The mercenary only gets a turn if the player did not drink a potion this tick
 }
 // ---------- 副手组技能一键放 ----------
@@ -697,7 +696,7 @@ void dm_actions_pump(void) {
         if (n < 0) { n = 0; const char *e = getenv("DM_TEST_C2S"); while (e && *e && n < 8) { q[n].at = strtoull(e, NULL, 10); const char *c = strchr(e, ':'); if (!c) break; c++; int l = 0; unsigned v;
                 while (l < 32 && sscanf(c, "%2x", &v) == 1 && c[0] != ';' && c[1] != ';' && c[1]) { q[n].pk[l++] = (uint8_t)v; c += 2; } q[n].len = l; n++; e = strchr(c, ';'); if (e) e++; } }
         uint64_t f = dm_guest_frame(); for (int i = 0; pl && i < n; i++) if (q[i].at && f >= q[i].at) { q[i].at = 0; ((void (*)(const uint8_t *, int))(b + 0x2ceab0))(q[i].pk, q[i].len); LOG("测试 DM_TEST_C2S：帧 %llu 发包 %02x（长 %d）", (unsigned long long)f, q[i].pk[0], q[i].len); } }
-    dm_custom_ui_pump(root); auto_pot_pump(b, pl); swapskill_pump(b, pl);
+    auto_pot_pump(b, pl); swapskill_pump(b, pl);
     uint32_t use = atomic_exchange(&g_use, 0); int force_merc = use ? atomic_exchange(&g_use_merc, 0) : 0;
     if (use && pl) { uint64_t it = ((uint64_t (*)(uint64_t, uint32_t, uint32_t, uint32_t))(b + 0x45f5f0))((uint64_t)(uintptr_t)(b + 0x2d603a0 + 4 * 0x400), use & 0x7f, use, 4);
         int busy = *(uint32_t *)(pl + 0xc) == 0x11 || ((uint64_t (*)(void))(b + 0x2aa7c0))() != 0, can = it && !busy && (((int (*)(uint64_t, int))(b + 0x3bff70))(it, 3) & 1);

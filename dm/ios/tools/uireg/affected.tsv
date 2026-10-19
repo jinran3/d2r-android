@@ -33,7 +33,6 @@ dm/host/dm_actions*	a g n
 dm/host/dm_hud*	a f pk bd bdm q g
 dm/host/dm_uiscreen*	a f pk bd q sb
 dm/host/dm_update*	e
-dm/host/dm_custom*	e kbb
 dm/host/hle_charname*	e
 dm/host/dm_textinput*	e
 dm/host/dm_cursor*	a c f g h j m n p q s t u sb cb sl1 sl2 me1 me2 bd

@@ -9,21 +9,6 @@ dmUpdNewUrgent	新版本 %d · %s	New version %d · %s	建议立即更新档的�
 dmUpdUrgentTitle	建议立即更新	Update Recommended	建议立即更新档的红字标题
 dmUpdButton	更新	Update	选角页两个「更新」按钮（touch_layout.py）
 dmPauseShareLog	分享诊断日志	Share Diagnostics	暂停菜单按钮
-dmCustomAutoMana	自动喝药（生命 <50%、法力 <30%）	Auto-drink (Life 50%, Mana 30%)	自定义页开关（touch_layout.py _CUSTOM_ROWS；中英行数必须相同）
-dmCustomMercPot	佣兵自动喂药（生命 <50%，多耗药）	Auto-feed Merc at Life <50%	自定义页开关
-dmCustomDropLight	高价值掉落光柱	Light beam on valuable drops	自定义页开关
-dmCustomMapMark	小地图标注出入口、小站与任务终点	Automap: exits, waypoints, quests	自定义页开关；英文用原版词 keybinds[CfgAutoMap]「Automap」、objects[Waypoint]
-dmCustomItemNotes	物品注释与旧译名（重启后生效）	Item notes (Chinese only, restart)	自定义页开关（英文下注释不显示）
-dmCustomPotPick	腰带有空位时自动拾取能放进去的药水	Auto-pick potions into belt	自定义页开关
-dmCustomDropHaptic	高价值物品掉落时震动	Vibrate on valuable drops	自定义页开关
-dmCustomEcoFps	省电模式（30 帧）	Power saver (30 fps)	自定义页开关
-dmCustomLootFilter	掉落过滤（噩梦起自动隐藏杂物）	Loot Filter (auto, Nightmare+)	自定义页开关；Loot Filter 是原版过滤器的英文名
-dmCustomAutoBuff	自动补上增益技能（站着不动时）	Auto-recast buffs when idle	自定义页开关
-dmCustomLang	语言 / Language	语言 / Language	自定义页语言那一行的标签。两种界面写同样的中英两个词：这一行的文字控件指定原版的全球字体 BlizzardGlobal（英文界面缺省的 Formal 字体没有汉字，全球字体有；原版标题页、队伍名、合规提示同样按控件指定它）
-dmCustomLangZh	中文	中文	语言行的选项一（两种界面都写「中文」，同上用全球字体）
-dmCustomLangEnOpt	English	English	语言行的选项二
-dmCustomLangHintZh	点「应用」，然后把 App 关掉重开	点「应用」，然后把 App 关掉重开	语言行选了「中文」而当前不是中文界面时显示在这一行下半（提示用选中的那种语言写；两种界面同文，全球字体）
-dmCustomLangHintEn	Tap Apply, then close and reopen the app	Tap Apply, then close and reopen the app	语言行选了 English 而当前不是英文界面时显示
 dmTabGameSettings	游戏设定	Settings	触屏设置页第三个子页签（原版英文 Game Settings 放不进页签；中文取原版串原文）
 dmRvBytes	%lld 字节	%lld bytes	资源清单里的大小（romfs_validate.c，资源下载页显示）
 dmRvItem	%s%s（%s）	%s%s (%s)	资源清单：缺的文件（名字、应有大小）

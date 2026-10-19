@@ -21,11 +21,11 @@ FMT = re.compile(r'%[-+ #0-9.]*(?:ll|l|h|z)?[a-zA-Z@%]')   # printf / strftime /
 # table still needs a look at a screenshot
 EN_LIMITS = (
 )
-# 键只许字母数字：布局里「@键」的解析遇到 _ 就断（@dmCustom_auto_mana 显示成「丢失字符串_auto_mana」，Mac 上的 iOS 包实测）
-# 英文界面下也要写汉字的键（自定义页语言那一行：切错语言的人得看得懂）。只许用在指定了全球字体 BlizzardGlobal 的文字控件上——英文界面缺省字体没有汉字
-# Keys may only contain letters and digits: the layout's "@key" parsing stops at _ (@dmCustom_auto_mana was shown as "missing string_auto_mana", measured in the iOS package on a Mac)
-# Keys that must show Chinese characters in the English UI as well (the language row of the Custom page: someone who switched to the wrong language has to be able to read it). Only allowed on text controls that specify the global font BlizzardGlobal -- the default font of the English UI has no Chinese characters
-EN_HAS_ZH = {'dmCustomLang', 'dmCustomLangZh', 'dmCustomLangHintZh'}
+# 键只许字母数字：布局里「@键」的解析遇到 _ 就断（@dmAuto_mana 显示成「丢失字符串_auto_mana」，Mac 上的 iOS 包实测）
+# 英文界面下也要写汉字的键：当前没有此类键；若以后新增，只许用在指定了全球字体 BlizzardGlobal 的文字控件上（英文界面缺省字体没有汉字）。
+# Keys may only contain letters and digits: the layout's "@key" parsing stops at _ (@dmAuto_mana was shown as "missing string_auto_mana", measured in the iOS package on a Mac)
+# Keys that must show Chinese characters in the English UI as well: none currently; if one is added later, it is only allowed on text controls that specify the global font BlizzardGlobal (the default font of the English UI has no Chinese characters).
+EN_HAS_ZH = set()
 def rows():
     out = []
     with open(TABLE, encoding='utf-8') as f:
@@ -43,7 +43,7 @@ def rows():
 
 def build(romfs, outdir, repl):
     """repl：前面步骤已换的 {包内逻辑路径: 本地文件}。返回 ({包内逻辑路径: 本地文件}, 条数)。 | repl: {logical path in the package: local file} already replaced by earlier steps. Returns ({logical path in the package: local file}, entry count)."""
-    import touch_layout   # 用时再导：touch_layout 自己在模块层要读本表（自定义页行数），顶层互导会半初始化 | imported at use time: touch_layout itself reads this table at module level (row count of the Custom page), and a top-level mutual import would leave it half-initialized
+    import touch_layout   # 用时再导，避免模块层互导留下半初始化状态 | imported at use time to avoid a half-initialized top-level mutual import
     path, text = touch_layout.read_layout(romfs, None, suffix='/lng/strings/ui.json')
     prev = repl.get(path.lower())
     if prev: text = open(prev, encoding='utf-8-sig').read()

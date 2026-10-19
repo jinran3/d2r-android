@@ -81,7 +81,6 @@ English: [README.md](README.md)
 
 | 文件 | 管什么 |
 |---|---|
-| `dm_custom.c`、`dm_custom.h` | 「选项 → 自定义」页：各项功能的开关统一在这里读写，各模块只调 `dm_custom_get` |
 | `dm_unit.h` | 公共小函数：从一个单位读出它所在的关卡 |
 
 ## tests/

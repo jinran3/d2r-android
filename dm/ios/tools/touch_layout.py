@@ -717,22 +717,22 @@ def build_present(romfs, outdir):
 # ---------- 选项页：视频页签整页去掉（iPhone 自己能调亮度），其余页签里与触摸产品无关的项藏掉 ----------
 # ---------- Options pages: the whole video tab page is removed (the iPhone can adjust brightness itself), and items in the other tabs unrelated to the touch product are hidden ----------
 def _settings_tabs(text):
-    """页签条去掉第一个（视频）：个数与四个并列数组各去首项；第四项「控制」换成「自定义」。 | Remove the first item (video) from the tab strip: drop the first entry from the count and from each of the four parallel arrays; the fourth item 「控制」(Controls) is replaced with 「自定义」(Custom)."""
+    """页签条去掉本平台不出现的「视频」与「控制」，只保留游戏 / 游戏设定 / 音频。 | Remove the Video and Controls tabs (not available on this platform), keeping Game / Game Settings / Audio."""
     n = 0
-    def drop_first(m):
-        nonlocal n; items = [x for x in re.split(r',\s*', m.group(2).strip().rstrip(',')) if x.strip()]; n += 1
-        return m.group(1) + ' ' + ', '.join(items[1:]) + ' ' + m.group(3)
-    new = re.sub(r'("(?:inactiveFrames|activeFrames|textStrings)"\s*:\s*\[)([^\]]*)(\])', drop_first, text)
-    new = re.sub(r'("tabMessages"\s*:\s*\[)([^\]]*)(\])', lambda m: m.group(1) + '\n' + ',\n'.join(x for x in [y.strip() for y in m.group(2).split(',')] if x and 'VideoOptionsPanel' not in x) + ',\n' + m.group(3), new)
-    new, k = re.subn(r'"tabCount"\s*:\s*5', '"tabCount": 4', new)
-    # 第四项原是「控制」（KeyBindingMenu，本平台不出现）：改成「自定义」，打开借来的视频页（见 _custom_page）
-    # The fourth item was originally 「控制」(Controls) (KeyBindingMenu, which does not appear on this platform): changed to 「自定义」(Custom), opening the borrowed video page (see _custom_page)
-    if new.count('"@Controls"') != 1 or new.count('SettingsPanelMessage:CheckChanges:KeyBindingMenu') != 1: raise SystemExit('touch_layout：页签条第四项不是原样「控制」，自定义页签没换')
-    # 第三项「游戏设定」：原版英文串 Game Settings 在 266 宽的页签里折成两行、第二行被截成「Se…」（英文版审计）；触屏页签条换成我们表里的串（中文不变、英文 Settings）。手柄版页签条是原版，不动
-    # Third item 「游戏设定」(Settings): the original English string Game Settings wraps to two lines in the 266-wide tab and the second line is truncated to "Se..." (English version audit); the touch tab bar uses the string from our table instead (Chinese unchanged, English Settings). The controller layout tab bar is the original and is left alone
+    def drop_two(m):
+        nonlocal n
+        items = [x for x in re.split(r',\s*', m.group(2).strip().rstrip(',')) if x.strip()]
+        if len(items) != 5: raise SystemExit('touch_layout：选项页签条应为 5 项，找到 %d 项（原版布局变了？）' % len(items))
+        del items[3], items[0]   # 原版第 1 项「视频」、第 4 项「控制」 | original item 1 "Video" and item 4 "Controls"
+        n += 1
+        return m.group(1) + ' ' + ', '.join(items) + ' ' + m.group(3)
+    new = re.sub(r'("(?:inactiveFrames|activeFrames|textStrings)"\s*:\s*\[)([^\]]*)(\])', drop_two, text)
+    new = re.sub(r'("tabMessages"\s*:\s*\[)([^\]]*)(\])', lambda m: m.group(1) + '\n' + ',\n'.join(x for x in [y.strip() for y in m.group(2).split(',')] if x and 'VideoOptionsPanel' not in x and 'KeyBindingMenu' not in x) + ',\n' + m.group(3), new)
+    new, k = re.subn(r'"tabCount"\s*:\s*5', '"tabCount": 3', new)
+    # 第三项「游戏设定」：原版英文串 Game Settings 在 266 宽的页签里折成两行、第二行被截成「Se...」（英文版审计）；触屏页签条换成我们表里的串（中文不变、英文 Settings）。
+    # Third item "Game Settings": the original English string wraps and is truncated in the 266-wide tab; the touch tab bar uses our table string (Chinese unchanged, English Settings).
     if new.count('"@GameSettingsTab"') != 1: raise SystemExit('touch_layout：页签条第三项不是原样「游戏设定」（原版布局变了？）')
     new = new.replace('"@GameSettingsTab"', '"@dmTabGameSettings"')
-    new = new.replace('"@Controls"', '"@KeyBindingTypeCustom"').replace('SettingsPanelMessage:CheckChanges:KeyBindingMenu', 'SettingsPanelMessage:CheckChanges:VideoOptionsPanel')
     return new, n + k + 1
 def _drop_rows(*rows):
     """把选项表里的整行（TableRowWidget "Row <名>"）删掉：表格按剩下的行重排，不留空行。每个名字必须恰好删到一行。 | Delete whole rows (TableRowWidget "Row <name>") from the options table: the table re-lays out the remaining rows and leaves no empty row. Each name must delete exactly one row."""
@@ -750,108 +750,9 @@ def _drop_rows(*rows):
         text, k = re.subn(r'[ \t]*"tooltipString"\s*:\s*"[^"\n]*",?[ \t]*\r?\n', '', text)
         return text, n + k
     return fn
-# 「自定义」页：选项面板第四个页签。布局覆盖层只能替换已有路径，所以借原版「视频」页
-# （主机版 VideoOptionsPanelHD.json，触摸版已去掉视频页签）：页签条第四项（原「控制」= KeyBindingMenu，本平台不出现）改名「自定义」、打开 VideoOptionsPanel；
-# 视频页的表格整个换成我们的行：分节标题 + 每个开关一行原版勾选框（照「游戏」页「自动拾取金币」那一行的字段）。控件名 TouchCustom_<键>，
-# 宿主 dm_custom.c 读勾没勾、按应用 / 放弃 / 默认处理。勾选框的消息发一条无害的 ClosePanel（同这里的其它自定义开关），游戏不认
-# 「自定义」(Custom) page: the fourth tab of the options panel. A layout overlay can only replace existing paths, so it borrows the original game's 「视频」(Video) page
-# (console version VideoOptionsPanelHD.json; the touch version has already removed the video tab): the fourth item of the tab strip (originally 「控制」(Controls) = KeyBindingMenu, which does not appear on this platform) is renamed 「自定义」(Custom) and opens VideoOptionsPanel;
-# the video page's table is replaced entirely with our rows: section header + one original-game checkbox per switch (following the fields of the 「自动拾取金币」(Auto Gold Pickup) row on the 「游戏」(Game) page). Widget names are TouchCustom_<key>,
-# and the host dm_custom.c reads whether each is checked and handles apply / discard / default. The checkbox message sends a harmless ClosePanel (same as the other custom switches here), which the game does not recognize
-_CUSTOM_KEYS = ('auto_mana', 'merc_pot', 'drop_light', 'map_mark', 'item_notes', 'pot_pick', 'drop_haptic', 'eco_fps', 'loot_filter', 'auto_buff')
-# 字在中英表（dm/i18n/ui_text.tsv 的 dmCustom<键名驼峰>），布局写 @键、跟原版语言走（英文版）；行高按中文行数分，英文必须同样行数（不然换语言排版变）
-# The text lives in the Chinese-English string table (dmCustom<key name in camel case> in dm/i18n/ui_text.tsv); layouts write @key and follow the
-# original game's language (English version); row height is assigned by the number of Chinese lines, and English must have the same number of lines
-# (otherwise the layout changes with the language)
-def _custom_key(key): return 'dmCustom' + ''.join(w.capitalize() for w in key.split('_'))   # auto_mana → dmCustomAutoMana（布局里 @键 遇下划线就断，键名不能带 _） | auto_mana → dmCustomAutoMana (in layouts @key stops at an underscore, so key names cannot contain _)
-def _custom_label(key):
-    import dm_i18n
-    t = {k: (zh, en) for k, zh, en in dm_i18n.rows()}[_custom_key(key)]
-    if t[0].count('\n') != t[1].count('\n'): raise SystemExit('touch_layout：自定义页 %s 的中英行数不同：%r / %r' % (key, t[0], t[1]))
-    return t[0]
-_CUSTOM_ROWS = tuple((k, '@' + _custom_key(k)) for k in _CUSTOM_KEYS)
-# 视频页的类会把它不认识的表格行整行隐藏（控件树：我们的行 +0x50 = 0，只剩没有勾选框的标题行可见），所以各行不进表格；
-# 但它不动滚动区里别的控件——各行包在一个容器 TouchCustomRows 里、挂在原版滚动区 ScrollView 下，内容多高原版就滚多高、滚出列表框的由原版裁掉
-# （和别的选项页同一套滚动：拖动、滚动条、滚轮）。原先各行直接钉在面板上、不在滚动区里，列表框只有 1260 高，11 行把行高压到了 98。
-# 尺寸取自同一控件树里表格排出来的值：行高 180；文字 1000×180；勾选框在行内 x 1315、70×70 垂直居中。标题行 180（下面的分隔金线按 180 行高摆）。
-# 第一行是语言开关（宿主键表里也排第一），之后是 _CUSTOM_KEYS 各行；加行 = 往 _CUSTOM_KEYS 加键（宿主 dm_custom.c 的 k_keys 同序加）
-# The video page's class hides any table row it does not recognize as a whole row (widget tree: our rows have +0x50 = 0, and only the header rows without checkboxes stay visible), so the rows do not go into the table;
-# but it does not touch other widgets in the scroll area -- the rows are wrapped in a container TouchCustomRows hung under the original scroll area ScrollView, so the original game scrolls as far as the content is tall and clips whatever scrolls out of the list box
-# (the same scrolling as the other option pages: drag, scrollbar, wheel). Previously the rows were pinned directly on the panel, outside the scroll area; the list box is only 1260 high, and 11 rows squeezed the row height down to 98.
-# Dimensions are taken from the values the table lays out in the same widget tree: row height 180; text 1000×180; checkbox at x 1315 within the row, 70×70, vertically centered. Header row 180 (the gold divider line below it is placed for a 180 row height).
-# The first row is the language switch (also first in the host's key table), followed by the rows of _CUSTOM_KEYS; adding a row = adding a key to _CUSTOM_KEYS (and to k_keys in the host's dm_custom.c in the same order)
-_CUSTOM_TITLE_H, _CUSTOM_LINE_H = 180, 180
-_CUSTOM_ALL = (('lang_en', '@dmCustomLang'),) + _CUSTOM_ROWS
-_CUSTOM_TEST_ROWS = int(os.environ.get('DM_CUSTOM_TEST_ROWS', '0'))   # 测试（造现场）：末尾多摆这么多行假行，验更多行时的滚动；产品不设 | test (test setup): append this many dummy rows at the end, to verify scrolling with more rows; not set in the product
-_CUSTOM_Y = [_CUSTOM_TITLE_H + _CUSTOM_LINE_H * i for i in range(len(_CUSTOM_ALL) + _CUSTOM_TEST_ROWS)]
-_CUSTOM_H = _CUSTOM_TITLE_H + _CUSTOM_LINE_H * (len(_CUSTOM_ALL) + _CUSTOM_TEST_ROWS)
-def _custom_toggle_row(i, key, label):
-    y, h = _CUSTOM_Y[i], _CUSTOM_LINE_H
-    return ('        { "type": "TextBoxWidget", "name": "TouchCustom_%s_Text", "fields": { "rect": { "x": 0, "y": %d, "width": 1000, "height": %d }, "text": "%s", "style": "$StyleSettingsText", "style/options/newlineHandling": "standard" } },\n'
-            '        { "type": "ToggleButtonWidget", "name": "TouchCustom_%s", "fields": {\n'
-            '            "rect": { "x": 1315, "y": %d, "width": 70, "height": 70 }, "sound": "cursor_menu_select_hd",\n'
-            '            "focusIndicatorPadding": "$OptionsToggleFocusIndicatorPadding", "focusIndicatorFilename": "$OptionsToggleFocusIndicatorFilename", "focusIndicatorOffset": { "x": 0, "y": -4 },\n'
-            '            "filename": "Lobby\\\\CreateGame\\\\CreateGame_AdvancedCheckbox",\n'
-            '            "untoggledFrame": 0, "untoggledPressedFrame": 1, "untoggledHoveredFrame": 3, "untoggledDisabledFrame": 2,\n'
-            '            "toggledFrame": 4, "toggledPressedFrame": 5, "toggledHoveredFrame": 6,\n'
-            '            "onClickMessage": "PanelManager:ClosePanel:TouchCustom_%s" } },\n') % (key, y, h, label, key, y + (h - 70) // 2, key)
-# 语言开关（第一行，普通行）：勾上 = 英文界面 + 英文语音，下次启动生效（宿主 dm_custom.c 的 lang_en、hle_fs.c settings_lang_apply）。
-# 「重启游戏后生效」那句先放在屏外，勾选与当前语言不一致时宿主挪到这一行文字的下半（横坐标取标签的）
-# Language switch (first row, an ordinary row): checked = English UI + English voice, effective at the next launch (lang_en in the host's dm_custom.c, settings_lang_apply in hle_fs.c).
-# The line 「重启游戏后生效」(Takes effect after restarting the game) is first placed off screen; when the checkbox does not match the current language the host moves it to the lower half of this row's text (x taken from the label)
-_CUSTOM_LANG_HINT = ''.join('        { "type": "TextBoxWidget", "name": "TouchCustomLangHint%s", "fields": { "rect": { "x": 99999, "y": %d, "width": 1400, "height": 60 }, "text": "@dmCustomLangHint%s", "style": "$StyleSettingsText", "style/fontFace": "BlizzardGlobal" } },\n'
-                            % (n, _CUSTOM_Y[0] + 112, n) for n in ('Zh', 'En'))   # 两句各一个控件，宿主按选中的语言摆其中一句 | One control per sentence; the host places one of them according to the chosen language
-# 语言那一行是并排的两个选项「中文 / English」（单选：宿主 dm_custom.c 让两个勾选框互斥，存的仍是 lang_en 一个键）。
-# 这一行的字两种界面都要写汉字：英文界面缺省的 Formal 字体没有汉字（缺字画不出），所以这几个文字控件指定原版的全球字体 BlizzardGlobal
-# （原版标题页、队伍名等同样按控件指定它）。English 的勾选框留在各行勾选框那一列，「中文」的在它左边
-# The language row is two options side by side, 「中文 / English」 (single choice: the host dm_custom.c makes the two checkboxes mutually exclusive, and what is stored is still the one key lang_en).
-# The text of this row has to show Chinese characters in both UIs: the default Formal font of the English UI has no Chinese characters (missing glyphs cannot be drawn), so these text controls specify the original global font BlizzardGlobal
-# (the original title page, party names and so on specify it per control in the same way). The checkbox of English stays in the column where every row has its checkbox; the one of 「中文」 is to its left
-_LANG_ZH_X, _LANG_EN_X = (770, 905), (1100, 1315)   # （文字 x，勾选框 x） | (text x, checkbox x)
-def _custom_lang_row():
-    y, h = _CUSTOM_Y[0], 112; cy = y + (h - 70) // 2   # 标签、两个选项排在这一行的上 112，下面 68 留给提示那一句 | The label and the two options go in the top 112 of this row; the bottom 68 is left for the hint sentence
-    def text(name, x, w, key): return ('        { "type": "TextBoxWidget", "name": "%s", "fields": { "rect": { "x": %d, "y": %d, "width": %d, "height": %d }, "text": "@%s", "style": "$StyleSettingsText", "style/fontFace": "BlizzardGlobal" } },\n' % (name, x, y, w, h, key))
-    def box(name, x): return ('        { "type": "ToggleButtonWidget", "name": "%s", "fields": {\n'
-            '            "rect": { "x": %d, "y": %d, "width": 70, "height": 70 }, "sound": "cursor_menu_select_hd",\n'
-            '            "focusIndicatorPadding": "$OptionsToggleFocusIndicatorPadding", "focusIndicatorFilename": "$OptionsToggleFocusIndicatorFilename", "focusIndicatorOffset": { "x": 0, "y": -4 },\n'
-            '            "filename": "Lobby\\\\CreateGame\\\\CreateGame_AdvancedCheckbox",\n'
-            '            "untoggledFrame": 0, "untoggledPressedFrame": 1, "untoggledHoveredFrame": 3, "untoggledDisabledFrame": 2,\n'
-            '            "toggledFrame": 4, "toggledPressedFrame": 5, "toggledHoveredFrame": 6,\n'
-            '            "onClickMessage": "PanelManager:ClosePanel:%s" } },\n') % (name, x, cy, name)
-    return (text('TouchCustom_lang_en_Text', 0, 700, 'dmCustomLang')
-            + text('TouchCustomLangZh_Text', _LANG_ZH_X[0], _LANG_ZH_X[1] - _LANG_ZH_X[0] - 10, 'dmCustomLangZh') + box('TouchCustom_lang_zh', _LANG_ZH_X[1])
-            + text('TouchCustomLangEn_Text', _LANG_EN_X[0], _LANG_EN_X[1] - _LANG_EN_X[0] - 10, 'dmCustomLangEnOpt') + box('TouchCustom_lang_en', _LANG_EN_X[1]))
-def _custom_page(text):
-    if '"name": "VideoOptionsPanel"' not in text or '"name": "OptionsTable"' not in text: raise SystemExit('touch_layout：主机版视频页不是原样（原版布局变了？），自定义页没换')
-    title = ('{ "type": "TableRowWidget", "name": "Row TouchCustomTitle", "children": [\n'
-             '    { "type": "TextBoxWidget", "name": "TouchCustomTitle", "fields": { "text": "@KeyBindingTypeCustom", "style": "$StyleSettingsTitle" }, "children": [\n'
-             '        { "type": "ImageWidget", "name": "Divider", "fields": { "rect": "$OptionsDividerRect", "filename": "PauseMenu\\\\Divider" } },\n'
-             '    ] },\n'
-             '] },\n')
-    out = ('{\n    "basedOn": "VideoOptionsPanelHD.json",\n    "type": "VideoOptionsPanel", "name": "VideoOptionsPanel",\n    "children": [\n'
-           '        { "type": "ImageWidget", "name": "ScrollBarBackground", "children": [ { "type": "ScrollControllerWidget", "name": "ScrollController" }, ] },\n'
-           '        { "type": "ScrollViewWidget", "name": "ScrollView", "children": [\n'
-           '            { "type": "TableWidget", "name": "OptionsTable", "fields": { "columns": [ "$OptionsTableColumn1", "$OptionsTableColumn2" ], "rowHeight": %d }, "children": [\n' % _CUSTOM_TITLE_H
-           + title + '            ] },\n'
-           + '            { "type": "Widget", "name": "TouchCustomRows", "fields": { "rect": { "x": 0, "y": 0, "width": 1500, "height": %d } }, "children": [\n' % _CUSTOM_H
-           + _custom_lang_row() + ''.join(_custom_toggle_row(i, k, l) for i, (k, l) in enumerate(_CUSTOM_ALL) if i) + _CUSTOM_LANG_HINT
-           + ''.join('        { "type": "TextBoxWidget", "name": "TouchCustomTest%d_Text", "fields": { "rect": { "x": 0, "y": %d, "width": 1000, "height": %d }, "text": "@KeyBindingTypeCustom", "style": "$StyleSettingsText" } },\n'
-                     % (n, _CUSTOM_Y[len(_CUSTOM_ALL) + n], _CUSTOM_LINE_H) for n in range(_CUSTOM_TEST_ROWS)) +
-           # 手柄模式的选中框：框住十字键选中的那一行，宿主摆（dm_custom.c）；触屏模式一直在屏外（只把 x 挪出去、y 留在内容范围内：滚动区按子控件的范围算内容高度，y 放到 99999 会把可滚范围撑到十万）。和各行在同一个容器里，跟着滚
-           # Selection frame in controller mode: frames the row selected with the D-pad, positioned by the host (dm_custom.c); always off-screen in touch mode (only x is moved out while y stays within the content range: the scroll area computes the content height from the extent of its child widgets, and a y of 99999 would stretch the scrollable range to a hundred thousand). It is in the same container as the rows and scrolls with them
-           '        { "type": "NineTileImageWidget", "name": "TouchCustomSel", "fields": { "rect": { "x": 99999, "y": 0, "width": 1000, "height": 100 }, "backgroundColor": [ 0, 0, 0, 0 ], '
-           '"filename": "Controller/PANEL/ControllerSelector/ControllerSelectorBorder", "tileScale": 0.5 } },\n'
-           '            ] },\n        ] },\n'
-           '    ]\n}\n')
-    return out, len(_CUSTOM_ALL) + 2
-PRESENT['controller/console/videooptionspanelhd.json'] = _custom_page
-# 手柄版选项页：原版页签条不动，只把第一项「视频」换成「自定义」——它打开的视频页就是上面那份自定义页（两种模式同一份内容）
-# Controller options page: the original tab bar is untouched, only the first item "Video" is replaced by "Custom"; the video page it opens is the Custom
-# page above (same content in both modes)
-def pad_settings(s): return _sub1(s, '"@OptionsMenuVideo"', '"@KeyBindingTypeCustom"')   # 原版串：自定义 / Custom（跟游戏语言走） | original string: "Custom" in Chinese / English (follows the game language)
-def pad_custom_page(s): return _custom_page(s)[0]
-# 挂进 PRESENT：build_ingame 对同一份文件（往选项页插「应用 / 默认 / 放弃」）会先套这里的变换再插按钮，不会出两份覆盖互相盖掉
-# Hooked into PRESENT: for the same file (inserting 「应用 / 默认 / 放弃」(Apply / Default / Discard) into the options page) build_ingame applies the transform here first and then inserts the buttons, so two overlays that overwrite each other are not produced
+# 选项页只保留原版可用的三个页签（视频与控制页已去掉）；手柄版与触屏版共用同一份页签清理。
+# Keep only the three usable original tabs on the options page (Video and Controls are removed); controller and touch modes share this tab cleanup.
+def pad_settings(s): return _settings_tabs(s)
 PRESENT['controller/console/settingspanelhd.json'] = _settings_tabs
 # 选项页底部的手柄提示条（「默认」「返回」两段说明字；键图标已透明）：局内被外框底带挡着看不出，前端选项页没有外框、字露在三个按钮下面——挪走
 # The controller button legend at the bottom of the options page (the two caption texts 「默认」(Default) and 「返回」(Back); the key icons are already transparent): in-game it is hidden by the bottom band of the outer frame, but the front-end options page has no outer frame and the text shows below the three buttons -- moved away

@@ -13,7 +13,6 @@ void nvn_dirty_protect(const void *address,size_t size) {(void)address;(void)siz
 int nvn_dirty_tracked(const void *address,size_t size) {(void)address;(void)size;return 0;}
 int nvn_dirty_since(const void *address,size_t size,uint64_t stamp) {(void)address;(void)size;(void)stamp;return 1;}
 uint64_t nvn_dirty_now(void) {return atomic_load(&test_dirty_generation);}
-int dm_fps_setting(void) {return 60;}
 void dm_shot_written(const char *path,int ok) {(void)path;(void)ok;}
 void *front_metal_layer(void) {return NULL;}
 extern uint64_t svc_dispatch(int number,uint64_t *registers,uint64_t origin);

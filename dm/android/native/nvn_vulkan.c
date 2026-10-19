@@ -1079,7 +1079,7 @@ void mtl_create_ns(uint64_t *lib, uint64_t *pso) { *lib = resource_created_ns[0]
 uint64_t mtl_upload_bytes(void) { return 0; }
 void mtl_alloc_stats(uint64_t *wait, uint64_t *grow, int *n) { *wait = *grow = 0; *n = 1; }
 uint32_t mtl_present_qos(void) { return 0; }
-int mtl_fps_target(void) { int dm_fps_setting(void); return dm_fps_setting(); }
+int mtl_fps_target(void) { return 60; }
 void mtl_mem_stat(unsigned long long frame, unsigned long long mb, int ok, unsigned long long total, unsigned long long free_size, unsigned long long max) { (void)ok; (void)total; (void)free_size; (void)max; LOG("[vulkan] frame=%llu resident=%llu MB submits=%llu allocations=%llu reuse=%llu snapshots=%llu MB pipelines=%llu/%llu", frame, mb, (unsigned long long)atomic_load(&submitted), (unsigned long long)buffer_allocations, (unsigned long long)buffer_reuses, (unsigned long long)(snapshot_bytes >> 20), (unsigned long long)pipeline_creations, (unsigned long long)pipeline_reuses); }
 void mtl_ui_ghost(int on, float px, float py, const float grid[4], float cx, float cy) { (void)on; (void)px; (void)py; (void)grid; (void)cx; (void)cy; }
 int mtl_ui_ghost_rect(float r[4]) { (void)r; return 0; }

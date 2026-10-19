@@ -81,7 +81,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 
 | File | What it does |
 |---|---|
-| `dm_custom.c`, `dm_custom.h` | The "Options → Custom" page: all feature switches are read and written here; modules only call `dm_custom_get` |
 | `dm_unit.h` | A small shared helper: reads which level a unit is in |
 
 ## tests/

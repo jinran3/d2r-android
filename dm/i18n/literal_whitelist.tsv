@@ -81,5 +81,4 @@ host/romfs_validate.c	档案 %d 个齐	校验通过时的摘要，只进启动�
 host/diag.c	服务端已没有这件	拾取诊断，只进日志（LOG「拾取：物品…」）
 host/diag.c	还在地上（没捡成）	同上
 host/diag.c	容器 %u 页 %u 格	同上
-host/dm_custom.c	@DM_WIDGET_OK	同上
 ios/Sources/dm_shader_prep.m	*	公开版壳专用的「首次准备着色器」页（整个文件在 #ifdef DM_SHELL 里，内测包不编）：这时宿主与中英表还没起，中英两套文字就写在文件里、跟系统语言走

@@ -603,19 +603,8 @@ static void boot_prepare(void) {
     }
     for (NSString *d in @[@"save", @"temp"])
         [fm createDirectoryAtPath:[doc stringByAppendingPathComponent:d] withIntermediateDirectories:YES attributes:nil error:nil];
-    { void dm_custom_init(const char *dir); dm_custom_init(doc.fileSystemRepresentation); }   // 「自定义」设置文件在 Documents（覆盖层选择等启动期的读也要用，存档还没挂） | The "Custom" settings file lives in Documents (boot-time reads such as overlay selection need it too, and the save is not mounted yet)
     setenv("DM_ROMFS", romfs.fileSystemRepresentation, 0);
     NSString *bundledOverlay = [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:g_astc_dir ? @"romfs_overlay_astc" : @"romfs_overlay"];   // 老机型补充包：贴图指向补充包的那套 | Legacy Device Pack: the set whose textures point to the Legacy Device Pack
-    {   // 走覆盖层的自定义开关（物品注释…）：构建时出了全部组合 romfs_overlay_variants/<键+键…>（gen_romfs_overlay.py），按已生效的开关挑键集合正好相等的那份；全关用 romfs_overlay。重启后生效 | Custom switches that go through the overlay (item annotations...): the build produces every combination as romfs_overlay_variants/<key+key...> (gen_romfs_overlay.py); pick the one whose key set exactly equals the switches in effect; with all off use romfs_overlay. Takes effect after restart
-        int dm_custom_get(const char *key);
-        NSString *vdir = [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:g_astc_dir ? @"romfs_overlay_astc_variants" : @"romfs_overlay_variants"];
-        NSArray<NSString *> *vs = [fm contentsOfDirectoryAtPath:vdir error:nil] ?: @[];
-        NSMutableSet<NSString *> *all = [NSMutableSet set], *on = [NSMutableSet set];
-        for (NSString *v in vs) [all addObjectsFromArray:[v componentsSeparatedByString:@"+"]];
-        for (NSString *k in all) if (dm_custom_get(k.UTF8String)) [on addObject:k];
-        for (NSString *v in vs) if ([[NSSet setWithArray:[v componentsSeparatedByString:@"+"]] isEqualToSet:on]) { bundledOverlay = [vdir stringByAppendingPathComponent:v]; break; }
-        if (on.count && [bundledOverlay.lastPathComponent isEqualToString:@"romfs_overlay"]) plog("boot: 🔴 开关组合 %s 没有对应的覆盖层，按全关启动", [on.allObjects componentsJoinedByString:@"+"].UTF8String);
-    }
     if (g_astc_dir) bundledOverlay = [NSString stringWithFormat:@"%@:%@", bundledOverlay, g_astc_dir];   // 第二层：补充包（data/<档名>，覆盖层索引指向它） | Second layer: the Legacy Device Pack (data/<archive name>, which the overlay index points to)
     if (g_astc_dir || [fm fileExistsAtPath:bundledOverlay]) { setenv("DM_ROMFS_OVERLAY", bundledOverlay.fileSystemRepresentation, 1); plog("boot: RomFS 覆盖层 %s", bundledOverlay.fileSystemRepresentation); }
     else plog("boot: 🔴 App 内缺 romfs_overlay（底部 UI v4），按原版 HUD 启动");

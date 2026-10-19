@@ -17,7 +17,6 @@ uint64_t dm_padmode_page_keys(uint64_t m) { (void)m; return 0; } void dm_padmode
 int dm_swapskill_wset(void) { return -1; }
 uint32_t dm_swapskill_itemsig(void) { return 0; }   // 副手组技能当前武器组（dm_actions.c）的桩：读不到 | stub for the current weapon set of the swap-set skill (dm_actions.c): cannot be read
 _Atomic int g_dm_frz_want, g_dm_frozen; void dm_freeze_frame(int want) { (void)want; }   // 面板冻结（diag.c）的桩 | stub for the panel freeze (diag.c)
-void dm_custom_on_uimsg(const char *cat, const char *act, const char *arg) { (void)cat; (void)act; (void)arg; }   // 「自定义」设置（dm_custom.c）的桩 | stub for the "Custom" settings (dm_custom.c)
 void dm_belt_put(unsigned id) { (void)id; }
 void dm_ui_rect(int *x, int *y, int *w, int *h) { *x = *y = *w = *h = 0; }
 int dm_screen_real(int *w, int *h) { (void)w; (void)h; return 0; }

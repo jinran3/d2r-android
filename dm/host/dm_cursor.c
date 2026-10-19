@@ -1,5 +1,4 @@
 #include "dm_cursor.h"
-#include "dm_custom.h"
 #include "dm.h"
 #include "dm_uiscreen.h"
 #include "dm_input.h"
@@ -480,9 +479,9 @@ static void ui_send_mouse_arg(module_t *m, uint64_t root, uint64_t act, int x, i
     ((void (*)(uint64_t, void *))fn)(root, msg);
 }
 static void ui_send_mouse(module_t *m, uint64_t root, uint64_t act, int x, int y) { ui_send_mouse_arg(m, root, act, x, y, 0); }
-// 给某个控件所在的位置发滚轮（游戏主线程；自定义页手柄选行时让原版滚动区自己滚到位，dm_custom.c）：notches > 0 = 内容往下（露出上面的行）。
+// 给某个控件所在的位置发滚轮（游戏主线程；需要时让原版滚动区自己滚到位）：notches > 0 = 内容往下（露出上面的行）。
 // 位置取控件命中区的中心（屏幕上粗扫一遍它的命中函数）；控件不在屏上就不发
-// Send a wheel event at the position of a given widget (game main thread; when a row is selected with the controller on the Custom page, this lets the original scroll area scroll into place by itself, dm_custom.c): notches > 0 = content moves down (revealing the rows above).
+// Send a wheel event at the position of a given widget (game main thread; lets the original scroll area scroll into place when needed): notches > 0 = content moves down (revealing the rows above).
 // The position is the center of the widget's hit area (a coarse scan of the screen with its hit-test function); nothing is sent if the widget is not on screen
 void dm_ui_wheel_on(uint64_t w, int notches) {
     module_t *m = main_module(); uint64_t root = 0; if (!m || !w || !notches) return; memcpy(&root, m->base + 0x2f05458, 8); if (!root) return;
@@ -2379,9 +2378,7 @@ void dm_ui_mouse_pump(void) {   // 游戏取手柄处调（hle_hid fill，主线
         { uint64_t sp = ui_find(root, "SettingsPanel", 1); char nm[40]; int px = x, py = y;
           if (sp && *(uint8_t *)(sp + 0x50) && ui_snap(m, root, &px, &py) == 1 && (strlcpy(nm, g_click_name, sizeof nm), !strcmp(nm, "AcceptButton") || !strcmp(nm, "CancelButton") || !strcmp(nm, "TouchClose"))) {   // TouchClose = 这页右上角补的 X（它自己不发消息） | TouchClose = the X added at the top right of this page (it sends no message itself)
               atomic_store(&g_set_back_at, dm_guest_frame() + 12); LOG("界面鼠标：设置页点了 %s → 随后按返回键退出设置页", nm);
-              // 「自定义」页的勾选：这两个按钮的 AcceptChanges / CancelChanges 消息观测门看不到（实测只见返回键关页），在这里按点中的按钮转给 dm_custom
-              // Checkmarks on the 「自定义」(Custom) page: the AcceptChanges / CancelChanges messages of these two buttons are not visible to the observation gate (in measurement only the back button closing the page was seen), so here they are forwarded to dm_custom according to the button tapped
-              dm_custom_on_uimsg("OptionsPanelMessage", nm[0] == 'A' ? "AcceptChanges" : "CancelChanges", ""); } }
+              } }
         // 任务语音播着时点右上角 X：按下那一下被语音面板吃掉、只停语音（游戏发 DialogueFinished），X 没收到点击，要再点一次才关。
         // 这次点击落在 X 上、且语音是这半秒内刚停的：替玩家按一下返回 = 一下就停语音并关面板（到点时任务面板已经关了就不按）
         // Tapping the top-right X while quest speech is playing: that press is eaten by the speech panel and only stops the speech (the game sends DialogueFinished), the X does not receive the click, and another tap is needed to close.
@@ -2458,7 +2455,6 @@ void dm_ui_on_uimsg(const char *cat, const char *act, const char *arg) {
     if (!strcmp(cat, "PanelManager")) ui_panel_note(act, arg ? arg : "");
     if (!strcmp(cat, "ChroniclePanelMessage") && !strcmp(act, "ToggleChildPanel") && arg && arg[0]) { int c = 0; while (c < 8 && g_chr_child[c][0] && strcmp(g_chr_child[c], arg)) c++; if (c < 8 && !g_chr_child[c][0]) strlcpy(g_chr_child[c], arg, sizeof g_chr_child[c]); }
     if (!strcmp(cat, "PanelManager") && arg && !strcmp(arg, "ChroniclePanel") && (!strcmp(act, "ClosePanel") || !strcmp(act, "UnloadPanel"))) atomic_store(&g_chr_closed, 1);
-    dm_custom_on_uimsg(cat, act, arg ? arg : "");
     if (act && !strcmp(act, "ControllerActionEnd")) atomic_store(&g_a_wait, 0);   // 等到「手柄动作结束」：拿起是在确认键松开被游戏处理时才发的（只等到「开始」就挪光标，背包 → 箱子的拿起包没发） | wait until "controller action end": the pick-up is only sent when the release of the confirm button is processed by the game (if the cursor is moved after waiting only for "start", the pick-up packet for inventory → stash is not sent)
     if (strcmp(cat, "InputMessage") && strcmp(cat, "MonsterHealth") && strcmp(cat, "PartyPanelMessage")) DM_LAT("ui %s %s %s", cat, act, arg ? arg : "");
     { static const char *at; static int got; if (!got) { got = 1; at = getenv("DM_UI_TAPS_AT"); }
