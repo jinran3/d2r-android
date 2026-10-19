@@ -1052,11 +1052,6 @@ int front_text_input(const char *title, const char *sub, const char *guide, cons
             }] forControlEvents:UIControlEventEditingChanged];
         }];
         void (^finish)(int) = ^(int ok) { UIAlertController *sa = wa; g_text_alert = nil; g_text_alert_finish = nil; if (ok) text = sa.textFields.firstObject.text;   // 弱引用对话框：按钮回调 → finish → 对话框 → 按钮 是个环，对话框每弹一次留一个 | weak reference to the dialog: button callback -> finish -> dialog -> button is a cycle, leaving one dialog behind every time it is shown
-            // 名字留空点确定 = 随机取名：我们自己抽一个（dm_namegen.c，约 1.8 万种、与已有角色重名就再抽），当作玩家输入的名字返回，走游戏原本的起名校验；只填进名字框不自动接受（同原版「随机名字」键，玩家看到再点创建）。
-            // 原先发原版「随机名字」键，那是按职业在 12 个名字里依次轮，容易撞
-            // Leaving the name empty and tapping OK = random naming: we draw one ourselves (dm_namegen.c, about 18,000 variants; redraw if it collides with an existing character), return it as the name the player typed, and go through the game's original name validation; it is only filled into the name field and not auto-accepted (same as the original game's 「随机名字」(Random Name) key: the player sees it and then taps create).
-            // Previously we sent the original game's 「随机名字」(Random Name) key, which cycles through 12 names per class in order and collides easily
-            if (ok && name_rule && !text.length) { char nm[32]; if (dm_name_gen(nm, sizeof nm, dm_name_taken)) { text = @(nm); extern _Atomic int g_fe_name_no_accept; atomic_store(&g_fe_name_no_accept, 1); LOG("起名：随机名 → 名字框「%s」（名字留空点确定）", nm); } else { ok = 0; LOG("起名：随机名 → 名字框「」【红】（已有同名角色，试满 64 次仍重名），名字框不动"); } }   // 日志句式同宿主 dm_actions.c，uireg two_names 按它判 | Log wording is the same as the host's dm_actions.c; uireg two_names judges by it
             r = ok; dispatch_semaphore_signal(done); };
         g_text_alert = a; g_text_alert_finish = [finish copy];
         [a addAction:[UIAlertAction actionWithTitle:SWT("dmCancel") style:UIAlertActionStyleCancel handler:^(UIAlertAction *x) { (void)x; finish(0); }]];

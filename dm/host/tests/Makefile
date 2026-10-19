@@ -4,7 +4,7 @@ DM_ROOT ?= $(HOME)/dm-work
 PY ?= $(DM_ROOT)/build/cache/dm/venv/bin/python
 EXEFS ?= $(DM_ROOT)/data/switch/3.3.94012/Update/ExeFS
 B = build
-run: $(B)/t_thread_leak $(B)/t_rift_clock $(B)/t_padmap $(B)/t_touch $(B)/t_hid_receipt $(B)/t_hid_script $(B)/t_touch_mac $(B)/t_oe $(B)/t_fs $(B)/t_fs_case $(B)/t_romfs_validate $(B)/t_audio $(B)/t_audio_spsc $(B)/t_swkbd $(B)/t_altstack $(B)/t_condvar $(B)/t_condvar_old $(B)/t_target_rank $(B)/t_hud_dead $(B)/t_namegen $(B)/t_modetx $(B)/t_unit_level $(B)/t_widget $(B)/t_doorspot $(B)/t_cloudsync $(B)/t_i18n $(B)/main.orig.bin $(B)/subsdk0.orig.bin
+run: $(B)/t_thread_leak $(B)/t_rift_clock $(B)/t_padmap $(B)/t_touch $(B)/t_hid_receipt $(B)/t_hid_script $(B)/t_touch_mac $(B)/t_oe $(B)/t_fs $(B)/t_fs_case $(B)/t_romfs_validate $(B)/t_audio $(B)/t_audio_spsc $(B)/t_swkbd $(B)/t_altstack $(B)/t_condvar $(B)/t_condvar_old $(B)/t_target_rank $(B)/t_hud_dead $(B)/t_modetx $(B)/t_unit_level $(B)/t_widget $(B)/t_doorspot $(B)/t_cloudsync $(B)/t_i18n $(B)/main.orig.bin $(B)/subsdk0.orig.bin
 	python3 native_write_scan.py --selftest ..
 	python3 mode_scan.py ../..
 	python3 ../../ios/tools/dm_i18n.py --check
@@ -27,7 +27,6 @@ run: $(B)/t_thread_leak $(B)/t_rift_clock $(B)/t_padmap $(B)/t_touch $(B)/t_hid_
 	$(B)/t_condvar_old
 	$(B)/t_target_rank 2>/dev/null
 	$(B)/t_hud_dead
-	$(B)/t_namegen
 	$(B)/t_modetx
 	$(B)/t_padmap
 	$(B)/t_unit_level
@@ -50,8 +49,6 @@ $(B)/t_padmap: t_padmap.c ../dm_padmap.h ../dm_input.h | $(B)
 	clang -O1 -Wall -Werror -o $@ t_padmap.c
 $(B)/t_modetx: t_modetx.c ../dm_modetx.h | $(B)
 	clang -O1 -Wall -Werror -o $@ t_modetx.c
-$(B)/t_namegen: t_namegen.c ../dm_namegen.c | $(B)
-	clang -O1 -Wall -Werror -o $@ t_namegen.c ../dm_namegen.c
 $(B)/t_cloudsync: t_cloudsync.c ../dm_cloudsync.c ../dm.h | $(B)
 	clang -O1 -Wall -Werror -I.. -o $@ t_cloudsync.c ../dm_cloudsync.c
 $(B)/t_touch: t_touch.c ../hle_touch.c ../front.h ../dm.h | $(B)

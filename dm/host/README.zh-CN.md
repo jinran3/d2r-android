@@ -61,7 +61,6 @@ English: [README.md](README.md)
 | `dm_i18n.c`、`dm_i18n.h` | 我们加的界面文字按键取串，语言跟游戏的语言设置走 |
 | `dm_i18n_tab.h` | 由中英表生成的编译期表。生成文件，不要手改，见 [dm/i18n/README.zh-CN.md](../i18n/README.zh-CN.md) |
 | `dm_update.c` | 选角页的构建号与新版本提示 |
-| `dm_namegen.c` | 起名页留空时随机取名：按音节拼，避开已有的角色名 |
 
 ### 终局玩法
 

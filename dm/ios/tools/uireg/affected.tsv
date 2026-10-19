@@ -45,7 +45,6 @@ dm/host/dm_cloudsync*	rf3 e pg2 vt1
 dm/host/dm_update*	e
 dm/host/dm_custom*	e kbb
 dm/host/hle_charname*	e
-dm/host/dm_namegen*	e
 dm/host/dm_textinput*	e vt1
 dm/host/dm_cursor*	a c f g h j m n p q s t u sb cb sl1 sl2 me1 me2 pg2 vt1 rw1 bd
 dm/host/hle_touch*	a c f g h j m n p q s t u sb cb sl1 sl2 me1 me2 pg2 vt1 rw1 bd

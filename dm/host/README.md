@@ -61,7 +61,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 | `dm_i18n.c`, `dm_i18n.h` | Looks up our own UI text by key; the language follows the game's language setting |
 | `dm_i18n_tab.h` | The compile-time table generated from the string table. Generated; do not edit by hand, see [dm/i18n/README.md](../i18n/README.md) |
 | `dm_update.c` | The build number and new-version notice on the character select page |
-| `dm_namegen.c` | Random names when the name field is left empty: assembled from syllables, avoiding names already taken |
 
 ### Endgame modes
 
