@@ -324,7 +324,12 @@ def verify(handoff_path: Path, log_path: Path) -> int:
         elif origin_head and not is_ancestor(recorded_origin, origin_head):
             errors.append("origin_head_at_checkpoint 不是远端 HEAD 的祖先: " + recorded_origin)
         elif origin_head and recorded_origin != origin_head:
-            warnings.append("远端在快照后已前进: %s -> %s" % (recorded_origin[:12], origin_head[:12]))
+            changed = [
+                path for path in run_git("diff", "--name-only", recorded_origin + ".." + origin_head).splitlines()
+                if path
+            ]
+            if not changed or not all(path in CONTROL_PLANE for path in changed):
+                warnings.append("远端在快照后已前进且包含非控制面改动: %s -> %s" % (recorded_origin[:12], origin_head[:12]))
 
     actual_code = code_status_lines()
     actual_worktree = "DIRTY" if actual_code else "CLEAN"

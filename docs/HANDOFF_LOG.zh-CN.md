@@ -7,11 +7,11 @@
 
 - 会话目标：建立上下文压缩后可恢复的 Agent 交接控制面。
 - 完成：重构 HANDOFF 为当前快照；新增自动校验脚本；新增独立日志；更新 AGENTS 入口。
-- 未完成：两处 TotK 适配代码提交；交接控制面推送；TotK 文件与 M0 实测。
+- 未完成：两处 TotK 适配代码提交；TotK 文件与 M0 实测。
 - 验证：`ci_checks.py` exit 0（8/0）；`build.py --game-run --version handoff-check` exit 0；规则域负向测试符合预期。
 - 阻塞：缺少 TotK 文件、`prod.keys`、`hactool` 和真机。
 - 下一步：NA-001，提交两处 TotK 适配代码。
-- 交接提交：控制面提交已完成（以当前 HEAD 为准）。
+- 交接提交：已提交并推送；以 `origin/totk/scaffold` 为准。
 
 ## 2026-10-19 17:10 Asia/Shanghai — [VERIFY] 交接构建验证
 
