@@ -23,7 +23,7 @@ Every file opens with a comment saying what it does and what that is based on. A
 | `stash_seed.h` | The preset content used the first time the shared stash is created. Not shipped in the public repository (it is the bytes of a save the game generated): without it nothing is seeded |
 | `dm_derived_rt.h` | Used only in the "shell" that contains no game content: the tables generated from game files are not compiled in but read from the install package at run time; see [docs/NO_XCODE.md](../../docs/NO_XCODE.md) |
 
-Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: work that `dm_rift.c`, `dm_kills.c` and others must do inside a server tick is called from there.
+Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: work that `dm_kills.c` and others must do inside a server tick is called from there.
 
 ## In-game features (`dm_*`)
 
@@ -65,8 +65,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 
 | File | What it does |
 |---|---|
-| `dm_rift.c`, `dm_rift.h` | The Rift: the portal, picking maps, progress, the guardian, the timer and how many floors a clear is worth |
-| `dm_rift_ui.c` | The Rift panel, built from original widgets |
 | `dm_doorspot.h` | Where the two doors appear when a Rift floor is settled: guaranteed to be on a cell the player can walk to. Pure algorithm |
 | `dm_bossrush.c`, `dm_bossrush.h` | Boss rush |
 | `dm_kills.c` | The kill board: per character and per difficulty, the kill count, first-kill time and fastest time for each boss |

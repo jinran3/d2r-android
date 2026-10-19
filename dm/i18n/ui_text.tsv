@@ -23,7 +23,6 @@ dmKbAct2	第二幕	Act II	积分牌幕页签
 dmKbAct3	第三幕	Act III	积分牌幕页签
 dmKbAct4	第四幕	Act IV	积分牌幕页签
 dmKbAct5	第五幕	Act V	积分牌幕页签
-dmKbRift	秘境	Rift	积分牌第六个分组（touch_layout.py）
 dmKbSortAct	按幕顺序	By Act	积分牌排序下拉
 dmKbSortCount	按次数	By Kills	积分牌排序下拉（宿主 kb_sort 按这个键认）
 dmKbSortFast	按最快	By Best Time	积分牌排序下拉（宿主 kb_sort 按这个键认）
@@ -146,115 +145,11 @@ dmDlNetRetry	网络中断，%d 秒后自动重试	Network lost. Retrying in %d s
 dmDlReconnect	连接不稳，已重新连接（第 %d 次）	Unstable connection. Reconnected (attempt %d)	资源下载进度第三行：这一片掉速后换了新连接（asset_dl.m）
 dmShareLogFile	D2R Mobile Diagnostics_%@_%@.txt	D2RMobile_diagnostics_%@_%@.txt	分享诊断日志时系统分享面板上的文件名（dm_sharelog.m；文件内容给我们看，搜行用的中文键不翻）
 dmTroveTab	珍宝匣	Trove	储藏箱第三个页签：宝石 / 符文 / 材料三页合成的一页（wide_stash.py；材料、符文两个页签挪出屏）
-dmRiftSayPrefix	秘境  %s	Rift  %s	秘境系统提示的前缀（dm_rift.c say）
-dmRiftSayFirst	第 %d 层首通奖励已掉在脚下	Level %d first clear reward	秘境系统提示（dm_rift.c）；英文：「首通」暗黑 3 无对应原文，拟
-dmRiftSayDoneBoth	本层完成，下一层与回城之门已开启	Rift complete! Portals opened	秘境系统提示（dm_rift.c）；英文：complete 取自暗黑 3 官方 2.1.0 补丁说明（news.blizzard.com/en-us/article/14569138）「complete the current Greater Rift level」；整句拟；暗黑 3 结算窗口标题原文「GREATER RIFT COMPLETE」/ Urshi 面板标题「RIFT COMPLETE」（游戏内截图 diablo.fandom.com/wiki/File:New_Completion_Rift.jpg、File:UrshiMenu.jpg）
-dmRiftSayLateBoth	超时未过关，重打与回城之门已开启	Not cleared. Portals opened	秘境系统提示（dm_rift.c）；超时打倒守护者不算过关；英文：not cleared，不用 Failed（没死也没失败，只是不计）
-dmRiftSayLateNext	超时未过关，重打之门已开启	Not cleared. Portal opened	秘境系统提示（dm_rift.c）；超时打倒守护者不算过关；英文：not cleared，不用 Failed（没死也没失败，只是不计）
-dmRiftSayLateTown	超时未过关，回城之门已开启	Not cleared. Town Portal open	秘境系统提示（dm_rift.c）；超时打倒守护者不算过关；英文：not cleared，不用 Failed（没死也没失败，只是不计）
-dmRiftSayLate	超时未过关	Level not cleared	秘境系统提示（dm_rift.c）；超时打倒守护者不算过关；英文：not cleared，不用 Failed（没死也没失败，只是不计）
-dmRiftSayDoneNext	本层完成，下一层之门已开启	Rift complete! Portal opened	秘境系统提示（dm_rift.c）；英文：同上；暗黑 3 结算窗口标题原文「GREATER RIFT COMPLETE」/ Urshi 面板标题「RIFT COMPLETE」（游戏内截图 diablo.fandom.com/wiki/File:New_Completion_Rift.jpg、File:UrshiMenu.jpg）
-dmRiftSayDoneTown	本层完成，回城之门已开启	Complete! Town Portal open	秘境系统提示（dm_rift.c）；英文：Town Portal = 暗黑 2 原版 skills[skillan219]；暗黑 3 结算窗口标题原文「GREATER RIFT COMPLETE」/ Urshi 面板标题「RIFT COMPLETE」（游戏内截图 diablo.fandom.com/wiki/File:New_Completion_Rift.jpg、File:UrshiMenu.jpg）
-dmRiftSayDone	本层完成	Rift complete	秘境系统提示（dm_rift.c）；英文：同上；暗黑 3 结算窗口标题原文「GREATER RIFT COMPLETE」/ Urshi 面板标题「RIFT COMPLETE」（游戏内截图 diablo.fandom.com/wiki/File:New_Completion_Rift.jpg、File:UrshiMenu.jpg）
-dmRiftSayErr	秘境出错了，这次没开	The Rift could not be opened	秘境系统提示（dm_rift.c）；英文：拟
-dmRiftSayStart	第 %d 层开始，限时 15 分钟	Level %d: 15 minute time limit	秘境系统提示（dm_rift.c）；英文：Greater Rift level / time limit 取自暗黑 3 官方 2.1.0 补丁说明（news.blizzard.com/en-us/article/14569138）「complete the current Greater Rift level within the designated time limit」
-dmRiftSayGift	赠彩虹刻面一颗，已掉在脚下	A Rainbow Facet has dropped	秘境系统提示（dm_rift.c）；「彩虹刻面」是旧译名（原版现行「彩虹魔石」）；英文物品名 = 原版键 Rainbow Facet 的 enUS；英文：物品名 = 暗黑 2 原版 item-names[Rainbow Facet]
-dmRiftSayTimeout	时间到：本层未过关，守护者仍会掉落	Time's up: level not cleared	秘境系统提示（dm_rift.c）；超时打倒守护者不算过关；英文：not cleared，不用 Failed（没死也没失败，只是不计）
-dmRiftSayGuardian	进度已满：守护者现身！	The Rift Guardian appears!	秘境系统提示（dm_rift.c）；英文：Rift Guardian 取自暗黑 3 官方 2.1.0 补丁说明（news.blizzard.com/en-us/article/14569138）；出现时的界面原句没查到，拟
-dmMercSlotLocked	通关地狱后打通秘境10层解锁	Clear Greater Rift Level 10 to unlock	佣兵新装备位没解锁时的系统提示（dm_rift.c；中文是 原句）；英文：Greater Rift 取暗黑 3 原文
-dmRiftPtsGot	最高第 %d 层：获得 %d 技能点、%d 属性点	Level %d: +%d Skill Points, +%d Stat Points	秘境系统提示（dm_rift.c 通关点数）；英文：Skill Points / Stat Points 写全，取暗黑 2 原版人物面板的说法（Stat Points Remaining / Skill Choices Remaining；不缩成 Skill / Stat）；中文这句本身就占两行，英文同样两行
-dmSkillCapLocked	打通任意一层秘境后解锁技能等级上限	Clear any Rift level to unlock the skill level cap	技能树里对已到 20 级的技能再加点、而这个角色还没打通过秘境时的系统提示（dm_actions.c）；英文：Rift / level 同秘境其它提示
-dmRiftPtsHeld	未分配的点数太多，剩余奖励在用掉后补发	Spend your points to get the rest	秘境系统提示（dm_rift.c 通关点数）：未用点数顶到上限，剩下的等用掉后补发；英文按原意写
-dmRiftTierN	第 %d 层	Level %d	秘境层号（面板大字、积分牌、顶部条共用）；英文：层数叫 level：暗黑 3 官方 2.1.0 补丁说明（news.blizzard.com/en-us/article/14569138）「Greater Rift level」；暗黑 3 方尖碑选层下拉原文「Level 12」「Level 25 (Torment 6)」（游戏内截图 diablo.fandom.com/wiki/File:HP2AA65JO17Q1434998338415.jpg）；暗黑 3 结算屏与排行榜写 Tier（「TIER 31 COMPLETED」、列名 Tier），选层写 Level；同一局里用两个词更乱，全用 Level，未分场合
-dmRiftCapResel	换一层再打	Choose another level	大秘境面板（dm_rift_ui.c）已完成页上组说明；英文：拟
-dmRiftCapGuard	回到守护者处	Return to Guardian	大秘境面板（dm_rift_ui.c）已完成页下组说明；英文：拟
-dmRiftCapVoid	本层作废	Run will be lost	大秘境面板（dm_rift_ui.c）；英文：拟
-dmRiftCapVoidPad	按住 X，本层放弃	Hold X to quit level	大秘境面板进行中页「放弃」钮上方的说明，手柄模式用（dm_rift_ui.c）；英文：拟（按钮叫 Quit）
-dmRiftTitleDone	本层已完成	Rift Complete	大秘境面板（dm_rift_ui.c）；英文：见 dmRiftSayDoneBoth；暗黑 3 结算窗口标题原文「GREATER RIFT COMPLETE」/ Urshi 面板标题「RIFT COMPLETE」（游戏内截图 diablo.fandom.com/wiki/File:New_Completion_Rift.jpg、File:UrshiMenu.jpg）
-dmRiftTitleLate	超时未过关	Time's Up	大秘境面板（dm_rift_ui.c）超时打倒守护者时的标题；英文：拟
-dmRiftTitleRun	秘境进行中	Rift in Progress	大秘境面板（dm_rift_ui.c）
-dmRiftGuardDown	已击败守护者	Guardian slain	大秘境面板（dm_rift_ui.c）；英文：slain = 暗黑 2 原版 ui[sysmsg9]「was slain.」；Rift Guardian 见上（此处栏宽放不下全称）
-dmRiftNextOpen	下一层之门已开启	Next portal open	大秘境面板（dm_rift_ui.c）；英文：拟
-dmRiftRetryOpen	重打本层之门已开启	Portal reopened	大秘境面板（dm_rift_ui.c）超时：守护者处那扇门重打本层；英文：拟
-dmRiftSaved	进度已记录	Progress saved	大秘境面板（dm_rift_ui.c）
-dmRiftNotCounted	不计入通关	Not cleared	大秘境面板（dm_rift_ui.c）超时；英文：拟
-dmRiftTimeLeft	剩余时间	Time Left	大秘境面板（dm_rift_ui.c）
-dmRiftProgress	进度	Progress	大秘境面板（dm_rift_ui.c）
-dmRiftLvlBase	原版	Unchanged	大秘境面板「怪物等级」：9 层以下不改等级；英文：拟（9 层以下不改怪物等级）
-dmRiftGamUni	暗金	Unique	大秘境面板（dm_rift_ui.c）
-dmRiftGamSet	套装	Set	大秘境面板（dm_rift_ui.c）
-dmRiftGamUniAfter	通关后暗金	Unique after	大秘境面板（dm_rift_ui.c）；英文：拟：通关所选层之后的暗金几率；栏宽只够 12 个字符；英文界面不用这两条（换成小标题 dmRiftGamAfterEn + 并排两个数），只为表的完整留着
-dmRiftGamSetAfter	通关后套装	Set after	大秘境面板（dm_rift_ui.c）；英文：同上；英文界面不用这两条（换成小标题 dmRiftGamAfterEn + 并排两个数），只为表的完整留着
-dmRiftMsGot	已领取	Claimed	大秘境面板（dm_rift_ui.c）
-dmRiftMsNext	下一目标	Next	大秘境面板（dm_rift_ui.c）
-dmRiftMsNo	未达成	Locked	大秘境面板（dm_rift_ui.c）
-dmKbRiftName	大秘境	Greater Rift	积分牌秘境项（dm_kills.c）
-dmKbRiftBest	最高通关 %d 层	Best Level: %d	积分牌秘境项（dm_kills.c）；英文：拟；排行榜原文没查到
-dmKbRiftNever	还没进过秘境	No Greater Rifts yet	积分牌秘境项（dm_kills.c）；英文：拟
-dmKbRiftClears	通关 %d · 死亡 %d	Cleared %d · Deaths %d	积分牌秘境项（dm_kills.c）；英文：拟
-dmKbRiftUnlock	可选到第 %d 层	Max: %d	积分牌秘境项（dm_kills.c）；英文：拟
-dmKbRiftMs	首通奖励	First Clear Rewards	积分牌秘境项（dm_kills.c）；英文：拟
-dmKbRiftMsNext	下一档在第 %d 层	Next at Level %d	积分牌秘境项（dm_kills.c）；英文：拟
-dmKbRiftMsAll	已全部领取	All claimed	积分牌秘境项（dm_kills.c）
-dmKbRiftFast	最快 %d:%02d	Best Time %d:%02d	积分牌秘境项（dm_kills.c）；英文：拟（同积分牌 dmKbTimes 的 Best）；暗黑 3 排行榜列名为 Time Spent（意思是用时，不是最快），未采用，留 Best Time
-dmKbRiftMsGot	首通奖励已领取	First clear reward claimed	积分牌秘境项（dm_kills.c）；英文：拟
-dmKbRiftTotal	最高 %d 层	Best Level: %d	积分牌秘境项（dm_kills.c）；英文：拟
-dmRiftHudTitle	秘境	Rift	秘境顶部进度条（dm_rift_hud.m，UIKit）
-dmRiftHudDone	第 %d 层完成	Level %d complete	秘境顶部进度条（dm_rift_hud.m，UIKit）；英文：见 dmRiftSayDoneBoth
-dmRiftHudLate	第 %d 层超时	Level %d overtime	秘境顶部进度条（dm_rift_hud.m，UIKit）；英文：拟
-dmRiftHudGuard	守护者现身	Rift Guardian	秘境顶部进度条（dm_rift_hud.m，UIKit）；英文：见 dmRiftSayGuardian
-dmRiftHudNext	下次第 %d 层	Next: Level %d	秘境顶部进度条（dm_rift_hud.m，UIKit）；英文：拟
-dmRiftHudSame	下次仍是这一层	Next: same level	秘境顶部进度条（dm_rift_hud.m，UIKit）；英文：拟
-dmRiftHudKill	击败守护者	Slay the Rift Guardian	秘境顶部进度条（dm_rift_hud.m，UIKit）；英文：拟；任务目标原句没查到
-dmRiftHudGoal	消灭秘境中的怪物   %d%%	Slay the monsters   %d%%	秘境顶部进度条（dm_rift_hud.m，UIKit）；英文：拟；任务目标原句没查到
-dmRiftMsItem10	破免大板	Sunder Charm	大秘境面板首通奖励列表（touch_layout.py RF_MS）；英文自拟：原版没有统称（六件各有名字，词条里有 Sundered），用玩家通行叫法
-dmRiftMsSub10	随机一种	One at random	大秘境面板首通奖励列表（touch_layout.py RF_MS）
-dmRiftMsTier10	10 层	10	首通奖励列表的层号（布局里是静态字，一行一条）；英文：英文只写层号（栏宽放不下 Level N；标题栏已说明是 First Clear）
-dmRiftMsItem20	毁灭	Annihilus	大秘境面板首通奖励列表（touch_layout.py RF_MS）；英文 = 原版串表键 Annihilus 的 enUS
-dmRiftMsTier20	20 层	20	首通奖励列表的层号（布局里是静态字，一行一条）；英文：英文只写层号（栏宽放不下 Level N；标题栏已说明是 First Clear）
-dmRiftMsItem30	地狱火炬	Hellfire Torch	大秘境面板首通奖励列表（touch_layout.py RF_MS）；英文 = 原版键 Hellfire Torch 的 enUS
-dmRiftMsTier30	30 层	30	首通奖励列表的层号（布局里是静态字，一行一条）；英文：英文只写层号（栏宽放不下 Level N；标题栏已说明是 First Clear）
-dmRiftMsItem40	无形精英底材	Ethereal Elite	大秘境面板首通奖励列表（touch_layout.py RF_MS）
-dmRiftMsSub40	带孔	Socketed item	大秘境面板首通奖励列表（touch_layout.py RF_MS）；英文 = 原版 ui[LootFilterEtherealSocketed]「Ethereal / Socketed」里的词
-dmRiftMsTier40	40 层	40	首通奖励列表的层号（布局里是静态字，一行一条）；英文：英文只写层号（栏宽放不下 Level N；标题栏已说明是 First Clear）
-dmRiftMsItem50	先祖暗金珠宝	Colossal Jewel	大秘境面板首通奖励列表（touch_layout.py RF_MS）；英文统称是英文社区的通行叫法（Colossal Jewel），原版只有 6 个单件名：item-names.json 的 Defender's Fire / Defender's Bile / Protector's Frost / Protector's Stone / Guardian's Thunder / Guardian's Light（中文 防御者之火 / 防御者之怒 / 保卫者之霜 / 保卫者之石 / 守护者之雷 / 守护者之光）
-dmRiftMsSub50	随机一种	One at random	大秘境面板首通奖励列表（touch_layout.py RF_MS）
-dmRiftMsTier50	50 层	50	首通奖励列表的层号（布局里是静态字，一行一条）；英文：英文只写层号（栏宽放不下 Level N；标题栏已说明是 First Clear）
-dmRiftMsItem60	死亡深度	Death's Fathom	大秘境面板首通奖励列表（touch_layout.py RF_MS）；中文是旧译名（原版现行「死亡深渊」）；英文 = 原版键 Fathom 的 enUS
-dmRiftMsTier60	60 层	60	首通奖励列表的层号（布局里是静态字，一行一条）；英文：英文只写层号（栏宽放不下 Level N；标题栏已说明是 First Clear）
-dmRiftMsItem70	格利风之眼	Griffon's Eye	大秘境面板首通奖励列表（touch_layout.py RF_MS）；中文是旧译名（原版现行「狮鹫之眼」）；英文 = 原版同名键的 enUS
-dmRiftMsTier70	70 层	70	首通奖励列表的层号（布局里是静态字，一行一条）；英文：英文只写层号（栏宽放不下 Level N；标题栏已说明是 First Clear）
-dmRiftMsItem80	泰瑞尔的威能	Tyrael's Might	大秘境面板首通奖励列表（touch_layout.py RF_MS）；中文是旧译名（原版现行「泰瑞尔的力量」）；英文 = 原版同名键的 enUS
-dmRiftMsTier80	80 层	80	首通奖励列表的层号（布局里是静态字，一行一条）；英文：英文只写层号（栏宽放不下 Level N；标题栏已说明是 First Clear）
-dmRiftMsItem90	破免大板	Sunder Charm	大秘境面板首通奖励列表（touch_layout.py RF_MS）；同 dmRiftMsItem10
-dmRiftMsSub90	补齐没有的那种	One you are missing	大秘境面板首通奖励列表（touch_layout.py RF_MS）
-dmRiftMsTier90	90 层	90	首通奖励列表的层号（布局里是静态字，一行一条）；英文：英文只写层号（栏宽放不下 Level N；标题栏已说明是 First Clear）
-dmRiftMsItem100	六颗高级符文	6 High Runes	大秘境面板首通奖励列表（touch_layout.py RF_MS）
-dmRiftMsSub100	28–33 号符文各一颗	Lo to Zod, one each	大秘境面板首通奖励列表（touch_layout.py RF_MS）；符文名 = 原版 item-runes[r28]–[r33]：Lo / Sur / Ber / Jah / Cham / Zod Rune
-dmRiftMsTier100	100 层	100	首通奖励列表的层号（布局里是静态字，一行一条）；英文：英文只写层号（栏宽放不下 Level N；标题栏已说明是 First Clear）
-dmRiftSelT	选择层数	Select Level	大秘境面板（touch_layout.py _rift_panel）；英文：仿暗黑 2 原版 ui[strselectdiff]「Select Difficulty」；level 见 dmRiftTierN
-dmRiftInfT	本层	This Level	大秘境面板（touch_layout.py _rift_panel）；英文：拟
-dmRiftRange	可选层数	Unlocked	大秘境面板（touch_layout.py _rift_panel）；英文：拟
-dmRiftBest	最高通关	Highest	大秘境面板（touch_layout.py _rift_panel）；英文：拟
-dmRiftStr	怪物强度	Monster Power	大秘境面板（touch_layout.py _rift_panel）；英文：Monster Power 是暗黑 3 1.0.5 的正式系统名（官方博客 us.diablo3.com/en/blog/7540457：「Monster Power, a new system designed to give players more control over how challenging enemies are」，并自比暗黑 2 的 Players X）
-dmRiftLvl	怪物等级	Monster Level	大秘境面板（touch_layout.py _rift_panel）；暗黑 2 的说法（原版 ui[charmonster]「level %d monster」；怪物一律 Monster，不用 Enemy）
-dmRiftTime	限时	Time Limit	大秘境面板（touch_layout.py _rift_panel）；英文：time limit 取自暗黑 3 官方 2.1.0 补丁说明（news.blizzard.com/en-us/article/14569138）
-dmRiftGamT	安亚赌博	Gamble at Anya	大秘境面板（touch_layout.py _rift_panel）；英文用原版词 ui[gamble]「gamble」
-dmRiftBtnStart	开始	Enter Rift	大秘境面板（touch_layout.py _rift_panel）；英文：拟；方尖碑面板按钮原文没查到；暗黑 3 方尖碑面板的进入按钮原文为 ACCEPT；我们的面板没有它那句前置说明，单一个 Accept 不知接受什么，未采用，留 Enter Rift（看过认可）
-dmRiftBtnAbandon	放弃	Quit	大秘境面板（touch_layout.py _rift_panel）；英文用 Quit（「放弃用 quit 不是 abandon」）
-dmRiftBtnResel	重新选层	Select Level	大秘境面板（touch_layout.py _rift_panel）已完成页上组按钮；英文与选层页标题同词
-dmRiftCapCont	回到离开时的位置	Resume your run	大秘境面板（touch_layout.py _rift_panel）；英文：拟
-dmRiftBtnCont	继续	Continue	大秘境面板（touch_layout.py _rift_panel）
-dmRiftMsT	首通奖励	First Clear	大秘境面板（touch_layout.py _rift_panel）
-dmRiftMsN	每档另得 符文 · 赦免之证 · 打孔	+Rune, Token, Socket	大秘境面板（touch_layout.py _rift_panel）
-dmRiftPanelTitle	大秘境	Greater Rift	大秘境面板（touch_layout.py _rift_panel）
 dmPadLegDiff	难度	Difficulty	积分牌手柄提示条 X（dm_kills.c）；英文 = 原版 ui[automapdif]「Difficulty: %s」里的词
 dmPadLegSort	排序	Sort	积分牌手柄提示条 Y；英文 = 原版 ui[strSort]「Sort」
 dmPadHintDeposit	存入	Deposit	编年史页「按住 Y」那半句（dm_padmode.c）；英文 = 原版 ui[strGoldDeposit]
 dmPadLegIdentify	捡起（按住鉴定）	Pick Up (Hold to Identify)	手柄模式光标在未鉴定物品上时，原版提示条 A 那条的「捡起」换成这句（dm_padmode.c 换串小表）；写法照原版「捡起(按住使用)」；英文：拟
 dmPadDiffLine	游戏难度：%d	Game Difficulty: %d	手柄版暂停菜单的难度行（dm_padmode.c）；英文 = 原版 ui[OptionsMenuGameDifficulty]「Game Difficulty」
-dmRiftGamAfterEn	通关本层后	After This Level	大秘境面板赌博区英文版的小标题行（中文界面不用：中文是「通关后暗金 / 通关后套装」两行）
-dmRiftMsNEn	每档另得 符文 · 赦免之证 · 打孔	+ Rune, Token of Absolution, Sockets	大秘境面板右上那句的英文版控件（物品名 = 暗黑 2 原版 item-modifiers[toa]「Token of Absolution」、ui[Addsocketsui]「Add sockets」）
 dmAppQuit	退出 D2R Mobile	Quit D2R Mobile	Mac App 菜单栏（host/front_mac.m）
 dmAppOK	好	OK	Mac App 提示框的按钮（host/app_mac.m，下同）
 dmAppPickUse	用这个文件夹	Use This Folder	选资源文件夹对话框的确认按钮

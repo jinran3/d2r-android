@@ -1123,15 +1123,6 @@ static int vt_hit_walk(uint64_t w, uint64_t xy, int dep, uint64_t vt) {   // 可
 static _Atomic int g_drop_bag;
 int dm_ui_drop_bag(void) { return atomic_load(&g_drop_bag); }
 static int g_press_stack;   // 最近一次按下命中的是高级仓库的成叠格（只在游戏主线程读写） | The most recent press hit a stack cell of the advanced stash (read and written only on the game main thread)
-// 佣兵面板里还没解锁的六个新装备格（项链 2、戒指 6 / 7、腰带 8、鞋 9、手套 10；秘境最高通关不到 10 层）：点中 / 拖到就弹一句提示（dm_rift.c，半秒内不重复）。
-// 认命中结果（g_slot_w = 这次命中的物品区控件）、不认界面焦点：空格旁边有物品时光标会吸到那件物品所在的格上（点腰带格，焦点落在身体格——实测）。佣兵格 = 属主 +0x5c8 == 1
-// The six new equipment slots in the mercenary panel that are not yet unlocked (amulet 2, rings 6 / 7, belt 8, boots 9, gloves 10; highest rift level cleared below 10): tapping / dragging onto one pops up a one-line hint (dm_rift.c, not repeated within half a second).
-// Goes by the hit result (g_slot_w = the item area widget hit this time), not by UI focus: when there is an item next to an empty cell the cursor snaps to the cell holding that item (tapping the belt cell, focus lands on the body cell -- measured). Mercenary cell = owner +0x5c8 == 1
-static int merc_lock_hit(const char *hit) {   // 返回 1 = 这次命中的是锁着的格（已弹提示） | Returns 1 = this hit is a locked cell (hint already shown)
-    if (!g_slot_w || !hit || strncmp(hit, "slot_", 5) || *(uint32_t *)(g_slot_w + 0x5c8) != 1) return 0; int l_ = *(int32_t *)(g_slot_w + 0x5d8); int dm_rift_merc_unlocked(void); void dm_rift_merc_locked_hint(void);
-    if ((l_ == 2 || (l_ >= 6 && l_ <= 10)) && !dm_rift_merc_unlocked()) { dm_rift_merc_locked_hint(); return 1; }
-    return 0;
-}
 static int ui_drop_kind(module_t *m, uint64_t root, int x, int yl, int yf) {
     // 松手时落点一律按物品图的位置（手指上方那个抬起点 yl）判，不看手指点——背包格、装备位、腰带格、箱子、货架、黑网格、面板外都同一口径
     // On release the drop point is always judged by the item image position (the lifted point yl above the finger), not the finger point - inventory cells, equipment slots, belt cells, stash, shelf, black grid and outside the panel all use the same convention
@@ -1170,7 +1161,6 @@ static int ui_drop_kind(module_t *m, uint64_t root, int x, int yl, int yf) {
     if (c != 1) return c == 3 || (c == 0 && g_inside_owner[0] && !in_item_panel_rect(m, root, (uint64_t)(uint32_t)x | ((uint64_t)(uint32_t)yl << 32))) ? 3 : 0;
     if (belt_row_block(m, x, yl)) return 0;   // 进不了腰带的物品松手在腰带格上：放回原处 | An item that cannot go into the belt released on a belt cell: put back
     if (g_slot_panel && !strcmp(g_slot_panel, "VendorPanelLayout") && dm_shop_open()) return 7;   // 7 = 落在商人的货架上：松手时卖掉手上那件（前端调 dm_shop_sell_cursor；卖不掉的放回原处） | 7 = landed on the vendor's shelf: on release sell the held item (the front end calls dm_shop_sell_cursor; what cannot be sold is put back)
-    if (merc_lock_hit(hit)) { atomic_store(&g_drop_loc, 0); return 0; }   // 松手在锁着的格上：放回原处（同上面腰带那行），不记栏位——不让松手收尾的兜底去给佣兵穿（服务端那道门本来也会拒，这里省掉那一趟） | Released on a locked cell: put back where it was (same as the belt line above), without recording a slot -- so that the release-finish fallback does not go and equip the mercenary (the server-side gate would reject it anyway; this saves that round trip)
     atomic_store(&g_drop_loc, g_slot_w && !strncmp(hit, "slot_", 5) ? (*(int32_t *)(g_slot_w + 0x5d8) | (*(uint32_t *)(g_slot_w + 0x5c8) == 1 ? 0x100 : 0)) : 0);   // 佣兵面板里的同名格（属主 +0x5c8 == 1）带上 0x100：兜底时走「给佣兵穿」，不能按玩家的栏位放（那会把东西穿到玩家身上） | A same-named cell in the mercenary panel (owner +0x5c8 == 1) carries 0x100: the fallback then goes through "equip the mercenary" and must not place by the player's slot (that would put the item on the player)
     if (g_slot_w) slot_center(g_slot_w, &px, &py, vw, vh, strncmp(hit, "slot_", 5) != 0);   // 装备槽取槽心；背包类用图的位置（收进边界内） | Equipment slots take the slot center; inventory-type areas use the image position (pulled inside the bounds)
     atomic_store(&g_drop_xy, (uint64_t)(uint32_t)px | ((uint64_t)(uint32_t)py << 32));
@@ -1400,14 +1390,7 @@ static void ui_item_pump(uint64_t root, int width, int height) {
         while (y0 > 1 && SHELF_HIT(x, y0 - 2)) y0 -= 2; while (y1 < height - 2 && SHELF_HIT(x, y1 + 2)) y1 += 2;
         atomic_store(&g_shelf_box, (uint64_t)(uint16_t)x0 | ((uint64_t)(uint16_t)y0 << 16) | ((uint64_t)(uint16_t)x1 << 32) | ((uint64_t)(uint16_t)y1 << 48));
         atomic_store(&g_shelf_pt, (uint64_t)(uint32_t)x | ((uint64_t)(uint32_t)y << 32) ); atomic_store(&g_shelf_vp, (uint64_t)(uint32_t)width | ((uint64_t)(uint32_t)height << 32)); atomic_store(&g_shelf_seq, seq); }
-    // 点佣兵面板里的空格 / 锁着的格（手上没拿东西）：这一下不移光标——原版手柄光标落在空格上会被吸到旁边有物品的格、弹出那件物品的说明框盖住面板。
-    // 锁着的格照常弹解锁提示；手上拿着物品时不拦（放东西走松手落点那条）。结果 6 = 手势层不点
-    // Tapping an empty cell / a locked cell in the mercenary panel (nothing held in hand): this tap does not move the cursor -- the original game's controller cursor, landing on an empty cell, is snapped to a neighboring cell that has an item and pops up that item's tooltip, covering the panel.
-    // Locked cells show the unlock hint as usual; with an item held in hand it is not blocked (placing goes through the release drop point path). Result 6 = the gesture layer does not tap
-    if (r == 1 && g_slot_w && !strncmp(hit, "slot_", 5) && *(uint32_t *)(g_slot_w + 0x5c8) == 1) { dm_hud_info hh; dm_hud_get(&hh); int dm_rift_merc_slot_empty(int);
-        if (!(hh.valid && hh.holding) && (merc_lock_hit(hit) || dm_rift_merc_slot_empty(*(int32_t *)(g_slot_w + 0x5d8)))) { r = 6; snprintf(hit + strlen(hit), sizeof hit - strlen(hit), "（佣兵空格）"); } }
     atomic_store(&g_iq_res, r); atomic_store(&g_iq_done, seq);
-    if (r == 1) merc_lock_hit(hit);
     if (hit_log_ok(hit)) { LOG("界面命中：(%d,%d) → %s%s", x, y, r == 1 ? "物品区 " : r == 10 ? "物品区（单件槽占用，不动）" : r == 8 ? "成叠格 " : r == 7 ? "货架 " : r == 2 ? "" : r == 3 ? "面板外" : r == 6 ? "" : "面板内控件", hit); }
 }
 static void ui_ptr_pump(module_t *m, uint64_t root, int width, int height) {
@@ -2599,18 +2582,9 @@ static void rs_on_uimsg(const char *cat, const char *act, const char *arg) {
     if (st == RS_SHOW && !strcmp(cat, "PanelManager") && !strcmp(arg, "LoadScreenPanel") && (!strcmp(act, "UnloadPanel") || !strcmp(act, "ClosePanel"))) { rs_set(RS_IDLE); LOG("一键重开：已进局（从点按钮起 %llu ms）", (unsigned long long)(fe_ms() - g_rs_t0)); }
 }
 static void rs_abort(const char *why) { rs_set(RS_IDLE); LOG("【红】一键重开：%s → 放弃，停在前端（从点按钮起 %llu ms）", why, (unsigned long long)(fe_ms() - g_rs_t0)); }
-void dm_ui_send(const char *cat, const char *act, const char *arg) { fe_send(cat, act, arg); }   // 别的模块往界面根发一条原版界面消息（秘境选层页开编年史面板用）。只许游戏主线程调 | another module sends an original-game UI message to the UI root (used by the rift level selection page to open the chronicle panel). May only be called from the game main thread
 static void rs_load(uint64_t fr, const char *how) { char a[4]; snprintf(a, sizeof a, "%d", g_rs_diff); fe_send("CharacterSelect", "LoadCharacter", a); g_rs_sf = fr; rs_set(RS_LOAD); LOG("一键重开：%s → 原版载入「%s」，难度 %d（从点按钮起 %llu ms）", how, g_rs_name, g_rs_diff, (unsigned long long)(fe_ms() - g_rs_t0)); }
-// 别的模块替玩家走一键重开（秘境 dm_rift.c：一局里能生成的新秘境图用完时）。原版「保存并退出」要选项页（PauseLayout*）开着才处理（宿主实测：
-// 没开时发 ExitGame，900 帧回不到前端），所以先替玩家开选项页、等 30 帧再走和按钮同一条路。只在游戏主线程用（请求是原子量，任何线程可调）
-// Another module performs a one-tap restart for the player (rift dm_rift.c: when the new rift maps that can be generated within one run are used up). The original game's 「保存并退出」(Save and Exit) is only handled while the options page (PauseLayout*) is open (measured on the host:
-// sending ExitGame when it is not open, 900 frames without getting back to the front end), so first open the options page for the player, wait 30 frames, then take the same path as the button. Used only on the game main thread (the request is an atomic, callable from any thread)
-static _Atomic int g_rs_ext; static uint64_t g_rs_ext_f;
-void dm_restart_request(void) { atomic_store(&g_rs_ext, 1); }
 static void rs_pump(void) {   // 取手柄处（游戏主线程）每次调 | called every time where the controller is fetched (game main thread)
     uint64_t fr = dm_guest_frame();
-    { int e = atomic_load(&g_rs_ext); if (e == 1 && atomic_load(&g_rs) == RS_IDLE) { atomic_store(&g_rs_ext, 2); g_rs_ext_f = fr; fe_send("PanelManager", "OpenPanel", getenv("DM_RS_PAUSE_PANEL") ? getenv("DM_RS_PAUSE_PANEL") : "PauseLayout"); LOG("一键重开：别的模块请求 → 先开选项页"); }
-      else if (e == 2 && fr - g_rs_ext_f > 30) { atomic_store(&g_rs_ext, 0); g_rs_req = 1; } }
     if (g_rs_req) { g_rs_req = 0; if (atomic_load(&g_rs) != RS_IDLE) return;
         int dm_diag_difficulty(void); module_t *m = main_module(); uint8_t *b = m ? (uint8_t *)m->base : NULL; int d = dm_diag_difficulty();
         uint64_t pl = b ? ((uint64_t (*)(uint32_t))(b + 0x45f9d0))(*(uint32_t *)(b + 0x2d20e4c)) : 0, pd = pl ? *(uint64_t *)(pl + 0x10) : 0;   // 客户端玩家单位，玩家数据开头即名字 | client player unit; the player data starts with the name

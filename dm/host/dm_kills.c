@@ -25,7 +25,6 @@
 #include "dm_bossrush.h"
 #include "dm_input.h"
 #include "dm.h"
-#include "dm_rift.h"
 #include "hle.h"
 #include "dm_i18n.h"
 #include "dm_widget.h"
@@ -181,7 +180,7 @@ void dm_kills_tick(uint64_t G, uint64_t player, uint8_t *main_base) {
                 char nm[160], line[200]; row_name(r, nm, sizeof nm); snprintf(line, sizeof line, dm_str(B, "dmKbKilledTotal"), nm, S[r][d].n); if (S[r][d].n > 0) dm_game_notice(B, line);   // 一次都没杀过时不报（「已累计击杀 0 次」读着像出错） | Not reported when it has never been killed (「已累计击杀 0 次」(killed 0 times so far) reads like an error)
                 LOG("刷怪积分牌：拍 %u 提示出现 %s（难度 %d 已 %d 次）", t, k_rows[r].key, d, S[r][d].n); }
             continue; }
-        E[e].dead = 1; if (dm_rift_swept(id)) { E[e].skip = 1; LOG("刷怪积分牌：拍 %u %s（单位 id %u）是秘境结算后清掉的，不计", t, k_rows[r].key, id); continue; }
+        E[e].dead = 1;
         if (nP < (int)(sizeof P / sizeof *P)) { uint64_t pa = rd(u + 0x38); P[nP].row = (int16_t)r; P[nP].d = (int8_t)d; P[nP].grp = (int8_t)grp; P[nP].t_die = t; P[nP].max_item = g_maxit;
             P[nP].x = pa ? *(uint16_t *)(uintptr_t)(pa + 2) : 0; P[nP].y = pa ? *(uint16_t *)(uintptr_t)(pa + 6) : 0; nP++; }
         // 测试开关 DM_TEST_KILL_DROP=<物品码>:<品质>[,…]（造现场用：验掉落件数）：名单上的怪死的那一拍，让它按原版「在某单位旁边掉一件」main+0x7c0b20(游戏, 单位, 码, 品质)
@@ -295,8 +294,8 @@ void dm_kills_ui_pump(void) {
     int dsel[3], nsel = 0; for (int d = 0; d < 3; d++) { char nm[16]; snprintf(nm, sizeof nm, "TouchKB_D%d", d); uint64_t c = kb_find(bw, nm, 0); dsel[d] = dm_widget_is(b, c, DM_VT_TOGGLE) && *(uint8_t *)(c + 0xa88); nsel += dsel[d]; }
     static int dlast = -1; int dm = dsel[0] | dsel[1] << 1 | dsel[2] << 2; if (dm != dlast) { dlast = dm; atomic_store(&g_kb_dirty, 1); }
     if (!atomic_exchange(&g_kb_dirty, 0) && ++frame % 30) return;   // 计数在服务端拍里变：开着时每半秒重写一次（字没变不写） | Counts change in the server tick: while open, rewrite every half second (not written if the text is unchanged)
-    int act = atomic_load(&g_kb_act); if (act < 0 || act > 5) act = 0;   // 5 = 秘境（秘境测试分支） | 5 = rift (rift test branch)
-    for (int i = 0; i < 6; i++) { char nm[20]; snprintf(nm, sizeof nm, "TouchKB_Act%d", i); uint64_t a = kb_find(bw, nm, 0); if (a) kb_toggle(a, i == act, 1); }
+    int act = atomic_load(&g_kb_act); if (act < 0 || act > 4) act = 0;
+    for (int i = 0; i < 5; i++) { char nm[20]; snprintf(nm, sizeof nm, "TouchKB_Act%d", i); uint64_t a = kb_find(bw, nm, 0); if (a) kb_toggle(a, i == act, 1); }
     int sort = kb_sort(b, kb_find(bw, "TouchKB_Sort", 0));
     // 每行的合计：都不勾 = 三个难度合计；勾了就只算勾上的
     // Per-row total: none checked = total of all three difficulties; if any are checked, count only the checked ones
@@ -310,7 +309,7 @@ void dm_kills_ui_pump(void) {
     if (sort) for (int i = 1; i < nv; i++) for (int j = i; j > 0; j--) {   // 排序：1 按次数多到少，2 按最快（没有的排后）；相同的保持名单顺序 | Sort: 1 by count descending, 2 by fastest (those without one go last); ties keep the list order
         int dm = sort == 1 ? v[j].n > v[j - 1].n : (v[j].best && (!v[j - 1].best || v[j].best < v[j - 1].best)); if (!dm) break; typeof(v[0]) t = v[j]; v[j] = v[j - 1]; v[j - 1] = t; }
     uint64_t list = 0;
-    for (int i = 0; i < 6; i++) { char nm[20]; snprintf(nm, sizeof nm, "TouchKB_Page%d", i); uint64_t pg = kb_find(bw, nm, 0); if (!pg) continue;
+    for (int i = 0; i < 5; i++) { char nm[20]; snprintf(nm, sizeof nm, "TouchKB_Page%d", i); uint64_t pg = kb_find(bw, nm, 0); if (!pg) continue;
         kb_rect(pg, i == act ? 0 : 99999, 0, -1); if (i == act) list = kb_find(pg, "TouchKB_List", 3); }   // 每幕一页（各自的滚动区），只把选中那幕挪进屏幕 | One page per act (each with its own scroll area); only the selected act is moved on-screen
     if (!list) return;
     if (pad_scroll) {   // 滚动走触屏同一条路：在列表里的一点发滚轮（一行约 3 格）。点位现找：视口上撒格点，取列表命中的那些点的中间一个（不靠写死的几何，各档位通用） | Scrolling takes the same path as touch: send a wheel event at a point inside the list (one row is about 3 notches). The point is found on the spot: scatter grid points over the viewport and take the middle one of those that hit the list (no hard-coded geometry, works for every profile)
@@ -321,28 +320,7 @@ void dm_kills_ui_pump(void) {
         else LOG("【红】刷怪积分牌：手柄滚动时没找到列表的落点");
         pad_scroll = 0; }
     { uint64_t ds = kb_find(bw, "TouchKB_DiffStack", 0), so = kb_find(bw, "TouchKB_Sort", 0);   // 难度勾选与排序只对首领有意义：选到秘境时藏起来，切回幕次再显示 | The difficulty checkboxes and sorting only make sense for bosses: hide them when the rift is selected, show them again when switching back to an act
-      if (ds) kb_show(ds, act != 5); if (so) kb_show(so, act != 5); }   // 用可见位（挪矩形会让下拉自带的字丢掉） | Use the visible bit (moving the rectangle would lose the dropdown's built-in text)
-    if (act == 5) {   // 秘境：两行总览（行样式同首领行）+ 限时内通关过的层（层号高的在上），没记录的层挪出屏 | Rift: two summary rows (same row style as boss rows) + levels cleared within the time limit (higher level numbers on top); levels with no record are moved off-screen
-        dm_rift_stats_t r; int have = dm_rift_stats(&r); char t[160];
-        int nms = 0; for (int i = 0; i < 10; i++) nms += have && (r.ms >> i & 1);
-        uint64_t w = kb_find(list, "TouchKB_RiftSum", 0);
-        if (w) { kb_rect(w, 0, 0, -1); kb_text(b, kb_find(w, "Name", 0), dm_str(b, "dmKbRiftName"));
-            if (have) snprintf(t, sizeof t, dm_str(b, "dmKbRiftBest"), r.best); else snprintf(t, sizeof t, "%s", dm_str(b, "dmKbRiftNever")); kb_text(b, kb_find(w, "Kills", 0), t);
-            if (have) snprintf(t, sizeof t, dm_str(b, "dmKbRiftClears"), r.clears, r.deaths); else t[0] = 0; kb_text(b, kb_find(w, "First", 0), t);
-            if (have) snprintf(t, sizeof t, dm_str(b, "dmKbRiftUnlock"), r.unlock); else t[0] = 0; kb_text(b, kb_find(w, "Drops", 0), t); kb_text(b, kb_find(w, "Times", 0), ""); }
-        w = kb_find(list, "TouchKB_RiftSum2", 0);
-        if (w) { kb_rect(w, have ? 0 : 99999, KB_ROW_H, -1); kb_text(b, kb_find(w, "Name", 0), dm_str(b, "dmKbRiftMs"));
-            snprintf(t, sizeof t, "%d / 10", nms); kb_text(b, kb_find(w, "Kills", 0), t);
-            { int nx = 0; while (nx < 10 && (r.ms >> nx & 1)) nx++; if (nx < 10) snprintf(t, sizeof t, dm_str(b, "dmKbRiftMsNext"), (nx + 1) * 10); else snprintf(t, sizeof t, "%s", dm_str(b, "dmKbRiftMsAll")); } kb_text(b, kb_find(w, "First", 0), t);   // 「可选到第几层」放在上一行（原「已解锁到第 N 层 · 下次第 N 层」读不通） | 「可选到第几层」(selectable up to which level) goes on the line above (the former 「已解锁到第 N 层 · 下次第 N 层」(Unlocked to level N, next level N) did not read well)
-            kb_text(b, kb_find(w, "Drops", 0), ""); kb_text(b, kb_find(w, "Times", 0), ""); }
-        int row = 2;
-        for (int tier = 100; tier >= 1; tier--) { char nm[24]; snprintf(nm, sizeof nm, "TouchKB_RiftT%d", tier); uint64_t rw = kb_find(list, nm, 0); if (!rw) continue;
-            int f = have ? r.fast[tier] : 0; if (!f) { kb_rect(rw, 99999, 0, -1); continue; }
-            kb_rect(rw, 0, KB_ROW_H * row++, -1); snprintf(t, sizeof t, dm_str(b, "dmRiftTierN"), tier); kb_text(b, kb_find(rw, "Name", 0), t);
-            snprintf(t, sizeof t, dm_str(b, "dmKbRiftFast"), f / 60, f % 60); kb_text(b, kb_find(rw, "Kills", 0), t);
-            int two = tier % 10 == 0 && (r.ms >> (tier / 10 - 1) & 1); kb_text(b, kb_find(rw, "First", 0), two ? dm_str(b, "dmKbRiftMsGot") : "");
-            kb_rect(kb_find(rw, "Name", 0), 180, two ? 8 : 64, -1); kb_rect(kb_find(rw, "Kills", 0), 760, two ? 8 : 64, -1); }   // 只有一行字的条目垂直居中（行高 188、字高 60） | Entries with only one line of text are vertically centered (row height 188, text height 60)
-        if (have) snprintf(t, sizeof t, dm_str(b, "dmKbRiftTotal"), r.best); else t[0] = 0; kb_text(b, kb_find(bw, "TouchKB_Total", 0), t); return; }
+      if (ds) kb_show(ds, 1); if (so) kb_show(so, 1); }   // 用可见位（挪矩形会让下拉自带的字丢掉） | Use the visible bit (moving the rectangle would lose the dropdown's built-in text)
     for (int i = 0; i < nv; i++) { int r = v[i].r; char nm[40]; snprintf(nm, sizeof nm, "TouchKB_%s", k_rows[r].key); uint64_t w = kb_find(list, nm, 0); if (!w) continue;
         kb_rect(w, 0, KB_ROW_H * i, -1);
         char t[160]; row_name(r, t, sizeof t); kb_text(b, kb_find(w, "Name", 0), t);

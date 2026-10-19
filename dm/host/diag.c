@@ -410,22 +410,8 @@ static void uimsg_print(const uint64_t *regs) {   // 观测门回调：只读寄
 void crash_set_trap_hook(int (*fn)(ucontext_t *uc));
 // SetLanguage 记录（观测门 5，常开）：原版切语言（声音页「文字语言」或读设置时）走 0x317298 清空 + 重装字符串表，r34 起不再剪（英文版）。
 // 每次换语言记一行（号 → 名表 main+0x20ae478：0 enUS … 8 zhCN）；当前语言号的全局量是 main+0x20ae4e0（SetLanguage 写）
-// 客户端事件包（观测门 15，r35 起）：入口 main+0x442bc0，x0 = 包，第 2 字节 = 事件子类型（跳转表 0x1da6752，0–0x19）。
-// 子类型 0x17 = 离线难度（/players）变了 → 0x442d5c 按串号 0x6a47 取「游戏难度设为 N…」，写聊天栏一行 + 系统提示框（宿主 A/B 实测：开关关时 0x17 到后约 10 秒出这条提示，开着拦掉后不出；
-// patch_nso.py 观测门 15 的说明里写的 0x19 是读跳转表时认错了，下次换代改）。秘境局里（dm_quiet_difficulty_msg 开着）把这一字节改成表外值，
-// 原版自己走默认分支（不显示）；人数本身在服务端照常生效。开关不开时门块进出一次即返回，什么都不改
 // SetLanguage log (observation gate 5, always on): the original game's language switch (「文字语言」(Text Language) on the audio page, or when settings are read) goes through 0x317298 to clear + reload the string table; no longer cut since r34 (English version).
 // Log a line on every language change (number → name table main+0x20ae478: 0 enUS ... 8 zhCN); the global holding the current language number is main+0x20ae4e0 (written by SetLanguage)
-// Client event packet (observation gate 15, since r35): entry main+0x442bc0, x0 = packet, byte 2 = event subtype (jump table 0x1da6752, 0–0x19).
-// Subtype 0x17 = offline difficulty (/players) changed → 0x442d5c fetches 「游戏难度设为 N…」(Game difficulty set to N...) by string number 0x6a47 and writes a chat line + a system prompt box (host A/B measured: with the switch off this prompt appears about 10 seconds after 0x17 arrives; with it on and blocked it does not appear;
-// the 0x19 written in the observation gate 15 description in patch_nso.py was a misreading of the jump table, to be fixed at the next build output generation). In a rift run (dm_quiet_difficulty_msg on) this byte is changed to an out-of-table value,
-// and the original game takes its default branch by itself (shows nothing); the player count itself still takes effect on the server as usual. When the switch is off the gate block returns after one pass in and out, changing nothing
-static _Atomic int g_quiet_diff;
-void dm_quiet_difficulty_msg(int on) { atomic_store(&g_quiet_diff, on); }
-static void event_msg_obs(const uint64_t *regs) {
-    uint8_t *pkt = (uint8_t *)(uintptr_t)regs[0]; if (!atomic_load(&g_quiet_diff) || !pkt || pkt[1] != 0x17) return;
-    static int n; if (n++ < 8) LOG("秘境：拦下原版「游戏难度设为 N」提示（事件子类型 0x17）"); pkt[1] = 0xff;
-}
 static void setlang_obs(const uint64_t *regs) {
     { void dm_padmode_lang_reset(void); dm_padmode_lang_reset(); }   // 串表清空之前：我们换进串表的指针先写回原文、记的节点清空（dm_padmode.c） | Before the string table is cleared: write the original text back over the pointers we swapped into the string table and clear the recorded nodes (dm_padmode.c)
     module_t *m = NULL; for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) m = &g_mod[i];
@@ -437,7 +423,6 @@ static void setlang_obs(const uint64_t *regs) {
 }
 void probe_install(void) {
     if (gate_obs_present(OBS_SETLANG)) gate_obs_set(OBS_SETLANG, setlang_obs);
-    if (gate_obs_present(OBS_EVENT_MSG)) gate_obs_set(OBS_EVENT_MSG, event_msg_obs);
     const char *ui = getenv("DM_UIMSG");
     if (ui && strcmp(ui, "1") && !(g_uifp = fopen(ui, "w"))) die("DM_UIMSG 打不开 %s", ui);
     g_ui_print = ui != NULL;
@@ -975,7 +960,6 @@ static void hud_tick(uint64_t G) {        // 每拍：受控玩家等级 / 本�
                               *(uint32_t *)(G + 0x19050) = 1; ((void (*)(uint64_t, uint64_t, uint8_t *, uint32_t))(main->base + 0x6e5b40))(G, player, pk, 17); *(uint32_t *)(G + 0x19050) = 0; inv += *(uint32_t *)(u + 0xc) != 3; } } }
                   LOG("DM_TEST_GIVE：拍 %u 在玩家旁生成「%s」品质 %d：%d / %d 件成功（物品类号 %u，第一件单位 id %u）%s", tq, code, q, ok, n, cls, id0, !getenv("DM_TEST_GIVE_INV") ? "" : inv == ok ? "，已全部捡进背包" : "，【注意】有没捡进背包的（留在地上）"); } } } }
     if (main && player) dm_bossrush_tick(G, player, (uint8_t *)main->base);   // 首领连战（dm_bossrush.c） | Boss rush (dm_bossrush.c)
-    if (main && player) { void dm_rift_tick(uint64_t, uint64_t, uint8_t *); dm_rift_tick(G, player, (uint8_t *)main->base); }   // 秘境爬塔（dm_rift.c） | Rift tower climb (dm_rift.c)
     if (main && player) dm_kills_tick(G, player, (uint8_t *)main->base);   // 刷怪积分牌（dm_kills.c）：在首领连战之后，连战本关的首领它已记好 id | Kill board (dm_kills.c): runs after boss rush, which has already recorded the id of the boss of the current boss rush stage
     cube_diag_tick(G, player);   // 合成读数 | Transmute readout
     if (main && player) seek_tp_step(G, player, main);
@@ -1145,7 +1129,6 @@ static void c2s_obs(const uint64_t *regs) {
     uint8_t b[512]; uint32_t n = len < 512 ? len : 512; if (!tk_rd(regs[2], b, n)) n = 0;
     if (n >= 1 && b[0] == 0x20) cube_diag_req(regs[0], regs[1], b, n);   // 合成读数 | Transmute readout
     dm_bossrush_c2s(regs[0], regs[1], b, n);   // 首领连战：玩家点了连战的门（门只是外观，换关由 dm_bossrush.c 做） | Boss rush: the player tapped the boss rush door (the door is appearance only; the level change is done by dm_bossrush.c)
-    { void dm_rift_c2s(uint64_t, const uint8_t *, uint32_t); dm_rift_c2s(regs[0], b, n); }
     if (!g_c2sfp) return;                       // 门在产品里常挂（首领连战要看），没开 DM_C2S_LOG 时不记 | The gate is usually installed in the product (boss rush needs it); nothing is logged when DM_C2S_LOG is not on
     // 诊断开关 DM_TEST_WARP_DIAG=1（只读）：收到「与出口砖交互」包（0x40 [砖 id]）这一刻，把服务端处理函数 main+0x6dbea0 的判定逐项读出来记一行——点了出口不进时看是哪一项拒的（全部拒绝都不回包）。
     // 判定顺序：当前动作能否被打断 main+0x6c5730(游戏, 玩家, 2, 0, 0)（0 = 放行）→ 砖对应的出口可用 main+0x5592f0(砖)（非 0 = 放行）→ 距离 main+0x5c7050(玩家, 砖)（查表距离，≤4 才当场换，>4 什么都不做）。
@@ -1184,9 +1167,9 @@ int dm_request_save(void) {
     *(volatile uint64_t *)(uintptr_t)(g_lastG + 0x5800) = 1;
     return 1;
 }
-// 退出前存盘用（Mac App）：单机暂停着（暂停菜单 / 大秘境面板开着，原版界面状态字节 [main+0x2d5ff51] | [main+0x2d5ff67] 非 0，见 dm_rift_ui.c）时游戏不跑拍，
+// 退出前存盘用（Mac App）：单机暂停着（暂停菜单开着，原版界面状态字节 [main+0x2d5ff51] | [main+0x2d5ff67] 非 0）时游戏不跑拍，
 // 上面拨的那次存盘等不到。把这两个字节清掉让拍接着走；只在进程马上要退出时调（不写回）。返回清之前是否暂停着
-// For saving before exit (Mac App): while single-player is paused (pause menu / rift panel open, original UI state bytes [main+0x2d5ff51] | [main+0x2d5ff67] non-zero, see dm_rift_ui.c) the game does not tick,
+// For saving before exit (Mac App): while single-player is paused (pause menu / rift panel open, original UI state bytes [main+0x2d5ff51] | [main+0x2d5ff67] non-zero) the game does not tick,
 // so the save requested above would never happen. Clear these two bytes so the ticks continue; called only when the process is about to exit (not written back). Returns whether it was paused before clearing
 int dm_unpause_for_exit(void) {
     uint8_t *b = NULL; for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) b = (uint8_t *)g_mod[i].base;
@@ -1732,7 +1715,7 @@ static void loadscreen_on_uimsg(const char *cat, const char *act, const char *ar
     if (!strcmp(cat, "PanelManager") && !strcmp(arg, "QuestLogPanelExpansion") && (!strcmp(act, "OpenPanel") || !strcmp(act, "OpenExclusivePanel"))) { module_t *qm = main_mod(); if (qm) *(volatile uint8_t *)(qm->base + 0x2d5ff58) = 0; }
     { void dm_textinput_on_uimsg(const char *, const char *, const char *); dm_textinput_on_uimsg(cat, act, arg); }
     { void dm_update_on_uimsg(const char *, const char *, const char *); dm_update_on_uimsg(cat, act, arg); }
-    { void dm_kills_on_uimsg(const char *, const char *, const char *); dm_kills_on_uimsg(cat, act, arg); } { void dm_rift_ui_on_uimsg(const char *, const char *, const char *); dm_rift_ui_on_uimsg(cat, act, arg); }   // 编年史「首领」页签（dm_kills.c） | The chronicle's 「首领」(Bosses) tab (dm_kills.c)
+    { void dm_kills_on_uimsg(const char *, const char *, const char *); dm_kills_on_uimsg(cat, act, arg); } 
     { void dm_padmode_on_uimsg(const char *, const char *, const char *); dm_padmode_on_uimsg(cat, act, arg); }   // 手柄版暂停菜单「游戏难度」行（dm_padmode.c） | "Game Difficulty" row of the controller pause menu (dm_padmode.c)
     { void dm_runeword_on_uimsg(const char *, const char *, const char *); dm_runeword_on_uimsg(cat, act, arg); }   // 符文之语助手（dm_runeword.c） | Runeword helper (dm_runeword.c)
     // 构建号 + 新版本提示（dm_update.c） | build number + new version notice (dm_update.c)

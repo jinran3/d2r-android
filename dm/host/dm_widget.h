@@ -19,7 +19,7 @@ enum {
     DM_VT_SLOT_B = 0x2089ab8,    // 物品格（另一种，dm_actions.c / dm_runeword.c 认的） | item slot (another kind, recognized by dm_actions.c / dm_runeword.c)
     DM_VT_SLOT_C = 0x2088fc8,    // 物品格（dm_cursor_item.c 认的第三种） | item slot (the third kind, recognized by dm_cursor_item.c)
     DM_VT_IMAGE = 0x20b8650,     // 图片控件：此刻的帧 +0x90（宿主实读：编年史页的 Img） | image widget: current frame +0x90 (read on the host: Img on the Chronicle page)
-    DM_VT_BUTTON = 0x20b7b00,    // 按钮：四个帧号 +0x6e8..，此刻的帧 +0x610（宿主实读：秘境选层页的 TouchRF_M1） | button: four frame ids at +0x6e8.., current frame +0x610 (read on the host: TouchRF_M1 on the Greater Rift level select page)
+    DM_VT_BUTTON = 0x20b7b00,    // 按钮：四个帧号 +0x6e8..，此刻的帧 +0x610（宿主实读：按钮类控件） | button: four frame ids at +0x6e8.., current frame +0x610 (read on the host: button widgets)
 };
 
 static inline uint64_t dm_widget_vt(const uint8_t *base, uint64_t w) { return w && base ? *(const uint64_t *)(uintptr_t)w - (uint64_t)(uintptr_t)base : 0; }

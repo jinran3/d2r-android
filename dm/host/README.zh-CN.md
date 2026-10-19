@@ -23,7 +23,7 @@ English: [README.md](README.md)
 | `stash_seed.h` | 第一次生成共享仓库时用的预置内容。公开仓库不带这个文件（它是游戏生成的一份存档的字节）：不在就不预置 |
 | `dm_derived_rt.h` | 只在不含游戏内容的「壳」里用：由游戏文件生成的几张表不编进代码，运行时从安装包里读，见 [docs/NO_XCODE.zh-CN.md](../../docs/NO_XCODE.zh-CN.md) |
 
-另外，`diag.c` 除了诊断，还是每个服务端拍的入口：`dm_rift.c`、`dm_kills.c` 等要在服务端拍里做的事由它调用。
+另外，`diag.c` 除了诊断，还是每个服务端拍的入口：`dm_kills.c` 等要在服务端拍里做的事由它调用。
 
 ## 游戏内功能（`dm_*`）
 
@@ -65,8 +65,6 @@ English: [README.md](README.md)
 
 | 文件 | 管什么 |
 |---|---|
-| `dm_rift.c`、`dm_rift.h` | 秘境：进门、抽图、进度、守护者、计时与层数结算 |
-| `dm_rift_ui.c` | 秘境面板，用原版控件搭 |
 | `dm_doorspot.h` | 秘境结算处两扇门落在哪：保证落在玩家走得到的格上。纯算法 |
 | `dm_bossrush.c`、`dm_bossrush.h` | 首领连战 |
 | `dm_kills.c` | 刷怪积分牌：按角色、按难度记首领的击杀次数、首杀时刻与最快用时 |
