@@ -9,7 +9,7 @@
 //   （宿主实测：同一刻三瓶，一瓶进腰带、两瓶进魔盒）。所以：
 //   · 主防线在服务端收包处（diag.c c2s_deliver → dm_potpick_auto）：自动拾取发出的那件，处理那一刻用原版腰带找位 0x561de0 对服务端状态再核一次，放不进就丢包，药留在地上；
 //   这里发包的节奏不变（每 10 帧最多一包、同一瓶 2 秒内不重发）；没有自然复现出连发，不另加客户端前置（防的情形服务端那一道已兜住）。
-// 实测过、不成立的两条猜想（别再加保护）：① 魔盒面板开着时地上的药照样进腰带（dm_beltauto.c 那个「开着方块不收」是背包 → 腰带那条路，不是捡地上的）；
+// 实测过、不成立的两条猜想（别再加保护）：① 魔盒面板开着时地上的药照样进腰带；
 //   ② 服务端卡顿不会造成连发——服务端拍和客户端帧在同一条线程上，拍入口卡 1.5 秒整帧一起停（帧时间最大 1506 ms），客户端发不出下一包。
 //   原版两处腰带找位的规则对红 / 蓝 / 紫一致：客户端判定传 1（空列可放），服务端捡物品传 0（空列要物品表 autobelt 位），这三类药 autobelt 都是 1。
 // Potion auto pickup: when the belt is not full, automatically pick up the matching potions. Custom page switch pot_pick, on by default.
@@ -23,7 +23,7 @@
 //   (measured on the host: three bottles at the same moment, one went to the belt, two to the cube). Therefore:
 //   - the main line of defense is at the server's packet receive point (diag.c c2s_deliver -> dm_potpick_auto): for an item sent by auto pickup, at the moment of handling re-check against server state with the original belt slot search 0x561de0; if it does not fit, drop the packet and the potion stays on the ground;
 //   the sending cadence here is unchanged (at most one packet per 10 frames, the same bottle not resent within 2 seconds); bursts were never reproduced naturally, so no extra client-side precheck is added (the server-side guard already covers the case).
-// Two hypotheses that were measured and do not hold (do not add protection for them again): (1) with the cube panel open, potions on the ground still go into the belt (the "not accepted while the cube is open" in dm_beltauto.c is the inventory -> belt path, not ground pickup);
+// Two hypotheses that were measured and do not hold (do not add protection for them again): (1) with the cube panel open, potions on the ground still go into the belt;
 //   (2) server stutter does not cause bursts -- the server tick and the client frame run on the same thread; a 1.5 second stall at tick entry stops the whole frame with it (max frame time 1506 ms), so the client cannot send the next packet.
 //   The original game's two belt slot search rules agree for red / blue / purple: the client check passes 1 (empty columns allowed), the server item pickup passes 0 (empty columns require the autobelt bit in the item table), and autobelt is 1 for all three kinds.
 #include "hle.h"

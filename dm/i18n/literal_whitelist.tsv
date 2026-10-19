@@ -83,7 +83,6 @@ ios/Sources/DmTouchOverlay.m	=取消	同上
 ios/tools/gen_hud_v4.py	十字（默认态）	生成脚本的格子标签（不画字）
 ios/tools/gen_hud_v4.py	生命法力	生命 / 法力字形集的中文部分（英文字母由中英表补）
 ios/tools/gen_hud_v4.py	攻击	lbl_main.png 烘了但前端画不到（主钮有图标时不写字，盘点待定 2）
-host/dm_beltauto.c	*	腰带读数（红 / 蓝 / 紫 / 列 N）只拼进日志行，不上屏
 host/dm_rift.c	@place_door	开门时的日志标签（哈洛加斯 / 结算处…），不上屏
 host/dm_rift.c	@dm_door_label	门名牌自带中英两个参数（挂进原版串表，跟游戏语言走），不走这张表
 host/dm_bossrush.c	@dm_door_label	同上
