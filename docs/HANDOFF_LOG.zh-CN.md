@@ -3,6 +3,37 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 00:45 Asia/Shanghai — [TOTK] NA-019 裁剪批 7m（iCloud 存档同步）进行中
+
+[BEGIN] na-019-icloud-trim
+
+- 命令：`git rm dm/host/dm_cloudsync.c dm/ios/Sources/cloud_ios.m dm/ios/tools/cloud_guard.sh dm/host/tests/t_cloudsync.c`，并连带清掉宿主侧（`diag.c` 的冲突提示、`hle_fs.c` 的 `g_dm_save_commit_hook`、`dm_uiscreen.c` 的 `g_dm_ingame_hook`、`dm_custom.c` 的 `icloud` 开关、`Makefile` 的 `SRC`、两个 README、单测的 `t_cloudsync` 规则）与 iOS 侧（`main.m` 的 `dm_cloud_boot`、`front_ios.m` 的 `dm_cloud_flush` / `dm_cloud_foreground`、`project.yml` 的三行 iCloud 权限、`project_free.py` 的免费账号那组权限清单、`run.sh` / `local.env.example` / `smoke_mac.sh` / `touch_e2e_mac.sh` / 两个 README 的说明）、中英表两行（并重出 `dm/host/dm_i18n_tab.h`）、白名单两行、UI 回归台的 `rf3` 局与 `affected.tsv` 里指向它的局名，然后 `ci_checks.py` + `build.py --game-run --version trim-b18` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉 iCloud 存档同步后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`7b1454e266d8e4f7498150d36dbdb988947739f3`
+
+[END] na-019-icloud-trim
+
+- 退出码：`build.py --game-run --version trim-b18` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，18,545,103 字节（2026-10-20 00:22:04；比 trim-b17 小 49,152 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除四个文件：`dm/host/dm_cloudsync.c`（同步核心：本地存档目录 ↔ 一个云端目录的文件对比与搬运）、`dm/ios/Sources/cloud_ios.m`（iOS 侧：ubiquity 容器、`dm_cloud_boot` / `dm_cloud_flush` / `dm_cloud_foreground`）、`dm/ios/tools/cloud_guard.sh`（本机测试时把云端指到一次性本地目录的总闸）、`dm/host/tests/t_cloudsync.c`（同步核心的单测）。
+- 宿主侧连带清掉：`diag.c` 的 `dm_cloud_conflict_take`（共享仓库冲突时弹系统提示）与 `g_dm_charsel_hook` 的调用（只有 `cloud_ios.m` 设它，摘掉后无人设 → 声明与调用一起去）；`hle_fs.c` 的 `g_dm_save_commit_hook`（同样只有 iCloud 那一侧设它）与调用点；`dm_uiscreen.c` 的 `g_dm_ingame_hook`（只有 `cloud_ios.m` 设它）；`dm/host/Makefile` 的 `SRC` 一项；`dm/host/README*.md` 的表行；`dm/host/tests/Makefile` 的 `t_cloudsync` 编译规则与 `run:` 列表里那一项。
+- 自定义开关 `icloud` 两侧同收（`dm_custom.c` 的 `k_keys` / `k_def` / 读盘日志、`dm_custom.h` 的键说明、`touch_layout.py` 的 `_CUSTOM_KEYS`），**行序核对**：`k_keys` = `lang_en` + `_CUSTOM_KEYS` 两侧逐项相同（11 项对 11 项），`k_def` 长度也是 11（`eco_fps` 缺省关、其余开）。
+- iOS 应用侧：`main.m` 去掉 `dm_cloud_boot()` 与「全新存档 = 新设备」那段里清 `.cloudstate` / `.cloudbak` 的两行；`front_ios.m` 去掉 `dm_cloud_flush(1)` 与 `dm_cloud_foreground()`；`project.yml` 去掉三行 iCloud 权限（`icloud-container-identifiers` / `icloud-services` / `ubiquity-container-identifiers`；**App 组那一行留着**——它服务的是苹果托管资源包 `BAAppGroupID`，与同步无关）；`project_free.py` 的免费账号那组权限清单从六行收到三行（正则与计数 `6 → 3` 一起改，数目对不上会报错不出文件）；`run.sh` / `local.env.example` / `dm/ios/README*.md` 的说明同步收口。
+- 本机测试脚本：`smoke_mac.sh` 去掉 `cloud_guard.sh` 依赖、source、总闸那一段与收尾的 `cloud_guard_check`（`$CGA` 那个空环境变量在六处 `open` 上一起去掉）；`touch_e2e_mac.sh` 去掉 source、总闸那一段与收尾检查；`uireg/run_mac.sh` 去掉总闸与收尾那道「真实 iCloud 闸」。三处脚本里的中英注释对都成对删（`smoke_mac.sh` 里有一段中英交错，删的时候把英文那行补回来了，已复核）。
+- 中英表：删 `dmCustomIcloud` 与 `dmCloudConflict` 两行，重出 `dm/host/dm_i18n_tab.h`（357 → 355 条），`dm/ios/tools/dm_i18n.py --check` exit 0；`dm/i18n/literal_whitelist.tsv` 删 `host/dm_cloudsync.c` 与 `ios/Sources/cloud_ios.m` 两行。
+- UI 回归台：删掉测同步上传的 `rf3` 局，`dm/ios/tools/uireg/affected.tsv` 里 `dm/host/dm_cloudsync*` 那一行整个删掉、`dm/host/hle_fs.c` 那一行里的 `rf3` 也去掉。
+- 宽口径复核 `git grep -n -i -e dm_cloud -e cloud_ios -e cloud_guard -e icloud -e iCloud -e dmCloud -- dm/`：`dm/host` / `dm/ios` / `dm/i18n` / `dm/android` 的代码与文案里 0 命中。`dm/ios/Sources/asset_dl.m` 里那两处提到 iCloud 的说明也一并改口了（直装包没有托管资源包、4 GB 资源不进**设备**备份 —— 那是 `NSURLIsExcludedFromBackupKey`，本来就不是同步功能）。
+- `dm\android\tools\build.py --game-run --version trim-b18`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：写本条目之前 9 项通过 / 1 项失败（失败的是「Agent 交接控制面」，因为 `[END]` 还没成对、HANDOFF 还没更新），收尾复跑 10 项通过 / 0 项失败。
+- **本机 NOT RUN 的部分**（iOS 侧本机编不了）：`dm/ios/project.yml` / `project_free.py` / `main.m` / `front_ios.m` 的改动未经 Xcode 构建验证；`smoke_mac.sh` / `touch_e2e_mac.sh` / `uireg/run_mac.sh` 是 shell 脚本，本机没有可用的 bash（WSL 启动器已坏），未经 `bash -n` 语法检查；`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）跑不了。
+
 ## 2026-10-20 00:05 Asia/Shanghai — [TOTK] NA-018 裁剪批 7l（百宝囊）进行中
 
 [BEGIN] na-018-pouch-trim
