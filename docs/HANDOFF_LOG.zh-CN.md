@@ -2,6 +2,40 @@
 
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+
+## 2026-10-19 23:30 Asia/Shanghai — [TOTK] NA-017 裁剪批 7k（仓库族）进行中
+
+[BEGIN] na-017-vault-trim
+
+- 命令：`git rm dm/host/dm_vault.c dm/host/dm_vault_ui.c dm/host/dm_pages.c`，并连带清掉 `diag.c`（每拍调用与 UI 消息）、`dm_actions.c`（`dm_vault_ui_pump`）、`dm_cursor.c` / `dm_cursor.h`（编年史页命中 / 拖拽 / 提示框 / 存放判定、`DM_PS_VAULT` 枚举位、个人页页码与左右箭头）、`dm_pouch.c`（存放路径搬共享辅助函数过来并去掉编年史分支）、`hle_fs.c`（提交前钩子槽位重编号）、`dm_rift.c`（钩子槽号）、`wide_stash.py`（第六页与 TouchVault / TouchPgPage 控件）、`dm/i18n/ui_text.tsv`（`dmVault*` 等行）并重出 `dm/host/dm_i18n_tab.h`、`literal_whitelist.tsv`、`uireg/affected.tsv`、`dm/host/tests/` 的替身桩、`Makefile` 的 `SRC`、两个 README 表行，然后 `ci_checks.py` + `build.py --game-run --version trim-b16` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉编年史仓库与个人仓库多页后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`010ea306820006d132d5f29f6abfab6374f2816c`
+
+[END] na-017-vault-trim
+
+- 退出码：`build.py --game-run --version trim-b16` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，18,708,943 字节（2026-10-19 23:43:28；比 trim-b15 小 245,760 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除三个文件：`dm/host/dm_vault.c`（编年史仓库的服务端一半，45,148 字节）、`dm/host/dm_vault_ui.c`（储藏箱第六页「编年史」的整套 UI，66,804 字节）、`dm/host/dm_pages.c`（个人仓库 2–5 页，35,049 字节）。这族共享的辅助函数只在本族内用（`dm_item_write` / `dm_item_make` / `dm_memfind` 在 `dm_pages.c`，`dm_save_blobs` / `dm_blobs_have` / `dm_blobs_free` / `dm_stash_name` / `dm_item_quest` 在 `dm_vault.c`），所以整族一起摘。
+- `dm/host/dm_cursor.c`（本批改动最多的文件）：摘掉编年史页的落点分类、说明框、拖拽、单击、界面双击存入，摘掉 `DM_PS_VAULT` 枚举位与 `dm_ui_bag_point`（只剩编年史用），摘掉个人仓库页码那一整套（`pages_text` / `ui_pages_pump` / `TouchPgPage` 控件）、左右箭头与外圈翻页（`pg_personal` / `pg_near` / `PG_REACH`）、落点查询里的 `g_vault_drop` / `dm_ui_vault_drop`、以及切换布局后记页签的 `g_bank_tab_keep`（它是为「停在第六页会被跳回个人页」引入的，编年史没了就不需要）。
+- `dm/host/dm_cursor.h`：`DM_PS_*` 枚举去掉 `DM_PS_VAULT = 64`，其余位（BANK 1 / VENDOR 2 / DEAD 4 / TEXT 8 / IMBUE 16 / CUBE 32）取值不变，位掩码没有错位。
+- `dm/host/dm_pouch.c`（百宝囊）：把 `dm_item_write` / `dm_item_make` / `dm_memfind`（原在 `dm_pages.c`）与 `dm_item_quest`（原在 `dm_vault.c`）搬过来并改成 `static`（剩下的唯一使用者就是百宝囊）；「存放」路径去掉编年史分支 —— 已鉴定的暗金 / 套装件不再有去处，只算「留在背包」，`dmStoreVault` 那句提示与 `g_sv` 计数一并去掉。
+- 提交前钩子重编号：`dm/host/hle_fs.c` 的 `g_dm_pre_commit_hook[4]` 缩成 `[2]`（百宝囊 `[0]`、秘境进度 `[1]`），`dm_pouch.c` / `dm_rift.c` / `dm/host/tests/t_rift_clock.c` 三处同步，没有悬空槽位。
+- 其余调用点：`diag.c` 的每拍 `dm_pages_tick` / `dm_vault_tick` 与 UI 消息 `dm_vault_on_uimsg`；`dm_actions.c` 的 `dm_vault_ui_pump`；`frontend_activity.c` 启动时的 `dm_vault_load()`（那张派生表连同它的替身归「派生表批」）；`dm/host/Makefile` 的 `SRC` 三项。
+- iOS 布局 `dm/ios/tools/wide_stash.py`：去掉第六个页签（`tabCount` 回到 5、页签条的帧数组与文字串回到原版五个，第三个仍改成「珍宝匣」`@dmTroveTab`）、`TouchVault` 整套控件、`TouchPgPage` 页码控件、编年史盖板贴图的拷贝；`vault_tab()` 改名 `trove_tabs()`。
+- `dm/host/dm_cursor.c` 的珍宝匣页签泵：原来会把第 5 个页签（编年史）左移两个页签宽，落在空页 3 / 4 时在「编年史 ↔ 珍宝匣」之间改选；现在去掉前一半，改选一律回珍宝匣。
+- 中英表：删 29 行（24 行 `dmVault*` 含 `dmVaultPart0–10` / `dmVaultTierN/X/E`，加 `dmStoreVault`、`dmStashVaultTab`、`dmPadLegView/Prev/Next`；删前逐个查过：这些键只被编年史那一族用），重出 `dm/host/dm_i18n_tab.h`（397 → 368 条），`dm/ios/tools/dm_i18n.py --check` exit 0。
+- 闸门与文档：`dm/i18n/literal_whitelist.tsv` 删 3 行（`host/dm_vault.c`、`host/dm_pages.c`、`host/dm_vault_ui.c`）、`dm/ios/tools/uireg/affected.tsv` 删 2 行、`dm/host/tests/t_touch_mac.c` 与 `t_touch_tick_stub.c` 各删 10 个替身桩、`t_rift_clock.c` 的钩子数组、`dm/host/tests/native_write_scan.py` 去掉对已删文件的那道静态扫（剩下覆盖整个宿主的可见位 / 矩形两道）、`dm/host/tests/mode_scan.py` 的登记表（`dm_cursor.c` 8 → 7，删 `dm_vault_ui.c` 一项）、四个 README、`dm/verify/shotgate_pages/stash.json` 里那块「第 n/5 页」页码的遮罩。
+- 宽口径复核 `git grep -n -i -e dm_vault -e dmVault -e dm_pages -e dm_page -e DM_PS_VAULT -e TouchV_ -e PgPage -- dm/host dm/ios dm/i18n dm/android`：`dm/host` / `dm/ios/Sources` / `dm/ios/tools` / `dm/i18n` / `dm/android` 的代码与文案里 0 命中，只剩 `dm/host/dm_pouch.c` 开头那两行「这两个包装从 dm_pages.c / dm_vault.c 搬过来」的来历说明（有意保留）。
+- 刻意保留（属「派生表批」与「资产管线批」，本批不碰，须在后续单独做）：`dm/host/dm_vault_tab.h` 替身与其生成器 `dm/ios/tools/gen_vault_table.py`、`dm/tools/shell_stubs.py`、`dm/host/Makefile` 的 `GENH`、`dm/android/tools/ci_checks.py` 的替身检查、`dm/android/tools/make_package.py`、`dm/tools/d2rm_pack.py`、`dm/ios/run.sh`、`dm/ios/tools/check_hud_gen.sh`、`dm/ios/tools/gen_vault_cover.py` 与 `gen_assets.py` 里的「编年史盖板」那一步。
+- `dm\android\tools\build.py --game-run --version trim-b16`：exit 0，产物同上。**中间失败一次**：第一次构建挂在 `dm/host/dm_cursor.c:1425` 的 `!vb`（`vb` 那个「编年史页挡住指针事件」的变量随编年史块一起摘了，但还有第二处用它）→ 那一处改成恒真后重新构建通过。
+- `dm\android\tools\ci_checks.py`：写本条目之前 9 项通过 / 1 项失败（失败的是「Agent 交接控制面」，因为 `[END]` 还没成对、HANDOFF 还没更新），收尾复跑 10 项通过 / 0 项失败。
 ## 2026-10-19 22:05 Asia/Shanghai — [TOTK] NA-016 裁剪批 7j（3D 画面加亮）进行中
 
 [BEGIN] na-016-bright-trim
