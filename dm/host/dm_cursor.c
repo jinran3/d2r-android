@@ -2461,11 +2461,11 @@ static _Atomic uint64_t g_taps_base;   // DM_UI_TAPS_AT="动作:面板"（子串
 uint64_t dm_ui_taps_base(void) { return atomic_load(&g_taps_base); }
 static void rs_on_uimsg(const char *cat, const char *act, const char *arg);   // 一键重开（定义在 fe_send 之后） | one-tap restart (defined after fe_send)
 // 选角列表里确认选人（原版 CharacterSelect:SelectCharacter，只收起列表）之后，原版靠「给被选角色打上现在的时间戳 → 列表按时间戳从新到旧重排（main+0x7fc1e0）
-// → 取第 0 行（main+0x80efb4）」落到被选的角色上，重排时只把下标夹进范围、不按角色找回。它依赖时钟单调：系统时间早于某个存档（存档经 iCloud 从时钟更快的设备来、
+// → 取第 0 行（main+0x80efb4）」落到被选的角色上，重排时只把下标夹进范围、不按角色找回。它依赖时钟单调：系统时间早于某个存档（存档来自时钟更快的设备、
 // 调过系统时间、测试用的固定时钟）时被选者排不到第 0 行，进的就是别人。这里在确认那一刻记下高亮角色的名字，重排后的那次 MainMenuHD:UpdateCharacterInfo 上按名字核对，
 // 不等就用原版「设当前角色」main+0x7fe32c(下标) 设回并再发一次刷新。列表 / 选中槽按 [main+0x2d7badc] 成对（同下面一键重开那段）；角色名在记录 +0x10
 // After confirming a character in the character select list (the original game's CharacterSelect:SelectCharacter, which only collapses the list), the original game lands on the selected character by "stamping the selected character with the current timestamp → re-sorting the list by timestamp from newest to oldest (main+0x7fc1e0)
-// → taking row 0 (main+0x80efb4)", and on re-sorting it only clamps the index into range without finding the character again. It depends on a monotonic clock: when the system time is earlier than some save (a save that came through iCloud from a device with a faster clock,
+// → taking row 0 (main+0x80efb4)", and on re-sorting it only clamps the index into range without finding the character again. It depends on a monotonic clock: when the system time is earlier than some save (a save that came from a device with a faster clock,
 // a changed system time, a fixed clock used by tests), the selected character does not sort to row 0 and someone else is entered. Here the name of the highlighted character is recorded at the moment of confirming, checked by name on the MainMenuHD:UpdateCharacterInfo that follows the re-sort,
 // and if it differs, set back with the original game's "set current character" main+0x7fe32c(index) and the refresh sent once more. The list / selected slot are paired by [main+0x2d7badc] (same as the one-tap restart section below); the character name is at record +0x10
 static char g_sel_name[17]; static uint64_t g_sel_fr;
@@ -2627,12 +2627,12 @@ static void rs_pump(void) {   // 取手柄处（游戏主线程）每次调 | ca
     if (fr - g_rs_f0 > 900) { rs_abort(st == RS_EXIT ? "900 帧没回到前端" : st == RS_FRONT ? "900 帧没发出载入" : "900 帧没出读取画面"); return; }
     if (st == RS_FRONT) { static uint64_t hf; const char *h = getenv("DM_TEST_RS_HOLD");   // 测试开关 DM_TEST_RS_HOLD=<帧>：回到前端后多停这么多帧再载入（验遮罩吞触点用，产品不设） | test switch DM_TEST_RS_HOLD=<frames>: after returning to the front end, stay this many more frames before loading (to verify the cover swallows touch points; not set in the product)
         if (h) { if (!hf) hf = fr; if (fr - hf < (uint64_t)atoi(h)) return; hf = 0; }
-        // 选中刚退出的角色：回到前端时原版把选中重置到列表第一行（按存档的「最近玩过」排，iCloud 同步来的更新的档 / 改过系统时间时第一行不是它；
+        // 选中刚退出的角色：回到前端时原版把选中重置到列表第一行（按存档的「最近玩过」排，从别处同步来的更新的档 / 改过系统时间时第一行不是它；
         // 固定游戏时间时进成了别人）。在原版前端角色列表里按名字找到它，把下标写进原版选中槽（载入 0x80a004 只读这个槽：下标 +0、有效 +8），读回核对再载入。
         // 不调原版 main+0x7fd208：它是「选中并开始」——写完槽接着直接载入或弹难度框（弹出的 CharacterDifficultyModal 挂进局内）
         // 列表 / 选中槽按 [main+0x2d7badc] 成对：≠ 1 → 模式 1、列表 main+0x2d710f0、选中槽 main+0x2d7b950（载入 0x80a004 读的就是它）；= 1 → 模式 0、列表 0x2d71108、槽 0x2d7b960。
         // 列表项 +0x10 是角色名（内联，最长 16 字节）
-        // Select the character that just exited: on returning to the front end the original game resets the selection to the first row of the list (sorted by the save's "most recently played"; with a newer save synced from iCloud / a changed system time, the first row is not it;
+        // Select the character that just exited: on returning to the front end the original game resets the selection to the first row of the list (sorted by the save's "most recently played"; with a newer save synced from elsewhere / a changed system time, the first row is not it;
         // with a fixed game time it entered as someone else). Find it by name in the original front-end character list, write its index into the original selection slot (load 0x80a004 reads only this slot: index +0, valid +8), read it back to check, then load.
         // The original main+0x7fd208 is not called: it is "select and start" -- after writing the slot it goes straight on to load or pop up the difficulty box (the CharacterDifficultyModal that pops up gets attached inside the run)
         // The list / selection slot are paired by [main+0x2d7badc]: ≠ 1 → mode 1, list main+0x2d710f0, selection slot main+0x2d7b950 (this is the one load 0x80a004 reads); = 1 → mode 0, list 0x2d71108, slot 0x2d7b960.

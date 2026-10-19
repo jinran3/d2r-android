@@ -36,12 +36,10 @@ stop_all(){ local p; for p in $(pids); do kill -TERM "$p" 2>/dev/null; done; sle
 pre=$(pids | tr '\n' ' '); [ -z "$pre" ] || { devlock_release; fail "本机已有 $B 的实例在跑（pid ${pre}，非本次启动）"; }
 # 换存档的收尾：跑过的那份留在 Data 下（save.uireg_ran，只留最近一份），原存档挪回 Documents/save。挪不回 = 容器里的正式存档不在原位，之后所有本机包都受影响：
 # 报红（fail.txt + 退出码 4）并写明原存档在哪，不静默（只读副本挪不走，原存档留在 swap 目录里没人知道）
-# 换存档一律换进测试存档目录 Documents/save.test 并带 DM_SAVE_TEST=1 起局，不碰产品存档 Documents/save：挂产品存档目录的局会连真实 iCloud，
-# 登着真实账号的机器上换进去的测试角色会被同步上云。跑完再查一遍日志，出现同步动作就报红。
+# 换存档一律换进测试存档目录 Documents/save.test 并带 DM_SAVE_TEST=1 起局，不碰产品存档 Documents/save：挂产品存档目录的局会动到产品存档，
 # Wrap-up of a save swap: the copy that was run stays under Data (save.uireg_ran, only the latest one kept), and the original save moves back to Documents/save. Failing to move it back = the real save in the container is not in place, which affects every local package afterwards:
 # report a failure (fail.txt + exit code 4) and state where the original save is, never silently (a read-only copy cannot be moved away, and nobody would know the original save was left in the swap directory)
-# A save swap always swaps into the test save directory Documents/save.test and starts the run with DM_SAVE_TEST=1, without touching the product save Documents/save: a run that mounts the product save directory connects to real iCloud,
-# and on a machine signed in to a real account the swapped-in test character would be synced to the cloud. After the run the log is checked once more, and any sync action is reported as a failure.
+# A save swap always swaps into the test save directory Documents/save.test and starts the run with DM_SAVE_TEST=1, without touching the product save Documents/save: a run that mounts the product save directory touches the product save,
 SV="$D/save.test"; SWAP=""; BAD=""; restore(){ [ -n "$SWAP" ] || return 0; chmod -R u+w "$SV" 2>/dev/null; rm -rf "$C/save.uireg_ran" "$SV.work"
   if mv "$SV" "$C/save.uireg_ran" && mv "$SWAP" "$SV"; then SWAP=""; else BAD=1; echo "【红】换存档后挪不回：原测试存档在 ${SWAP}，Documents/save.test 不是原来那份，手工核对后挪回" | tee "$O/fail.txt"; [ -f "$O/timing.txt" ] && sed -i '' '1s/$/ 【红】换存档后挪不回，见 fail.txt/' "$O/timing.txt"; fi; }   # timing.txt 那行 uireg.py 会抄进表头 | uireg.py copies the timing.txt line into the table header
 trap 'stop_all; restore; savekey_out "$C"; devlock_release; [ -z "$BAD" ] || exit 4' EXIT; trap 'exit 143' INT TERM
@@ -60,9 +58,6 @@ fi
 caffeinate -u -t 3 >/dev/null 2>&1   # 屏幕睡着时取不到可绘制表面，游戏主线程会卡在取图 | While the screen is asleep no drawable surface can be obtained, and the game's main thread gets stuck acquiring the drawable
 RID=u$(date +%H%M%S); awk -v r="$RID" '$2=="shot"{$3=r"_"$3} {print}' "$O/script.txt" > "$D/touch_script.txt"
 EX=(); for kv in ${PW_ENV:-}; do EX+=(--env "$kv"); done; [ -z "${PW_SAVE:-}" ] || EX+=(--env DM_SAVE_TEST=1)
-# 本机起包的总闸（../cloud_guard.sh）：每一局都带「不同步」开关，自己指了本地云端目录的 iCloud 用例除外；跑完核启动日志
-# Master gate for launching the package on this Mac (../cloud_guard.sh): every run carries the "no sync" switch, except iCloud cases that specify a local cloud directory themselves; the launch log is checked after the run
-source "$HERE/../cloud_guard.sh"; cloud_guard_env "$D" "${PW_ENV:-}" || fail "总闸不许起这一局（见上一行红字）"; [ -z "$CG_ENV" ] || EX+=(--env "$CG_ENV")
 # DM_UIMSG=1：界面消息行（UIMSG …）只有带了它才打进日志，前端 / 确认框 / 暂停菜单那批判据靠这些行；DM_WATCH：到点自己退出的兜底
 # open 后 10 秒没有 boot.txt = 这次没起来：收掉重起一次，再不行整局判失败，不等满上限
 # DM_UIMSG=1: UI message lines (UIMSG ...) are written to the log only with it, and the criteria for the front end / confirmation box / pause menu batch rely on these lines; DM_WATCH: the fallback that exits by itself when time is up
@@ -78,9 +73,6 @@ T_D=$(date +%s)
 END=$((T_D + CAP)); while [ "$(date +%s)" -lt "$END" ]; do LC_ALL=C grep -a -q '\[script\] note 结束' "$D/boot.txt" 2>/dev/null && break; [ -n "$(pids)" ] || break; sleep 0.5; done; T_E=$(date +%s)
 stop_all
 cp "$D/boot.txt" "$O/boot.txt" 2>/dev/null; [ -f "$D/pwc2s.jsonl" ] && mv "$D/pwc2s.jsonl" "$O/c2s.jsonl"
-# 真实 iCloud 闸：本该不同步的局出现了同步动作 = 连了真云端，这一局作废
-# Real iCloud gate: a sync action appearing in a run that should not sync = it connected to the real cloud, and this run is void
-cloud_guard_check "$O/boot.txt" || { BAD=1; echo "【红】这一局出现了 iCloud 同步动作，结果作废，立刻核云端目录" | tee "$O/fail.txt"; }; cloud_guard_clean "$D"
 # 换存档的局：进局后日志里的角色名（宿主每次进局都打「刷怪积分牌：「<角色名>」…」）必须是换进来那份存档里的角色，不是 = 挂的不是换进去的那份
 # Save-swap runs: the character name in the log after entering the run (the host prints 「刷怪积分牌：「<角色名>」…」(kill board: "<character name>"...) on every run entry) must be the character in the swapped-in save; if it is not = the save mounted is not the one swapped in
 if [ -n "${PW_SAVE:-}" ]; then WHO=$(LC_ALL=C sed -n 's/.*刷怪积分牌：「\([^」]*\)」.*/\1/p' "$O/boot.txt" 2>/dev/null | tail -1)

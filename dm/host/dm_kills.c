@@ -7,7 +7,7 @@
 //   最快用时：交战用时 = 第一次掉血那一拍 → 死亡那一拍（游戏拍，25 拍 / 秒）；回满血从头算；一组的按「第一只掉血 → 最后一只死」。
 //   提示（原版系统提示框 + 聊天栏，dm_game_notice）：客户端单位表里第一次出现这只（一组算一次）→「<名>已累计击杀 N 次！」（N = 当前难度、不含这一次）；
 //     死后 →「<名>第 N 次成功击杀！」。名字一律取原版字符串（0x7f5630），旧译名开着时跟着换。
-//   存：<存档工作目录>/<角色名>/<角色名>.sw_kills（文本，见 save()），每次计数当场写进工作目录，随游戏下一次存档提交原子换入、随角色目录同步 iCloud；
+//   存：<存档工作目录>/<角色名>/<角色名>.sw_kills（文本，见 save()），每次计数当场写进工作目录，随游戏下一次存档提交原子换入、随角色目录一起备份；
 //     没存档就退出时这段不算，同原版「没存就丢进度」。原版存档一字节不动。
 // 只在服务端拍里调（diag.c，首领连战之后）。
 // Kill board: per character and per difficulty, records kill count, first-kill time and fastest engagement time for the listed bosses.
@@ -19,7 +19,7 @@
 //   Fastest time: engagement time = the tick of the first life loss -> the death tick (game ticks, 25 ticks / second); starts over on returning to full life; for a group it is "first one loses life -> last one dies".
 //   Notices (original game system notice box + chat bar, dm_game_notice): the first time this unit appears in the client unit table (once per group) -> 「<名>已累计击杀 N 次！」(<name> killed N times so far!) (N = current difficulty, not counting this one);
 //     after death -> 「<名>第 N 次成功击杀！」(<name> killed successfully for the Nth time!). Names always come from the original game strings (0x7f5630) and follow along when the old translated names are enabled.
-//   Storage: <save working dir>/<character name>/<character name>.sw_kills (text, see save()); each count is written to the working directory immediately, swapped in atomically with the game's next save commit, and synced to iCloud with the character directory;
+//   Storage: <save working dir>/<character name>/<character name>.sw_kills (text, see save()); each count is written to the working directory immediately, swapped in atomically with the game's next save commit, and backed up with the character directory;
 //     on exit without saving this part does not count, same as the original game's "progress is lost if not saved". The original save is not changed by a single byte.
 // Called only in the server tick (diag.c, after boss rush).
 #include "dm_bossrush.h"

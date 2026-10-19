@@ -34,7 +34,7 @@ iOS 不允许普通 App 执行运行时才写进内存的代码，所以游戏�
 3. 查显卡是否支持 BC 压缩贴图。不支持的机型需要配套的 ASTC 补充包（`dm/tools/astc_pack.py` 的产物），找不到就弹框说明，不起游戏。补充包怎么做、怎么放进手机，见下文「不支持 BC 贴图的机型」。
 4. 找游戏资源（下一节）。找到就准备环境：`boot_prepare` 设好 `DM_ROMFS`（资源根）、`DM_ROMFS_OVERLAY`（覆盖层）、`DM_SAVE`（存档目录 `Documents/save`）、`DM_TEMP`、`DM_MSL_DIR`（着色器库）等宿主要读的环境变量，把工作目录切到 `Documents`，并调 `dm_host_preload_start` 让宿主在后台线程先开始装载，与 UIKit 的启动并行。
 5. 场景建好后，根视图换成 `front_ios_view` 返回的 Metal 视图（`Sources/front_ios.m`，宿主前端接口 `dm/host/front.h` 的 iOS 实现）。
-6. `boot_thread` 在一条 64 MB 栈的线程上先做 iCloud 存档同步（`Sources/cloud_ios.m`），再调 `dm_main` 进入宿主，从此游戏开始运行。
+6. `boot_thread` 在一条 64 MB 栈的线程上调 `dm_main` 进入宿主，从此游戏开始运行。
 
 切后台、回前台、场景断开等生命周期事件由 `main.m` 的 `SceneDelegate` 转给 `front_ios.m`；App 终止时调 `dm_host_shutdown` 让宿主有序收尾。
 
@@ -119,7 +119,7 @@ iOS 不允许普通 App 执行运行时才写进内存的代码，所以游戏�
 | `Sources/dm_touch_controls.[ch]` | 触摸判定状态机（纯 C） |
 | `Sources/DmTouchOverlay.[hm]` | 摇杆、技能钮等自绘控件 |
 | `Sources/dm_touch_game_*.c` | 从运行中的游戏读取技能绑定（只读） |
-| `Sources/asset_dl.[hm]`、`cloud_ios.m`、`dm_update.m`、`dm_sharelog.m` | 资源下载、iCloud 存档同步、版本提示、分享诊断日志 |
+| `Sources/asset_dl.[hm]`、`dm_update.m`、`dm_sharelog.m` | 资源下载、版本提示、分享诊断日志 |
 | `Sources/TouchArt/` | 自绘控件的素材。仓库里只有摇杆图和技能图集的来源清单（原版路径与校验值）；技能图集本身在构建时从游戏文件生成 |
 | `NativeHUD/` | 底栏说明与自己画的关闭按钮图 |
 | `RomfsDownloader/` | 苹果托管资源包的下载扩展 |
@@ -141,7 +141,7 @@ cp local.env.example local.env
 | 变量 | 含义 | 什么时候要 |
 |---|---|---|
 | `DM_TEAM_ID` | 开发者团队号 | 出 App |
-| `DM_BUNDLE_ID` | App 包名，自己起（反域名写法）。App 组与 iCloud 容器由它派生：`group.<包名>`、`iCloud.<包名>` | 出 App、所有冒烟与回归脚本 |
+| `DM_BUNDLE_ID` | App 包名，自己起（反域名写法）。App 组由它派生：`group.<包名>` | 出 App、所有冒烟与回归脚本 |
 | `DM_DEVICE` | 真机的 devicectl 设备标识（`xcrun devicectl list devices` 的 Identifier 列） | 装机与真机脚本 |
 | `DM_IOS_UDID` | 真机的硬件 UDID | 真机冒烟的电量检查、`tools/lifecycle.sh`、`tools/xtrace.sh` |
 | `MINI_SSH` | 第二台 Mac（专门用来跑测试）的 ssh 目标 | 只有 `dm/tools/l3run.sh`、`dm/tools/mini_sync.sh` 用；没有第二台 Mac 就留空 |

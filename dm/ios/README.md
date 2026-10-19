@@ -34,7 +34,7 @@ The entry point is in `Sources/main.m`. The app uses the launch argument `-mode 
 3. Check whether the GPU supports BC-compressed textures. Models that do not support them need the matching ASTC supplement pack (produced by `dm/tools/astc_pack.py`); if it cannot be found, a dialog explains this and the game is not started. How to make the supplement pack and get it onto the phone is in "Models without BC texture support" below.
 4. Locate the game assets (next section). If found, prepare the environment: `boot_prepare` sets the environment variables the host reads, such as `DM_ROMFS` (asset root), `DM_ROMFS_OVERLAY` (overlay), `DM_SAVE` (save directory `Documents/save`), `DM_TEMP` and `DM_MSL_DIR` (shader libraries), changes the working directory to `Documents`, and calls `dm_host_preload_start` so that the host starts loading on a background thread, in parallel with UIKit's startup.
 5. Once the scene is set up, the root view is replaced with the Metal view returned by `front_ios_view` (`Sources/front_ios.m`, the iOS implementation of the host's front-end interface `dm/host/front.h`).
-6. `boot_thread`, on a thread with a 64 MB stack, first does the iCloud save sync (`Sources/cloud_ios.m`) and then calls `dm_main` to enter the host; from then on the game is running.
+6. `boot_thread`, on a thread with a 64 MB stack, calls `dm_main` to enter the host; from then on the game is running.
 
 Lifecycle events such as going to the background, returning to the foreground and scene disconnection are forwarded by the `SceneDelegate` in `main.m` to `front_ios.m`; when the app terminates, `dm_host_shutdown` is called so the host can shut down in order.
 
@@ -119,7 +119,7 @@ The GPUs of these models do not support the BC compression formats the game's te
 | `Sources/dm_touch_controls.[ch]` | Touch classification state machine (pure C) |
 | `Sources/DmTouchOverlay.[hm]` | Self-drawn controls such as the stick and skill buttons |
 | `Sources/dm_touch_game_*.c` | Reads the skill bindings from the running game (read-only) |
-| `Sources/asset_dl.[hm]`, `cloud_ios.m`, `dm_update.m`, `dm_sharelog.m` | Asset download, iCloud save sync, version notice, sharing the diagnostic log |
+| `Sources/asset_dl.[hm]`, `dm_update.m`, `dm_sharelog.m` | Asset download, version notice, sharing the diagnostic log |
 | `Sources/TouchArt/` | Art for the self-drawn controls. The repository holds only the stick image and the source manifest of the skill atlas (original paths and checksums); the skill atlas itself is generated from the game files at build time |
 | `NativeHUD/` | Bottom bar documentation and the self-drawn close button image |
 | `RomfsDownloader/` | Download extension for the Apple-hosted asset pack |
@@ -141,7 +141,7 @@ cp local.env.example local.env
 | Variable | Meaning | When it is needed |
 |---|---|---|
 | `DM_TEAM_ID` | Developer team ID | Building the app |
-| `DM_BUNDLE_ID` | The app's bundle ID, which you choose yourself (reverse-domain style). The app group and iCloud container are derived from it: `group.<bundle ID>`, `iCloud.<bundle ID>` | Building the app, all smoke test and regression scripts |
+| `DM_BUNDLE_ID` | The app's bundle ID, which you choose yourself (reverse-domain style). The App group is derived from it: `group.<bundle ID>` | Building the app, all smoke test and regression scripts |
 | `DM_DEVICE` | The real device's devicectl device identifier (the Identifier column of `xcrun devicectl list devices`) | Installing to the device and the real-device scripts |
 | `DM_IOS_UDID` | The real device's hardware UDID | The battery check of the real-device smoke test, `tools/lifecycle.sh`, `tools/xtrace.sh` |
 | `MINI_SSH` | The ssh target of a second Mac dedicated to running tests | Only used by `dm/tools/l3run.sh` and `dm/tools/mini_sync.sh`; leave it empty if you have no second Mac |

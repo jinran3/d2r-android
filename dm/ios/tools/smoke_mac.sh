@@ -32,7 +32,7 @@ DEVP=""; [ "${DM_MAC_DEVICE_PROFILE:-1}" != 0 ] && DEVP="--env DM_GAME_RES=2868x
 # 新加一个 source / 调用的同目录文件，就加进这里—— 漏了后加的三份，远端一起就报「DM_BUNDLE_ID 未设」，在台账留了假红。
 # The same-directory files this script needs at run time, listed in this one place only: before starting, each is checked to be present (a missing one is a failure on the spot, not reported halfway through the run), and when dispatching to the remote machine the sync also goes by this list.
 # When a new same-directory file is sourced / called, add it here -- the three added later were missed, the remote side reported 「DM_BUNDLE_ID 未设」(DM_BUNDLE_ID not set) as soon as it started, and a false failure was left in the ledger.
-SMOKE_MAC_DEPS="local_env.sh logport.py devlock.sh devbattery.sh cloud_guard.sh save_key.sh launch_guard.sh smoke_touch.txt uireg"
+SMOKE_MAC_DEPS="local_env.sh logport.py devlock.sh devbattery.sh save_key.sh launch_guard.sh smoke_touch.txt uireg"
 _sm_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd); _sm_miss=
 for _sm_f in $SMOKE_MAC_DEPS; do [ -e "$_sm_dir/$_sm_f" ] || _sm_miss="$_sm_miss $_sm_f"; done
 [ -z "$_sm_miss" ] || { echo "SMOKE-MAC RED 0/${1:-1} 用时 0 秒"; echo "【红】冒烟脚本的依赖文件缺了：${_sm_miss}（目录 ${_sm_dir}），没有起跑"; exit 2; }
@@ -54,7 +54,7 @@ run_stage() {
   [ -x "$exe" ] || { echo "【红】包不完整：$exe"; echo "SMOKE-MAC RED 0/$N 用时 0 秒"; return 2; }
   # 同一台 Mac 上所有 Mac 冒烟共用一个 App 容器（同一 bundle id：boot.txt、存档会互相覆盖），串行：借设备锁的实现、换一把锁
   # All Mac smoke tests on the same Mac share one App container (same bundle id: boot.txt and saves would overwrite each other), so they are serialized: borrow the device lock's implementation, with a different lock
-  export DM_DEVLOCK_DIR=${DM_ROOT:-$HOME/dm-work}/run/ios/macsmoke.lock; source "$TOOLS/devlock.sh"; source "$TOOLS/cloud_guard.sh"; source "$TOOLS/save_key.sh"; source "$TOOLS/launch_guard.sh"
+  export DM_DEVLOCK_DIR=${DM_ROOT:-$HOME/dm-work}/run/ios/macsmoke.lock; source "$TOOLS/devlock.sh"; source "$TOOLS/save_key.sh"; source "$TOOLS/launch_guard.sh"
   devlock_acquire "${SMOKE_OWNER:-未署名} Mac 冒烟"
   # 找实例：系统有时把包迁到随机路径下运行（App Translocation，/private/var/folders/…/d/Wrapper/DmIOS.app/DmIOS），不能按原路径认，按可执行文件后缀认。
   # iOS 包在 Mac 上同一 bundle id 只能有一个实例（再 open 报 -10670）：开跑前已有实例 = 别人的或上次残留的，不替人结束，报出 pid 即红
@@ -78,11 +78,8 @@ run_stage() {
       [ "$(/usr/libexec/PlistBuddy -c 'Print :MCMMetadataIdentifier' "$m" 2>/dev/null)" = "$B" ] && { echo "$(dirname "$m")/Data"; return 0; }; done; return 1; }
   freeport() { python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1])"; }
   # 资源：容器的 Library/Application Support/romfs/data（与真机开发装机同一位置）。容器由系统在首次启动时建；缺资源就从 SMOKE_MAC_ROMFS 克隆（APFS 克隆不占空间）
-  # iCloud 总闸（tools/cloud_guard.sh）：这个脚本起的每一个实例都把云端指到一次性本地目录，不连真实 iCloud
   # Assets: the container's Library/Application Support/romfs/data (same location as a development install on a real device). The container is created by the system on first launch; missing assets are cloned from SMOKE_MAC_ROMFS (APFS clones take no space)
-  # iCloud master gate (tools/cloud_guard.sh): every instance launched by this script points the cloud at a one-off local directory and does not connect to real iCloud
-  cloud_guard_env "" "" || return 1; local CGA=${CG_ENV:+--env $CG_ENV}
-  local C; C=$(container) || { open -n "$W" $CGA --args -mode boot "${LG_ARGS[@]}"; for _ in $(seq 1 30); do C=$(container) && break; sleep 0.5; done; stop_all; }
+  local C; C=$(container) || { open -n "$W" --args -mode boot "${LG_ARGS[@]}"; for _ in $(seq 1 30); do C=$(container) && break; sleep 0.5; done; stop_all; }
   [ -n "${C:-}" ] || { echo "【红】系统没有给 $B 建容器（首次启动失败？包未签进本机？）"; echo "SMOKE-MAC RED 0/$N 用时 $(( $(date +%s) - T0 )) 秒"; return 2; }
   # 存档钥匙（tools/save_key.sh）：整轮冒烟用自己名下的一份测试存档（缺省钥匙 smoke），不动别的线留在公共位置的那份
   # Save key (tools/save_key.sh): the whole smoke round uses a test save under its own name (default key smoke) and does not touch the copy other developers leave in the common location
@@ -108,9 +105,9 @@ run_stage() {
     local pk=0 tL="" tM="" tG="" tS="" exited=1
     while [ "$attempt" -lt 3 ]; do
       attempt=$((attempt + 1)); port=$(freeport); tA=$(date +%s)
-      open -n "$W" $DEVP $CGA --env DM_SAVE_FRESH=warlock --env DM_WATCH=$((main_menu_timeout + game_screen_timeout + 5)) --env DM_UIMSG=1 --env DM_LOG_PORT="$port" --env "DM_KEYS=$KEYS" \
+      open -n "$W" $DEVP --env DM_SAVE_FRESH=warlock --env DM_WATCH=$((main_menu_timeout + game_screen_timeout + 5)) --env DM_UIMSG=1 --env DM_LOG_PORT="$port" --env "DM_KEYS=$KEYS" \
         --args -mode boot "${LG_ARGS[@]}" > "$OUT/launch_${attempt}.txt" 2>&1; local lrc=$?
-      [ "$lrc" -ne 0 ] && [ -z "$(pids)" ] && { sleep 2; echo "第 $i 次：open 失败（$(tail -1 "$OUT/launch_${attempt}.txt" | cut -c1-80)），重试一次"; open -n "$W" $DEVP $CGA --env DM_SAVE_FRESH=warlock --env DM_WATCH=$((main_menu_timeout + game_screen_timeout + 5)) --env DM_UIMSG=1 --env DM_LOG_PORT="$port" --env "DM_KEYS=$KEYS" --args -mode boot "${LG_ARGS[@]}" >> "$OUT/launch_${attempt}.txt" 2>&1; lrc=$?; tA=$(date +%s); }
+      [ "$lrc" -ne 0 ] && [ -z "$(pids)" ] && { sleep 2; echo "第 $i 次：open 失败（$(tail -1 "$OUT/launch_${attempt}.txt" | cut -c1-80)），重试一次"; open -n "$W" $DEVP --env DM_SAVE_FRESH=warlock --env DM_WATCH=$((main_menu_timeout + game_screen_timeout + 5)) --env DM_UIMSG=1 --env DM_LOG_PORT="$port" --env "DM_KEYS=$KEYS" --args -mode boot "${LG_ARGS[@]}" >> "$OUT/launch_${attempt}.txt" 2>&1; lrc=$?; tA=$(date +%s); }
       eval "$(python3 "$TOOLS/logport.py" read "$port" "$OUT/console_${attempt}.txt" "$main_menu_timeout" "$game_screen_timeout")"
       cat "$OUT/console_${attempt}.txt" >> "$RUN/console_${i}.txt"
       chan=""; [ "$lrc" -ne 0 ] && chan="（open 退出码 ${lrc}）"
@@ -134,8 +131,8 @@ run_stage() {
     # 当时台账里 mini 上没有别的 Mac 冒烟在跑（锁落在被测机器上：run_stage 在哪台跑就锁哪台的 macsmoke.lock）。本机没有实例在跑时等 2 秒重试一次，两次的报错都留在 player_launch.txt
     # Once during a merge this step on the second Mac reported "Launch failed ... Launchd job spawn failed (POSIX 162)" with 0 log lines, and passed when rerun unchanged; the cause was not found (the system log could not be read),
     # at the time the ledger showed no other Mac smoke test running on the second Mac (the lock lives on the machine under test: whichever machine run_stage runs on, that machine's macsmoke.lock is taken). When no instance is running on this machine, wait 2 seconds and retry once; both error messages are kept in player_launch.txt
-    open -n "$W" $DEVP $CGA --env DM_SAVE_TEST=1 --env DM_LOG_PORT="$port" --env DM_UIMSG=1 --env "DM_KEYS=$KP" > "$RUN/player_launch.txt" 2>&1 \
-      || { [ -z "$(pids)" ] && { sleep 2; echo "玩家路径：open 失败（$(tail -1 "$RUN/player_launch.txt" | cut -c1-80)），重试一次"; open_diag 玩家路径; open -n "$W" $DEVP $CGA --env DM_SAVE_TEST=1 --env DM_LOG_PORT="$port" --env DM_UIMSG=1 --env "DM_KEYS=$KP" >> "$RUN/player_launch.txt" 2>&1; }; }
+    open -n "$W" $DEVP --env DM_SAVE_TEST=1 --env DM_LOG_PORT="$port" --env DM_UIMSG=1 --env "DM_KEYS=$KP" > "$RUN/player_launch.txt" 2>&1 \
+      || { [ -z "$(pids)" ] && { sleep 2; echo "玩家路径：open 失败（$(tail -1 "$RUN/player_launch.txt" | cut -c1-80)），重试一次"; open_diag 玩家路径; open -n "$W" $DEVP --env DM_SAVE_TEST=1 --env DM_LOG_PORT="$port" --env DM_UIMSG=1 --env "DM_KEYS=$KP" >> "$RUN/player_launch.txt" 2>&1; }; }
     pr=$(python3 "$TOOLS/logport.py" player "$port" "$RUN/player.txt" "$main_menu_timeout" 35 20)
     au_real=$(grep -c 'audio::OpenAudioOut .*真出声' "$RUN/player.txt" 2>/dev/null); au_null=$(grep -c 'audio::OpenAudioOut .*静音接收端' "$RUN/player.txt" 2>/dev/null)
     # 产品缺省必须读得到受控玩家（UIKit 底栏数字与难度条靠它；曾经拍入口只在带测试变量时才挂，玩家路径下一直没有）
@@ -160,7 +157,7 @@ run_stage() {
     # 所以真机档位（画面 2.17:1、上下留边）与原样档位（DM_MAC_DEVICE_PROFILE=0，换算为恒等）用同一份脚本
     # The bare coordinates in smoke_touch.txt are written for a 667x375 16:9 picture: with DM_TOUCH_REF=667x375 the front end converts by the game picture rectangle (UI scaled by picture height, horizontally centered),
     # so the real device profile (picture 2.17:1, margins top and bottom) and the as-is profile (DM_MAC_DEVICE_PROFILE=0, conversion is the identity) use the same script
-    open -n "$W" $DEVP $CGA --env DM_TOUCH_REF=667x375 --env DM_SAVE_FRESH=empty --env DM_LOG_PORT="$tport" --env DM_UIMSG=1 --env DM_TOUCH_SCRIPT=smoke_touch.txt --env DM_TOUCH_SCRIPT_START=menu \
+    open -n "$W" $DEVP --env DM_TOUCH_REF=667x375 --env DM_SAVE_FRESH=empty --env DM_LOG_PORT="$tport" --env DM_UIMSG=1 --env DM_TOUCH_SCRIPT=smoke_touch.txt --env DM_TOUCH_SCRIPT_START=menu \
       --env DM_GAME_SEED=0x12345678 --env DM_FIXED_TIME=1790000000 > "$RUN/touch_launch.txt" 2>&1 || open_diag 触摸玩家路径
     tr=$(python3 "$TOOLS/logport.py" until "$tport" "$RUN/touch.txt" $((main_menu_timeout + 50)) '[script] 全部')
     p0=$(LC_ALL=C grep -a '\[script\] pos ' "$RUN/touch.txt" | sed -n 1p | sed 's/.*pos \(.*)\).*/\1/'); p1=$(LC_ALL=C grep -a '\[script\] pos ' "$RUN/touch.txt" | sed -n 2p | sed 's/.*pos \(.*)\).*/\1/')
@@ -171,11 +168,11 @@ run_stage() {
   fi
   local left; left=$(pids | tr '\n' ' ')
   [ -n "$left" ] && { echo "【红】结束后仍有本包 DmIOS pid：$left"; cp "$C/Documents/boot.txt" "$RUN/boot_left.txt" 2>/dev/null; stop_all; }
-  stop_all; local cg_ok=1; cat "$RUN"/*.txt "$RUN"/*/*.txt "$C/Documents/boot.txt" 2>/dev/null > "$RUN/.cg_all" ; cloud_guard_check "$RUN/.cg_all" || cg_ok=0; rm -f "$RUN/.cg_all"; cloud_guard_clean "$C/Documents"
+  stop_all;
   savekey_out "$C"; SK_C=''; devlock_release; CLEAN=''
   printf '%s\n' "$segs" > "$RUN/segs.txt"; printf '%s\n' "$ok" > "$RUN/ok.txt"
   [ "$known_pk" -eq 1 ] && echo "【已知PK】占不到 pthread 键 507：已按规则补跑"
-  if [ "$ok" -eq "$N" ] && [ -z "$left" ] && [ "$PLAYER_RES" != RED ] && [ "$TOUCH_RES" != RED ] && [ "$cg_ok" = 1 ]; then echo "SMOKE-MAC OK $ok/$N 用时 $(( $(date +%s) - T0 )) 秒"; return 0; fi
+  if [ "$ok" -eq "$N" ] && [ -z "$left" ] && [ "$PLAYER_RES" != RED ] && [ "$TOUCH_RES" != RED ]; then echo "SMOKE-MAC OK $ok/$N 用时 $(( $(date +%s) - T0 )) 秒"; return 0; fi
   # 红了就把被测机器当时的负载和占 CPU 前几名留下（mini 上两次红时有 xctrace 700% 和成批宿主在跑，事后才查到）
   # On failure, save the load of the machine under test at that moment and its top CPU consumers (on the two failures on the second Mac, xctrace at 700% and a batch of hosts were running, only found afterwards)
   echo "被测机器 $(hostname -s) 负载 $(sysctl -n vm.loadavg)；占 CPU 前 5：$(ps -axo pcpu=,comm= | sort -rn | head -5 | awk '{ n=split($2,a,"/"); printf "%s%% %s；", $1, a[n] }')"

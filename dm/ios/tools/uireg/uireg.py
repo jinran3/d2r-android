@@ -1084,11 +1084,6 @@ def groups():
     # rf2：88 级法师（带佣兵 → 经典版暂停页 PauseLayout），普通
     # rf2: level 88 sorceress (with a mercenary → classic pause page PauseLayout), Normal
     g=G("rf2","DM_TEST_POS_LOG=1"); g.sect("rf2",0); g.enter(4); g.wait(2.0); rs3(g,"PauseLayout",0); gs.append(g)
-    # rf3：术士，iCloud 开着（本地目录当云端），普通
-    # rf3: warlock, iCloud on (a local directory acts as the cloud), Normal
-    g=G("rf3","DM_TEST_ICLOUD_DIR=icrF/saves DM_TEST_POS_LOG=1"); g.sect("rf3",0); g.enter(); g.wait(2.0); rs3(g,"PauseLayoutGarden",0)
-    g.item("iCloud","每次退出都传一次（3 次「退出这一局回到前端，上传」）",lambda s,b: (lambda n: ("通：" if n>=3 else "不通：")+f"{n} 次")(len(re.findall(r"退出这一局回到前端，上传",b+s)))); g.shot()
-    gs.append(g)
     # ---- 刷怪积分牌：kba 编年史「首领」页逐控件，kbb 击杀局（BASE 钉时间：首杀显示钉住的那个时刻）----
     # 编年史页签（iPhone 档 667 基准）：页签加宽 266 → 320 单位后，四个页签中心按「整排居中于 334、间距 (320+2)×0.2015 ≈ 64.9」算：237 / 302 / 366 / 431，y 55.5
     # （加宽前是 253 / 307 / 361 / 415，kbp 截图量）

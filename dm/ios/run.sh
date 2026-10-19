@@ -70,15 +70,15 @@ if [ "$1" = build ]; then
     [ -d "$o/data" ] || continue; grep -q '^vfs-root = ' "$o/data/.build.config" 2>/dev/null || { t "🔴 覆盖层 $o 里没有可用的配置文件 data/.build.config"; exit 1; }
   done
   [ -f Gen/romfs_overlay/data/.build.config ] || { t "🔴 没生成覆盖层 Gen/romfs_overlay"; exit 1; }
-  # 免费的开发者账号（个人团队）签不了这几项权限：DM_FREE_ACCOUNT=1 时从工程描述里去掉再生成。去掉后少的是 iCloud 存档同步、
+  # 免费的开发者账号（个人团队）签不了这几项权限：DM_FREE_ACCOUNT=1 时从工程描述里去掉再生成。去掉后少的是
   # 持续执行模式与更高的内存上限；游戏照常运行（地址预留已按不带扩展虚拟寻址也放得下来定，见 host/hle_svc.c）
   # A free developer account (personal team) cannot sign these entitlements: with DM_FREE_ACCOUNT=1 they are removed from the project
-  # description before generating. What is lost is iCloud save sync,
+  # description before generating. What is lost is
   # sustained execution mode and the higher memory limit; the game runs as usual (the address reservation is already sized to fit without
   # extended virtual addressing, see host/hle_svc.c)
   if [ "${DM_FREE_ACCOUNT:-0}" = 1 ]; then
-    python3 tools/project_free.py project.yml project_free.yml || { t "🔴 DM_FREE_ACCOUNT：免费档的工程描述没生成（见上）"; exit 1; }   # 去掉签不了的六行权限与用不上的资源下载扩展 | remove the six entitlement lines it cannot sign and the asset download extension it has no use for
-    xcodegen generate -q --spec project_free.yml >/dev/null || { t "🔴 xcodegen 失败"; exit 1; }; rm -f project_free.yml; t "按免费账号生成：不带 iCloud / 持续执行 / 增加内存上限 / 扩展虚拟寻址，也不带资源下载扩展（只占一个应用标识）"
+    python3 tools/project_free.py project.yml project_free.yml || { t "🔴 DM_FREE_ACCOUNT：免费档的工程描述没生成（见上）"; exit 1; }   # 去掉签不了的三行权限与用不上的资源下载扩展 | remove the three entitlement lines it cannot sign and the asset download extension it has no use for
+    xcodegen generate -q --spec project_free.yml >/dev/null || { t "🔴 xcodegen 失败"; exit 1; }; rm -f project_free.yml; t "按免费账号生成：不带持续执行 / 增加内存上限 / 扩展虚拟寻址，也不带资源下载扩展（只占一个应用标识）"
   else
   xcodegen generate -q >/dev/null || { t "🔴 xcodegen 失败"; exit 1; }
   fi
