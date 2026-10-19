@@ -59,8 +59,6 @@ dmBrDiablo	迪亚波罗	Diablo	首领连战首领名
 dmBrBaal	巴尔	Baal	首领连战首领名
 dmBrDiabloClone	暗黑迪亚波罗	Diablo Clone	首领连战第 11 关（怪物 333）
 dmBrUbers	超级墨菲斯托、超级迪亚波罗、超级巴尔	Uber Mephisto, Uber Diablo, Uber Baal	首领连战第 12 关
-dmBlissTitle	极乐世界	Elysium	建角页「极乐世界」勾选标题（touch_layout.py）
-dmBlissDesc	暗金 ×5、套装 ×3、符文 ×5；Boss 永远按首次击败掉落。	Unique ×5, Set ×3, Runes ×5; bosses always drop as on first kill.	建角页「极乐世界」说明
 dmRwHint	先移到个人仓库或背包	Move out of shared stash first	符文之语清单：底材在共享仓库时的灰字
 dmRwGo	一键合成	Craft	符文之语清单每行 / 详情页的合成按钮
 dmPauseShareLog	分享诊断日志	Share Diagnostics	暂停菜单按钮
@@ -201,7 +199,6 @@ dmRiftSayStart	第 %d 层开始，限时 15 分钟	Level %d: 15 minute time limi
 dmRiftSayGift	赠彩虹刻面一颗，已掉在脚下	A Rainbow Facet has dropped	秘境系统提示（dm_rift.c）；「彩虹刻面」是旧译名（原版现行「彩虹魔石」）；英文物品名 = 原版键 Rainbow Facet 的 enUS；英文：物品名 = 暗黑 2 原版 item-names[Rainbow Facet]
 dmRiftSayTimeout	时间到：本层未过关，守护者仍会掉落	Time's up: level not cleared	秘境系统提示（dm_rift.c）；超时打倒守护者不算过关；英文：not cleared，不用 Failed（没死也没失败，只是不计）
 dmRiftSayGuardian	进度已满：守护者现身！	The Rift Guardian appears!	秘境系统提示（dm_rift.c）；英文：Rift Guardian 取自暗黑 3 官方 2.1.0 补丁说明（news.blizzard.com/en-us/article/14569138）；出现时的界面原句没查到，拟
-dmElyToaGround	背包已满，赦免之证掉在脚边	Inventory full: Token of Absolution dropped	极乐世界新角色补齐（dm_elysium.c）：背包放不下时的系统提示；英文物品名 = 暗黑 2 原版 Token of Absolution
 dmMercSlotLocked	通关地狱后打通秘境10层解锁	Clear Greater Rift Level 10 to unlock	佣兵新装备位没解锁时的系统提示（dm_rift.c；中文是 原句）；英文：Greater Rift 取暗黑 3 原文
 dmRiftPtsGot	最高第 %d 层：获得 %d 技能点、%d 属性点	Level %d: +%d Skill Points, +%d Stat Points	秘境系统提示（dm_rift.c 通关点数）；英文：Skill Points / Stat Points 写全，取暗黑 2 原版人物面板的说法（Stat Points Remaining / Skill Choices Remaining；不缩成 Skill / Stat）；中文这句本身就占两行，英文同样两行
 dmSkillCapLocked	打通任意一层秘境后解锁技能等级上限	Clear any Rift level to unlock the skill level cap	技能树里对已到 20 级的技能再加点、而这个角色还没打通过秘境时的系统提示（dm_actions.c）；英文：Rift / level 同秘境其它提示

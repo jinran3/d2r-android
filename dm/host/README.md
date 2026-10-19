@@ -71,7 +71,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 | `dm_rift_ui.c` | The Rift panel, built from original widgets |
 | `dm_doorspot.h` | Where the two doors appear when a Rift floor is settled: guaranteed to be on a cell the player can walk to. Pure algorithm |
 | `dm_bossrush.c`, `dm_bossrush.h` | Boss rush |
-| `dm_elysium.c`, `dm_elysium.h` | Elysium mode: a per-character switch chosen at character creation; on entering a game it changes data tables in memory, and restores the original values on leaving |
 | `dm_kills.c` | The kill board: per character and per difficulty, the kill count, first-kill time and fastest time for each boss |
 
 ### Stash and items

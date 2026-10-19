@@ -262,10 +262,10 @@ void dm_bossrush_c2s(uint64_t G, uint64_t player, const uint8_t *pkt, uint32_t l
 
 // 首领掉落读数（出现过地狱安达莉尔一件没掉的报告，日志里没有击杀与掉落读数定不了性）：不论在不在连战，五个幕首领（类号见 k_boss）
 // 活着时每 5 拍盯住一只、记下当时最大的物品 id；它的模式变成 0 / 12（死亡中 / 已死）时记下尸体位置，25 拍后数尸体 20 格内 id 更大、在地上（模式 3）或正在落地（5）的物品。
-// 宝藏格从怪物表读（[数据表+0xf90] + 类号 × 0x1fc，+0xc0 + 难度 × 0x10 那一块：+0 普通、+6 任务），极乐世界开着时读到的就是改过的值
+// 宝藏格从怪物表读（[数据表+0xf90] + 类号 × 0x1fc，+0xc0 + 难度 × 0x10 那一块：+0 普通、+6 任务）
 // Boss drop readout (there was a report of Hell Andariel dropping nothing at all, and without kill and drop readouts in the log it could not be characterized): whether or not in the boss rush, for the five act bosses (class ids in k_boss)
 // watch one every 5 ticks while alive and record the largest item id at that time; when its mode becomes 0 / 12 (dying / dead) record the corpse position, and 25 ticks later count the items within 20 cells of the corpse with a larger id that are on the ground (mode 3) or landing (5).
-// The treasure class slot is read from the monster table ([data table+0xf90] + class id × 0x1fc, the block at +0xc0 + difficulty × 0x10: +0 normal, +6 quest); with Elysium mode on, what is read is the modified value
+// The treasure class slot is read from the monster table ([data table+0xf90] + class id × 0x1fc, the block at +0xc0 + difficulty × 0x10: +0 normal, +6 quest); the value read is the modified one
 static const int k_boss[] = { 156, 211, 242, 243, 544 };
 static void boss_drop_watch(uint64_t G, uint32_t t) {
     static uint64_t g; static uint32_t id, t_die, max_item; static int cls, x, y;

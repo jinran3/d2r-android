@@ -71,7 +71,6 @@ English: [README.md](README.md)
 | `dm_rift_ui.c` | 秘境面板，用原版控件搭 |
 | `dm_doorspot.h` | 秘境结算处两扇门落在哪：保证落在玩家走得到的格上。纯算法 |
 | `dm_bossrush.c`、`dm_bossrush.h` | 首领连战 |
-| `dm_elysium.c`、`dm_elysium.h` | 极乐世界模式：建角时勾选的按角色开关，进局时改内存里的数据表，退局写回原值 |
 | `dm_kills.c` | 刷怪积分牌：按角色、按难度记首领的击杀次数、首杀时刻与最快用时 |
 
 ### 仓库与物品

@@ -4,7 +4,6 @@
 #include "dm_hud.h"
 #include "dm_cursor.h"
 #include "dm_hud_exp.h"
-#include "dm_elysium.h"
 #include "dm_bossrush.h"
 #include <TargetConditionals.h>
 #include <fcntl.h>
@@ -975,7 +974,6 @@ static void hud_tick(uint64_t G) {        // 每拍：受控玩家等级 / 本�
                               uint64_t ip = 0; uint8_t pk[17] = { 0x16 }; uint32_t one = 1; tk_rd(u + 0x38, &ip, 8); memcpy(pk + 1, (void *)(u + 8), 4); if (ip) { memcpy(pk + 5, (void *)(ip + 0x10), 4); memcpy(pk + 9, (void *)(ip + 0x14), 4); } memcpy(pk + 13, &one, 4);
                               *(uint32_t *)(G + 0x19050) = 1; ((void (*)(uint64_t, uint64_t, uint8_t *, uint32_t))(main->base + 0x6e5b40))(G, player, pk, 17); *(uint32_t *)(G + 0x19050) = 0; inv += *(uint32_t *)(u + 0xc) != 3; } } }
                   LOG("DM_TEST_GIVE：拍 %u 在玩家旁生成「%s」品质 %d：%d / %d 件成功（物品类号 %u，第一件单位 id %u）%s", tq, code, q, ok, n, cls, id0, !getenv("DM_TEST_GIVE_INV") ? "" : inv == ok ? "，已全部捡进背包" : "，【注意】有没捡进背包的（留在地上）"); } } } }
-    if (main && player) dm_elysium_stash_step(G, player, (uint8_t *)main->base);   // 新建极乐世界角色后补齐共享仓库（dm_elysium.c） | Fill in the shared stash after a new Elysium character is created (dm_elysium.c)
     { int dm_cloud_conflict_take(void); static int shown;   // iCloud 同步拦下了共享仓库的覆盖（dm_cloudsync.c）：进局后弹一次原版系统提示（每次启动一次） | iCloud sync blocked an overwrite of the shared stash (dm_cloudsync.c): show the original game's system prompt once after joining a run (once per launch)
       if (main && player && !shown && dm_cloud_conflict_take()) { shown = 1; dm_game_notice((uint8_t *)main->base, dm_str((uint8_t *)main->base, "dmCloudConflict")); LOG("iCloud 同步：弹了共享仓库不一致的提示"); } }
     if (main && player) dm_bossrush_tick(G, player, (uint8_t *)main->base);   // 首领连战（dm_bossrush.c） | Boss rush (dm_bossrush.c)
