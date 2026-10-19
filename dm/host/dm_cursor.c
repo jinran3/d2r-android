@@ -979,28 +979,10 @@ static void ui_move_ours(uint64_t w, int x) {   // 我们自己的控件（Touch
     if (!nm || strncmp(nm, "Touch", 5)) { static int lg; if (lg++ < 8) LOG("【红】界面：要挪的控件「%s」不是我们的，不写", nm ? nm : "?"); return; }
     int32_t *r = (int32_t *)(w + 0x70); if (r[0] != x) { r[0] = x; ((void (*)(uint64_t))*(uint64_t *)(*(uint64_t *)w + 0x10))(w); }
 }
-#define PG_REACH 112   // 个人仓库翻页箭头的外圈（布局单位，自箭头命中框边缘起） | outer ring of the personal stash page-flip arrows (layout units, from the edge of the arrow's hit box)
-static int pg_personal(uint64_t root) {   // 储藏箱开着且停在个人页（页签 0） | the stash is open and on the personal page (tab 0)
-    uint64_t bk = ui_panel(root, "BankExpansionLayout"), tabs = bk && *(uint8_t *)(bk + 0x50) ? ui_find(bk, "BankTabs", 0) : 0; return tabs && TAB_SEL(tabs) == 0;
-}
-static int pg_near(uint64_t root, int x, int y, int vh) {   // 这一点在哪个翻页箭头的外圈里：-1 左 / +1 右 / 0 都不在。由近到远八个方向取样箭头自己的命中函数（同 ui_snap 的取法） | which page-flip arrow's outer ring this point is in: -1 left / +1 right / 0 neither. Samples the arrow's own hit-test function in eight directions from near to far (same method as ui_snap)
-    uint64_t bk = ui_panel(root, "BankExpansionLayout"); if (!bk || vh <= 0) return 0;
-    static const int dx[8] = { 1, -1, 0, 0, 1, 1, -1, -1 }, dy[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
-    for (int r = 16; r <= PG_REACH; r += 16) for (int k = 0; k < 2; k++) { uint64_t t = ui_find(bk, k ? "TouchStashRight" : "TouchStashLeft", 0); if (!t || !*(uint8_t *)(t + 0x50)) continue;
-        uint64_t fn = *(uint64_t *)(*(uint64_t *)t + 0x48);
-        for (int d = 0; d < 8; d++) { int xx = x + dx[d] * r * vh / 2160, yy = y + dy[d] * r * vh / 2160; if (xx < 0 || yy < 0) continue;
-            if (((int (*)(uint64_t, uint64_t))fn)(t, (uint64_t)(uint32_t)xx | ((uint64_t)(uint32_t)yy << 32)) & 1) return k ? 1 : -1; } }
-    return 0;
-}
 static int ui_classify(module_t *m, uint64_t root, int x, int y, char *hit, size_t hn) {   // 1 物品区 / 2 页签 / 0 面板内其它控件 / 3 面板外 / 9 模态框外 | 1 item area / 2 tab / 0 other widget inside the panel / 3 outside the panel / 9 outside a modal
     if (g_cls_out) { g_cls_out = 0; const char *on = "";
         if (modal_top(m, root, &on)) { snprintf(hit, hn, "模态框外 %s", on); g_modal_name = on; return 9; }
         g_inside_owner = ""; atomic_store(&g_bd_hit, 0); atomic_store(&g_close_down, 0); snprintf(hit, hn, "（界面矩形外）"); return 3; }
-    // 编年史页（储藏箱第六页）上的点一律算「面板内其它控件」（0）：这一页下面是原版嵌入魔盒容器（游戏在第六页显示它），不许判成物品区去拿魔盒里的东西；
-    // 点下去交给 dm_vault_ui_tap（格子 / 自己的控件 / 其余吃掉），拖动交给 dm_vault_ui_drag（仓库页按独立页面处理）。下拉展开的选项面板开着时 dm_vault_ui_over 答 0，照常判
-    // Taps on the chronicle page (stash page six) always count as "other widget inside the panel" (0): under this page is the original game's embedded cube container (the game shows it on page six), and it must not be judged as an item area to pick up things in the cube;
-    // a tap goes to dm_vault_ui_tap (cells / our own widgets / the rest swallowed), a drag goes to dm_vault_ui_drag (the vault page is handled as an independent page). While a dropdown's expanded option panel is open dm_vault_ui_over answers 0 and judging proceeds as usual
-    if (dm_ui_panel_state() & DM_PS_VAULT) { int dm_vault_ui_over(int, int); if (dm_vault_ui_over(x, y)) { g_inside_owner = ""; atomic_store(&g_bd_hit, 0); snprintf(hit, hn, "编年史页"); return 0; } }
     // 设置页盖在暂停菜单上，暂停菜单的按钮却还收点击（游戏的分发不看谁在上面）：点在暂停菜单按钮上、又不在设置页的可点控件上 = 被盖住，不点（同「压着被上层面板盖住的按钮」）。
     // 原先设置页开着时把暂停菜单整层设成不可见、关了写回——那是写原版控件，违反不写原版控件的规则，改成这里只在命中时挡
     // The settings page covers the pause menu, yet the pause menu's buttons still receive clicks (the game's dispatch does not look at who is on top): on a pause menu button and not on a clickable widget of the settings page = covered, do not click (same as "on a button covered by an upper panel").
@@ -1035,10 +1017,6 @@ static int ui_classify(module_t *m, uint64_t root, int x, int y, char *hit, size
         if (rw && bn) { dm_runeword_button(bn); snprintf(hit, hn, "符文之语清单 %s（宿主处理，不发鼠标点击）", bn); return 6; }
         if (!rw) { dm_runeword_list_close(); snprintf(hit, hn, "符文之语清单外 → 关清单"); return 6; } }
     if (swaptab_hit(root, x, y)) { atomic_store(&g_swaptab_tap, 1); snprintf(hit, hn, "技能树 I / II 页签 → 换武器"); return 6; }   // 吃掉这一下，不发鼠标点击 | Swallow this tap, no mouse click sent
-    { uint64_t bk = ui_panel(root, "BankExpansionLayout"), tabs = bk && *(uint8_t *)(bk + 0x50) ? ui_find(bk, "BankTabs", 0) : 0;   // 个人页（页签 0）上的左右箭头 = 翻个人仓库页（dm_pages.c）；共享页照旧交给游戏；第六页「编年史」不用这两个原版箭头（被盖板压着，翻页条是它自己的控件，点按在 dm_vault_ui_tap 里收） | The left / right arrows on the personal page (tab 0) = turn personal stash pages (dm_pages.c); shared pages are left to the game as before; the sixth page 「编年史」(Chronicle) does not use these two original arrows (they are under the cover; the page bar is its own widget, and taps are handled in dm_vault_ui_tap)
-      if (tabs && TAB_SEL(tabs) == 0) for (int k = 0; k < 2; k++) { uint64_t t = ui_find(bk, k ? "TouchStashRight" : "TouchStashLeft", 0);
-          if (t && *(uint8_t *)(t + 0x50) && (((int (*)(uint64_t, uint64_t))*(uint64_t *)(*(uint64_t *)t + 0x48))(t, (uint64_t)(uint32_t)x | ((uint64_t)(uint32_t)y << 32)) & 1)) {
-              void dm_pages_request_flip(int); dm_pages_request_flip(k ? 1 : -1); snprintf(hit, hn, "个人仓库%s一页", k ? "下" : "上"); return 6; } } }
     return ui_classify0(m, root, x, y, hit, hn);
 }
 static int ui_classify0(module_t *m, uint64_t root, int x, int y, char *hit, size_t hn) {
@@ -1066,20 +1044,9 @@ static int ui_classify0(module_t *m, uint64_t root, int x, int y, char *hit, siz
     { int sx = x, sy = y, sn = ui_snap(m, root, &sx, &sy); if (sn == 6) { snprintf(hit, hn, "盖:%s 不点", g_inside_name); return 6; }
       if (sn == 1) { if (snap_guarded(root, g_click_name)) snap_guard_near(g_click_w, g_click_name, x, y, sx, sy, *(int32_t *)(m->base + 0x211da38), *(int32_t *)(m->base + 0x211da3c));   // 只为留一行本体点数读数 | only to leave one line of readout of the widget body's size in points
           snprintf(hit, hn, " 可点控件 %s", g_click_name); bd_note_skill(m, root, sx, sy); return 0; }
-      // 个人仓库的翻页箭头（命中框只有 64 单位见方，手机上约 13 点）：点偏了被吸附到箭头上时，同样发翻页请求——翻个人仓库页是宿主做的（dm_pages.c），
-      // 原先只有正点在命中框里才发；吸附过去的那一下只发了原版点击，原版在个人页不认，表现为「点了没反应」（的翻页偶发点不动）
-      // The page-flip arrows of the personal stash (the hit box is only 64 units square, about 13 points on a phone): when an off-target tap is snapped onto an arrow, the page-flip request is sent as well -- flipping personal stash pages is done by the host (dm_pages.c),
-      // and previously it was sent only for a tap squarely inside the hit box; a tap snapped over sent only the original game's click, which the original game ignores on the personal page, showing up as "tapped and nothing happened" (page flipping that occasionally would not respond)
-      if (sn && (!strcmp(g_click_name, "TouchStashLeft") || !strcmp(g_click_name, "TouchStashRight")) && pg_personal(root)) {
-          void dm_pages_request_flip(int); int dir = g_click_name[10] == 'R' ? 1 : -1; dm_pages_request_flip(dir); snprintf(hit, hn, "个人仓库%s一页（点偏，吸附）", dir > 0 ? "下" : "上"); return 6; }
       if (sn && snap_guarded(root, g_click_name) && !snap_guard_near(g_click_w, g_click_name, x, y, sx, sy, *(int32_t *)(m->base + 0x211da38), *(int32_t *)(m->base + 0x211da3c))) { snprintf(hit, hn, "吸附到 %s：后果重的按钮只认本体（不足 44 点的外扩到 44 点见方），不点", g_click_name); return 6; }
       if (sn) { snprintf(hit, hn, " 吸附 %s (%d,%d)", g_click_name, sx, sy); bd_note_skill(m, root, sx, sy); return 0; }   // 在可点控件上或它 3.5 毫米内（含面板边上的按钮外沿） | On a clickable widget or within 3.5 mm of it (including the outer rim of buttons at the panel edge)
-      // 再外一圈（到 PG_REACH 单位）：周围没有别的可点控件抢这一下（上面的吸附没找到）、又不在物品格上（更前面已判）时也算点箭头——
-      // 箭头连同这一圈的有效范围 = 64 + 2 × 112 = 288 单位见方，375 点高的屏上正好 50 点，更高的屏更大
-      // One more ring out (up to PG_REACH units): when no other clickable widget around competes for this tap (the snap above found nothing) and it is not on an item cell (already checked further up), it also counts as tapping the arrow --
-      // the effective range of the arrow together with this ring = 64 + 2 × 112 = 288 units square, exactly 50 points on a screen 375 points high, and larger on taller screens
-      { int dir = pg_personal(root) ? pg_near(root, x, y, *(int32_t *)(m->base + 0x211da3c)) : 0;
-        if (dir) { void dm_pages_request_flip(int); dm_pages_request_flip(dir); snprintf(hit, hn, "个人仓库%s一页（点偏，外圈）", dir > 0 ? "下" : "上"); return 6; } } }
+    }
     if (ui_inside_panel(m, root, xy)) { snprintf(hit, hn, " %s@%s", g_inside_name, g_inside_owner); atomic_store(&g_close_down, !strcmp(g_inside_name, "TouchClose") ? dm_guest_frame() : 0);
         if ((!strcmp(g_inside_name, "TouchClose") || !strcmp(g_inside_name, "close")) && atomic_load(&g_cube_side_on)) {   // 魔盒并排着：右上角关闭钮只关魔盒（这一下不点下去——点下去是把储藏箱一起关掉） | cube is side by side: the top-right close button closes only the cube (this tap is not pressed down -- pressing it would close the stash along with it)
             static uint64_t lf; uint64_t f = dm_guest_frame(); if (f - lf > 30) { lf = f; atomic_store(&g_cube_side_close, 1); } snprintf(hit, hn, "并排的魔盒：关闭钮只关魔盒"); return 6; }
@@ -1113,7 +1080,6 @@ static int imbue_locked(module_t *m, uint64_t root) {
 int dm_ui_item_at_now(float nx, float ny) {   // 只许游戏主线程调（Mac 宿主触点脚本在取手柄处跑） | Callable only from the game main thread (the Mac host touch point script runs where the controller is polled)
     module_t *m = main_module(); if (!m) return 0; uint64_t root = 0; memcpy(&root, m->base + 0x2f05458, 8);
     int32_t w = *(int32_t *)(m->base + 0x211da38), h = *(int32_t *)(m->base + 0x211da3c); if (!root || w <= 0 || h <= 0) return 0;
-    { int dm_vault_ui_tip_gate(int, int); if ((dm_ui_panel_state() & DM_PS_VAULT) && dm_vault_ui_tip_gate((int)(nx * w), (int)(ny * h))) return 6; }
     { int dm_pouch_tip_gate(int, int); if (dm_pouch_tip_gate((int)(nx * w), (int)(ny * h))) return 6; }   // 百宝囊清单开着：点框外只收清单（dm_pouch.c）   // 同 ui_item_pump：编年史说明框外只收框 | Pouch list open: a tap outside the box only dismisses the list (dm_pouch.c)   // same as ui_item_pump: outside the chronicle tooltip only dismisses the box
     char hit[40]; g_cls_out = UI_OUT(nx, ny); int r = ui_classify(m, root, (int)(nx * w), (int)(ny * h), hit, sizeof hit);
     if (r == 9) return 6;
@@ -1158,28 +1124,6 @@ static int vt_hit_walk(uint64_t w, uint64_t xy, int dep, uint64_t vt) {   // 可
 static _Atomic int g_drop_bag;
 int dm_ui_drop_bag(void) { return atomic_load(&g_drop_bag); }
 static int g_press_stack;   // 最近一次按下命中的是高级仓库的成叠格（只在游戏主线程读写） | The most recent press hit a stack cell of the advanced stash (read and written only on the game main thread)
-static _Atomic int g_vault_drop;   // 最后一次落点查询落在编年史页上时手上那件的 id（否则 0） | id of the held item when the last drop-point query landed on the chronicle page (otherwise 0)
-int dm_ui_vault_drop(void) { return atomic_load(&g_vault_drop); }
-// 视口像素点在物品栏背包格（PlayerInventoryExpansionLayout 的 grid）上：给出它在格里的位置（格为单位 × 100）与格子的列数、行数（编年史拖回背包用）。
-// 边界用格子控件自己的命中函数二分探（同 slot_center），格距 112.5 单位（按 2160 高折算）
-// A viewport pixel point on the inventory grid of the inventory panel (the grid of PlayerInventoryExpansionLayout): gives its position within the grid (in cells × 100) and the grid's column and row counts (used for dragging from the chronicle back to the inventory).
-// The bounds are binary-searched with the grid widget's own hit-test function (same as slot_center); cell pitch 112.5 units (scaled for a 2160 height)
-int dm_ui_bag_point(int x, int y, int *fx100, int *fy100, int *cols, int *rows) {
-    module_t *m = main_module(); if (!m) return 0; uint64_t root = 0; memcpy(&root, m->base + 0x2f05458, 8);
-    int32_t vw = *(int32_t *)(m->base + 0x211da38), vh = *(int32_t *)(m->base + 0x211da3c); uint64_t pn = root ? ui_panel(root, "PlayerInventoryExpansionLayout") : 0, g = pn ? ui_find(pn, "grid", 0) : 0;
-    if (!g || !*(uint8_t *)(g + 0x50) || vw <= 0 || vh <= 0 || x < 0 || y < 0 || x >= vw || y >= vh) return 0;
-    uint64_t fn = *(uint64_t *)(*(uint64_t *)g + 0x48);
-#define BAG_HIT(px, py) (((int (*)(uint64_t, uint64_t))fn)(g, (uint64_t)(uint32_t)(px) | ((uint64_t)(uint32_t)(py) << 32)) & 1)
-    if (!BAG_HIT(x, y)) return 0;
-    int a, b, x0, x1, y0, y1;
-    for (a = 0, b = x; a < b;) { int mid = (a + b) / 2; if (BAG_HIT(mid, y)) b = mid; else a = mid + 1; } x0 = a;
-    for (a = x, b = vw - 1; a < b;) { int mid = (a + b + 1) / 2; if (BAG_HIT(mid, y)) a = mid; else b = mid - 1; } x1 = a;
-    for (a = 0, b = y; a < b;) { int mid = (a + b) / 2; if (BAG_HIT(x, mid)) b = mid; else a = mid + 1; } y0 = a;
-    for (a = y, b = vh - 1; a < b;) { int mid = (a + b + 1) / 2; if (BAG_HIT(x, mid)) a = mid; else b = mid - 1; } y1 = a;
-#undef BAG_HIT
-    double cell = 112.5 * vh / 2160.0; *cols = (int)lround((x1 - x0 + 1) / cell); *rows = (int)lround((y1 - y0 + 1) / cell);
-    *fx100 = (int)lround((x - x0) * 100.0 / cell); *fy100 = (int)lround((y - y0) * 100.0 / cell); return *cols > 0 && *rows > 0;
-}
 // 佣兵面板里还没解锁的六个新装备格（项链 2、戒指 6 / 7、腰带 8、鞋 9、手套 10；秘境最高通关不到 10 层）：点中 / 拖到就弹一句提示（dm_rift.c，半秒内不重复）。
 // 认命中结果（g_slot_w = 这次命中的物品区控件）、不认界面焦点：空格旁边有物品时光标会吸到那件物品所在的格上（点腰带格，焦点落在身体格——实测）。佣兵格 = 属主 +0x5c8 == 1
 // The six new equipment slots in the mercenary panel that are not yet unlocked (amulet 2, rings 6 / 7, belt 8, boots 9, gloves 10; highest rift level cleared below 10): tapping / dragging onto one pops up a one-line hint (dm_rift.c, not repeated within half a second).
@@ -1196,12 +1140,6 @@ static int ui_drop_kind(module_t *m, uint64_t root, int x, int yl, int yf) {
     char hit[40]; int px = x, py = yl;
     int c = ui_classify(m, root, x, yl, hit, sizeof hit);
     if (c == 9) return 0;   // 模态框开着：落点一律算放回原处 | Modal open: every drop point counts as put back
-    // 编年史页（第六页）开着、松在编年史那块上：放回原处，并记下手上那件——手空了之后由 dm_vault_ui.c 存进编年史仓库（拖进来 = 存入，设计第二节）。
-    // 这个函数拖动中也会反复被问，只记「最后一次问的落点在不在编年史上」，松手前最后一问说了算
-    // With the chronicle page (page six) open and the release on the chronicle block: put back, and record the held item - once the hand is empty dm_vault_ui.c stores it into the chronicle vault (drag in = deposit, design section 2).
-    // This function is also asked repeatedly during the drag, so it only records "whether the drop point of the last query was on the chronicle"; the last query before release decides
-    if (dm_ui_panel_state() & DM_PS_VAULT) { int dm_vault_ui_over(int, int); uint32_t dm_vault_ui_held(void); uint32_t id = dm_vault_ui_held(); int v = id && dm_vault_ui_over(x, yl);
-        atomic_store(&g_vault_drop, v ? (int)id : 0); if (v) return 0; } else atomic_store(&g_vault_drop, 0);
     // 单件任务槽（灌魔 / 打孔 / 个性化 / 古墓底座共用的 ImbueItemsPanel 里那个 ImbueSocketWidget，按控件类认）：
     // 原版里「物品拿在手上」就等于「在槽里」（拿起后槽里直接显示它），不存在「在槽上按确认放下」——那样槽变红、不发包（宿主读数）。
     // 松手落在槽上答 8：前端按原版走法重做（放回原格，再对它按住 Y = 原版的「放进槽」）；之前这里被判成面板外，手上那件直接丢到了面板后面的地上
@@ -1377,7 +1315,6 @@ static void ui_use_pump(void) {   // 主线程 | Main thread
     // Double tap on an empty belt cell in the inventory panel = one-tap refill (used to be long press, changed to double tap); cells holding a potion go through the code below as before
     if (belt_widget(g_slot_w) && !finger_item(&ci, "双击")) { dm_belt_fill(g_slot_w); LOG("界面双击：腰带空格 → 一键补满"); return; }
     if (!dm_cursor_item(&ci)) { LOG("界面双击：光标下没有物品，不动"); return; }
-    if ((dm_ui_panel_state() & DM_PS_VAULT) && ci.container == DM_ITEM_AT_INVENTORY) { void dm_vault_request_deposit(uint32_t); dm_vault_request_deposit(ci.id); LOG("界面双击：编年史页开着，背包的 %s（id %u）→ 存进编年史仓库", ci.code, ci.id); return; }
     if (ci.container == DM_ITEM_AT_SHOP) { dm_shop_buy(); LOG("界面双击：货架上的 %s → 买", ci.code); }
     else if (ci.container == DM_ITEM_AT_EQUIP) { dm_item_unequip(ci.id); LOG("界面双击：身上的 %s（id %u）→ 卸到背包", ci.code, ci.id); }   // 走卸装的直接入口：不等「按住确认键」的 0.6 秒 | Take the direct unequip entry: no waiting for the 0.6 s of "hold the confirm key"
     else if (ci.equippable) { dm_item_equip(ci.id); LOG("界面双击：%s（id %u）能装备 → 装上", ci.code, ci.id); }
@@ -1446,7 +1383,6 @@ static void ui_item_pump(uint64_t root, int width, int height) {
         snprintf(hit, sizeof hit, "拖放落点类 %d", r); atomic_store(&g_iq_res, r); atomic_store(&g_drop_last, r); atomic_store(&g_iq_done, seq);
         if (hit_log_ok(hit)) LOG("界面命中：(%d,%d) → %s", x, y, hit); return; }
     { int dm_pouch_tip_gate(int, int); if (dm_pouch_tip_gate(x, y)) { r = 6; atomic_store(&g_iq_res, r); atomic_store(&g_iq_done, seq); return; } }   // 百宝囊清单开着：点框外只收清单（dm_pouch.c） | Pouch list open: a tap outside the box only dismisses the list (dm_pouch.c)
-    { int dm_vault_ui_tip_gate(int, int); if ((dm_ui_panel_state() & DM_PS_VAULT) && dm_vault_ui_tip_gate(x, y)) { r = 6; atomic_store(&g_iq_res, r); atomic_store(&g_iq_done, seq); return; } }   // 编年史说明框开着：点框外 = 只收框（dm_vault_ui.c），同点模态框外 | Chronicle tooltip open: a tap outside the box = only dismiss the box (dm_vault_ui.c), same as tapping outside a modal
     r = ui_classify(main_module(), root, x, y, hit, sizeof hit);
     if (r == 9) {   // 点模态框外 = 只取消这一层。数量框（提取 / 存入 / 丢金币）按返回就是「取消」；确认框的返回键是「放弃改动」，不替玩家选，只挡住这一下 | A tap outside a modal = cancel only this layer. For quantity boxes (withdraw / deposit / drop gold) pressing back is simply 「取消」(Cancel); for a confirmation box the back key is 「放弃改动」(Discard Changes), so no choice is made for the player and this tap is just blocked
         if (!strcmp(g_modal_name, "DropGoldModal")) { atomic_store(&g_set_back_at, dm_guest_frame() + 2); LOG("界面命中：(%d,%d) → 模态框外，按返回取消 %s", x, y, g_modal_name); }
@@ -1482,11 +1418,11 @@ static void ui_ptr_pump(module_t *m, uint64_t root, int width, int height) {
     if (!atomic_load(&g_up_hold) && !pend && !unhover) return;
     static uint64_t hs[10]; if (!hs[0]) { static const char *nm[10] = { "MouseMove", "", "", "LeftMouseButtonDown", "LeftMouseButtonUp", "RightMouseButtonDown", "RightMouseButtonUp", "MouseScroll", "KeyDown", "KeyUp" }; for (int i = 0; i < 10; i++) hs[i] = ui_hash(nm[i]); }
     uint64_t v = atomic_load(&g_up_xy); int x = (int)(((v >> 16) & 0xffff) / 65535.0 * width), y = (int)((v & 0xffff) / 65535.0 * height); if (x >= width) x = width - 1; if (y >= height) y = height - 1;
-    int dm_vault_ui_blocks(int, int), vb = (dm_ui_panel_state() & DM_PS_VAULT) && dm_vault_ui_blocks(x, y);   // 编年史页上（我们的控件除外）：悬停与按键都不发，见 dm_vault_ui.c | On the chronicle page (except our own widgets): neither hover nor key presses are sent, see dm_vault_ui.c
-    if (!vb) ui_send_mouse(m, root, hs[0], x, y);
+
+    ui_send_mouse(m, root, hs[0], x, y);
     if (!pend) return;
     int k = g_up_q[r % 32].kind, a = g_up_q[r % 32].arg; atomic_store(&g_up_r, r + 1);
-    if (k == DM_UP_END) atomic_store(&g_up_hold, 0); else if (k >= DM_UP_LDOWN && k <= DM_UP_KEYUP && !vb) { ui_send_mouse_arg(m, root, hs[k], x, y, a); LOG("界面指针：事件 %d 参数 %d @(%d,%d)", k, a, x, y); }
+    if (k == DM_UP_END) atomic_store(&g_up_hold, 0); else if (k >= DM_UP_LDOWN && k <= DM_UP_KEYUP) { ui_send_mouse_arg(m, root, hs[k], x, y, a); LOG("界面指针：事件 %d 参数 %d @(%d,%d)", k, a, x, y); }
 }
 // ---------- 界面连续手势：上下拖 = 滚动、按住滑块横拖 = 值跟手 ----------
 // 读码 + 实测（Mac 宿主，选项页）：
@@ -1532,8 +1468,6 @@ static void ui_drag_pump(module_t *m, uint64_t root, int W, int H) {
     if (kind == 2 && s_down) { ui_send_mouse(m, root, h_mv, s_last, s_y); ui_send_mouse(m, root, h_up, s_last, s_y); s_down = 0; return; }   // 上一帧按下的，这一帧抬起 | Pressed on the previous frame, released on this frame
     if (seq != seen) {   // 新的一次拖动 | A new drag
         seen = seq; kind = live; sent = 0; s_ok = 0; s_down = 0; s_last = -100000;
-        { int dm_vault_ui_drag(int, int, int), dm_vault_ui_over(int, int); if ((dm_ui_panel_state() & DM_PS_VAULT) && dm_vault_ui_drag(0, ox, oy)) { kind = 3; return; }   // 编年史格子上起拖 = 往背包取（dm_vault_ui.c） | A drag started on a chronicle cell = take into the inventory (dm_vault_ui.c)
-          if ((dm_ui_panel_state() & DM_PS_VAULT) && dm_vault_ui_over(ox, oy)) { kind = 0; return; } }   // 编年史页上别处起拖：什么都不发（不发滚轮 / 滑块点击给底下的原版魔盒容器，独立页面） | Drag started elsewhere on the chronicle page: send nothing (no wheel / slider clicks to the original game's cube container underneath; independent page)
         if (kind == 2) {
             static uint64_t sl[48]; int n = 0; dg_sliders(root, (uint64_t)m->base + 0x20bad70, 0, sl, &n);
             int tol = (int)(atomic_load(&g_dg_tol) / 65535.0 * H), q = H / 180 > 1 ? H / 180 : 1; uint64_t w = 0; int hy = oy, hx = ox;
@@ -1552,7 +1486,6 @@ static void ui_drag_pump(module_t *m, uint64_t root, int W, int H) {
         } else if (kind == 1) { static int once; if (!once++) LOG("界面拖动：首例纵向拖 → 在起手位置 (%d,%d) 发滚轮，每 %d 像素一格", ox, oy, UI_SCROLL_STEP(H)); }
     }
     if (!kind) return;
-    if (kind == 3) { int dm_vault_ui_drag(int, int, int); if (live) dm_vault_ui_drag(1, cx, cy); else { dm_vault_ui_drag(2, cx, cy); kind = 0; } return; }
     if (kind == 1) {
         if (!live) { kind = 0; return; }   // 松手即停 | Stops as soon as the finger lifts
         int want = (cy - oy) / UI_SCROLL_STEP(H), d = want - sent; if (!d) return;   // 手指往下 = 内容跟着往下 = 滚轮正 | Finger moves down = content follows down = positive wheel
@@ -1925,12 +1858,12 @@ static void ui_lift_pump(uint64_t root, uint64_t fr) {
         int32_t y0 = *(int32_t *)(p + 0x74); mv_offset(MV_LIFT, p, 1, -lift, 0);
         if (*(int32_t *)(p + 0x74) != y0) { static int lg; if (lg++ < 16) LOG("贴顶上提：%s（层 %d）y %d → %d", nm ? nm : "?", layer, y0, *(int32_t *)(p + 0x74)); } }
 }
-// 珍宝匣：宝石 / 材料 / 符文三页的格位合到了宝石页那一页（布局 wide_stash.py trove_slots，底图 gen_trove_art.py），页签条上只留「个人 / 共享 / 珍宝匣 / 编年史」。
-// 原版页签序号不动（2 宝石 = 珍宝匣、3 材料、4 符文、5 编年史；游戏按序号认页，改不得）：材料、符文两个页签的图挪出屏，编年史那个左移两个页签宽，都走位置守卫。
-// 手柄 LB / RB 逐个序号走会落到 3、4（空页）：落上去就照来的方向替玩家再选一次（从珍宝匣一侧来 → 编年史，从编年史来 → 珍宝匣），用原版自己的选页签函数 main+0xad9b80
-// Trove: the slots of the gems / materials / runes pages are merged into the gems page (layout wide_stash.py trove_slots, background gen_trove_art.py), and the tab bar keeps only "Personal / Shared / Trove / Chronicle".
-// The original tab indices are untouched (2 gems = Trove, 3 materials, 4 runes, 5 Chronicle; the game identifies pages by index, so they cannot change): the materials and runes tab images are moved off screen, the Chronicle one shifts left by two tab widths, all through the position guard.
-// Controller LB / RB steps index by index and would land on 3 or 4 (empty pages): when it does, select once more for the player in the direction of travel (from the Trove side → Chronicle, from Chronicle → Trove), using the game's own tab-select function main+0xad9b80
+// 珍宝匣：宝石 / 材料 / 符文三页的格位合到了宝石页那一页（布局 wide_stash.py trove_slots，底图 gen_trove_art.py），页签条上只留「个人 / 共享 / 珍宝匣」。
+// 原版页签序号不动（2 宝石 = 珍宝匣、3 材料、4 符文；游戏按序号认页，改不得）：材料、符文两个页签的图挪出屏，都走位置守卫。
+// 手柄 LB / RB 逐个序号走会落到 3、4（空页）：落上去就替玩家改选珍宝匣，用原版自己的选页签函数 main+0xad9b80
+// Trove: the slots of the gems / materials / runes pages are merged into the gems page (layout wide_stash.py trove_slots, background gen_trove_art.py), and the tab bar keeps only "Personal / Shared / Trove".
+// The original tab indices are untouched (2 gems = Trove, 3 materials, 4 runes; the game identifies pages by index, so they cannot change): the materials and runes tab images are moved off screen, all through the position guard.
+// Controller LB / RB steps index by index and would land on 3 or 4 (empty pages): when it does, select the Trove for the player, using the game's own tab-select function main+0xad9b80
 static void ui_trove_tabs_pump(module_t *m, uint64_t root, uint64_t fr) {
     static uint64_t next; if (fr < next) return; next = fr + 2;
     uint64_t bk = ui_panel(root, "BankExpansionLayout"), tabs = bk && *(uint8_t *)(bk + 0x50) ? ui_find(bk, "BankTabs", 0) : 0;
@@ -1945,17 +1878,16 @@ static void ui_trove_tabs_pump(module_t *m, uint64_t root, uint64_t fr) {
         if (!strcmp(cn, "Image0")) { x0 = *(int32_t *)(c + 0x70); have |= 1; } if (!strcmp(cn, "Image1")) { x1 = *(int32_t *)(c + 0x70); have |= 2; } }
     { static int lg; if (!lg++) { char b[700]; int k = 0; for (uint64_t i = 0; ch && i < n && i < 64 && k < 640; i++) { uint64_t c = *(uint64_t *)(ch + 8 * i); const char *cn = c ? (const char *)*(uint64_t *)(c + 8) : NULL; if (cn) k += snprintf(b + k, sizeof b - k, " %s(%d,%d)", cn, *(int32_t *)(c + 0x70), *(int32_t *)(c + 0x74)); }
           LOG("珍宝匣页签：页签条子控件 %llu 个：%s", (unsigned long long)n, b); } }
-    if (have != 3 || x1 <= x0) return; int tw = x1 - x0;
+    if (have != 3 || x1 <= x0) return;
     for (uint64_t i = 0; ch && i < n && i < 64; i++) { uint64_t c = *(uint64_t *)(ch + 8 * i); const char *cn = c ? (const char *)*(uint64_t *)(c + 8) : NULL; if (!cn) continue;
         size_t l = strlen(cn); if (!l || cn[l - 1] < '0' || cn[l - 1] > '9' || (l > 1 && cn[l - 2] >= '0' && cn[l - 2] <= '9')) continue; int k = cn[l - 1] - '0';
-        if (k == 3 || k == 4) mv_offset(MV_TROVE, c, 1, 6000, 0); else if (k == 5) mv_offset(MV_TROVE, c, 0, -2 * tw, 0); }
-    static int last = -1; int sel = TAB_SEL(tabs);
-    // 翻页箭头（我们插回的 TouchStashLeft / Right）只有个人页、共享页用得着：珍宝匣和编年史页上挪出屏（原先一直画着，落在珍宝匣底带的石面上）
-    // The paging arrows (TouchStashLeft / Right, which we put back) are only needed on the personal and shared tabs: on the Trove and Chronicle tabs they are moved off screen (they used to be drawn always, landing on the stone face of the Trove bottom band)
+        if (k == 3 || k == 4) mv_offset(MV_TROVE, c, 1, 6000, 0); }
+    int sel = TAB_SEL(tabs);
+    // 翻页箭头（我们插回的 TouchStashLeft / Right）只有个人页、共享页用得着：珍宝匣页上挪出屏（原先一直画着，落在珍宝匣底带的石面上）
+    // The paging arrows (TouchStashLeft / Right, which we put back) are only needed on the personal and shared tabs: on the Trove tab they are moved off screen (they used to be drawn always, landing on the stone face of the Trove bottom band)
     for (int k = 0; k < 2; k++) { uint64_t t = ui_find(bk, k ? "TouchStashRight" : "TouchStashLeft", 0); static int32_t ox[2] = { INT32_MIN, INT32_MIN }; if (!t) continue;
         int32_t x = *(int32_t *)(t + 0x70); if (x < 50000) ox[k] = x; if (ox[k] != INT32_MIN) ui_move_ours(t, sel >= 2 ? 99999 : ox[k]); }
-    if (sel == 3 || sel == 4) { int to = last >= 5 ? 2 : 5; ((void (*)(uint64_t, int, int))(m->base + 0xad9b80))(tabs, to, 0); LOG("珍宝匣页签：落在第 %d 个（空页，上一个是第 %d 个）→ 改选第 %d 个，现为 %d", sel, last, to, TAB_SEL(tabs)); last = TAB_SEL(tabs); }
-    else last = sel;
+    if (sel == 3 || sel == 4) { ((void (*)(uint64_t, int, int))(m->base + 0xad9b80))(tabs, 2, 0); LOG("珍宝匣页签：落在第 %d 个（空页）→ 改选第 2 个（珍宝匣），现为 %d", sel, TAB_SEL(tabs)); }
 }
 // NPC 对话菜单（交谈 / 交易…，NpcDialogPanel）跟着 NPC 摆：位置是经典坐标（800×600 基准，面板 +0x220 / +0x224，y 再减 +0x228），游戏每帧由 main+0x3dab64 经 main+0x45b260
 // 按「屏幕宽高」全局量换成界面像素、夹在屏幕内，写进面板矩形（所以直接改面板矩形留不住，试过）。真全屏下全局量的高是 16:9 的界面高 h，3D 却按真实高 H 画，
@@ -2024,51 +1956,11 @@ static void ui_mercpg_pump(module_t *m, uint64_t root, uint64_t fr) {
     if (tries) { uint64_t dt = fr - pressed; int moved = dm && cur >= 0 && cur != page; if (!((moved && dt >= 7) || dt >= 24)) return; }
     page = cur; pressed = fr; dm_ui_key_pulse(dm ? DM_BTN_R : DM_BTN_PLUS, 4); tries++;
 }
-// 个人仓库页码（个人仓库 2–5 页，dm_pages.c）：写在自己的文字控件 TouchPgPage_Text 里（布局 wide_stash.py），文字照原版共享页页码的写法：
-// 原版写共享页页码（0x3963e4 内 0x397098–0x39714c）= 格式串 0x7f5630({"SharedStashPage", 15}) → 0x399130(缓冲, 格式, 第几页, 共几页) → 0x136e5c(文字控件 +0x88, 缓冲, 长) → 0xadc434(文字控件) 重排；
-// 原先借原版共享页那块（SharedStashTabContainer）并强制它可见、改它的字——违反「我们的功能不改原版控件状态」，已改
-// Personal stash page number (personal stash pages 2–5, dm_pages.c): written in our own text widget TouchPgPage_Text (layout wide_stash.py); the text is written the way the original game writes the shared-page page number:
-// the original game writes the shared-page page number (0x397098–0x39714c inside 0x3963e4) = format string 0x7f5630({"SharedStashPage", 15}) → 0x399130(buffer, format, page index, page count) → 0x136e5c(text widget +0x88, buffer, length) → 0xadc434(text widget) re-layout;
-// it used to borrow the original game's shared-page block (SharedStashTabContainer), force it visible and change its text - a violation of "our features do not change the state of the original game's widgets"; changed
-static void pages_text(uint8_t *b, uint64_t tb, int page, int total) {
-    struct { const char *s; uint64_t n; } key = { "SharedStashPage", 15 }; uint64_t fmt = ((uint64_t (*)(void *))(b + 0x7f5630))(&key);
-    char buf[256]; memset(buf, 0, sizeof buf); ((void (*)(void *, uint64_t, int64_t, int64_t))(b + 0x399130))(buf, fmt, page, total);
-    ((void (*)(uint64_t, const char *, uint64_t))(b + 0x136e5c))(tb + 0x88, buf, buf[0] ? strlen(buf) : 0); ((void (*)(uint64_t))(b + 0xadc434))(tb);
-}
-static int g_bank_tab_keep = -1; static uint64_t g_bank_tab_until;   // 切换前储藏箱停在哪个页签（-1 = 没记）；过了这一帧就不再恢复 | Which tab the stash was on before the switch (-1 = not recorded); no restore once past this frame
-static int ui_touch_or_pad_ready(void) { int dm_padmode_busy(void); return !dm_padmode_busy(); }
-static void ui_pages_pump(module_t *m, uint64_t root) {   // 个人页上把自己的页码控件 TouchPgPage 挪进来写「第 n/5 页」，别的页签挪回屏外；原版共享页那块页码一律不碰（独立页面原则） | On the personal page, move our own page-number widget TouchPgPage in and write 「第 n/5 页」(Page n/5); on other tabs move it back off screen; the original game's shared-page page number is never touched (independent-page principle)
-    static int lt = -1, lp = -1; uint64_t bk = ui_panel(root, "BankExpansionLayout");
-    if (!bk || !*(uint8_t *)(bk + 0x50)) { lt = lp = -1; return; }
-    uint64_t tabs = ui_find(bk, "BankTabs", 0), pg = ui_find(bk, "TouchPgPage", 0), tb = pg ? ui_find(pg, "TouchPgPage_Text", 0) : 0;
-    // 手柄 / 触屏切换时储藏箱开着：界面重建后原版只把页签恢复到它自己记的那几页，停在第六页「编年史」的会跳回个人页。切换前记下页签（dm_ui_cache_mode_leave），
-    // 重建完成后不一样就用原版自己的选页签函数选回去（不出声）。120 帧内储藏箱没再出现就作废
-    // Stash open during a controller / touch switch: after the UI rebuild the original game restores the tab only to the pages it remembers itself, so one sitting on the sixth page 「编年史」(Chronicle) jumps back to the personal page. The tab is recorded before the switch (dm_ui_cache_mode_leave),
-    // and after the rebuild completes, if it differs, it is selected again with the original game's own tab selection function (silently). Voided if the stash has not reappeared within 120 frames
-    if (g_bank_tab_keep >= 0 && tabs && ui_touch_or_pad_ready()) { int keep = g_bank_tab_keep; g_bank_tab_keep = -1;
-        int was = TAB_SEL(tabs); if (dm_guest_frame() <= g_bank_tab_until && was != keep) { ((void (*)(uint64_t, int, int))(m->base + 0xad9b80))(tabs, keep, 0); LOG("储藏箱：切换布局后页签从第 %d 个选回第 %d 个（现为 %d）", was, keep, TAB_SEL(tabs)); } }
-    if (!tabs || !pg || !tb) return;
-    int tab = TAB_SEL(tabs), cur; int dm_pages_cur(void), dm_pages_count(void); cur = dm_pages_cur(); uint8_t *b = (uint8_t *)m->base;
-    ui_move_ours(pg, tab == 0 ? 0 : 99999);   // 矩形 +0x70，改完虚表 +0x10 重排 | Rect +0x70; after changing, vtable +0x10 re-layout
-    if (tab == 0 && (lt != 0 || lp != cur)) { pages_text(b, tb, cur + 1, dm_pages_count()); lp = cur; LOG("个人仓库：页码写成第 %d/%d 页", cur + 1, dm_pages_count()); }
-    if (tab != 0) lp = -1;
-    lt = tab;
-    // 手柄模式：翻个人仓库页原先只有触屏的左右箭头（TouchStashLeft / Right，手柄版布局里没有），第 2–5 页的东西手柄玩家够不着。
-    // 个人页上接管 L / R = 上一页 / 下一页（同编年史仓库页 dm_vault_ui.c 的键位与提示条写法；ZL / ZR 仍是原版的换页签）
-    // Controller mode: paging through the personal stash pages used to be possible only with the touch left / right arrows
-    // (TouchStashLeft / Right, absent from the controller layout), so controller players could not reach what is on pages 2 to 5.
-    // On the personal page take over L / R = previous page / next page (same key mapping and button legend approach as the Chronicle vault page
-    // in dm_vault_ui.c; ZL / ZR remain the original tab switching)
-    { int dm_padmode_current(void); void dm_padmode_legend(int, const char *), dm_pages_request_flip(int); uint64_t dm_padmode_page_keys(uint64_t);
-      if (tab == 0 && dm_padmode_current()) { uint64_t ev = dm_padmode_page_keys(DM_BTN_L | DM_BTN_R);
-          dm_padmode_legend(19, dm_str(b, "dmPadLegPrev")); dm_padmode_legend(20, dm_str(b, "dmPadLegNext"));
-          if (ev & DM_BTN_L) { dm_pages_request_flip(-1); LOG("个人仓库：手柄 L → 上一页"); } else if (ev & DM_BTN_R) { dm_pages_request_flip(1); LOG("个人仓库：手柄 R → 下一页"); } } }
-}
-// 储藏箱加宽（编年史仓库第 1 步）：储藏箱 10 → 14 列，面板宽 392 单位。外框 ControllerOverlay 的 Background 是 14 个面板共用的一张图，
+// 储藏箱加宽：储藏箱 10 → 14 列，面板宽 392 单位。外框 ControllerOverlay 的 Background 是 14 个面板共用的一张图，
 // 所以宽框是布局里另加的 WideBackground（比原框宽 392，排在 Background 之后）。游戏不认布局里的 visible，宽框平时放在屏幕外（x 99999）。
 // 储藏箱开着时：宽框挪到 -196（左右各出 196，整体仍居中）、旧框不画，储藏箱面板左移 196 并加宽 392，物品栏面板右移 196，标题两个字与光标边界跟着改；关掉还原。
 // 矩形 +0x70 x、+0x78 宽，改完调虚表 +0x10 重排（同安全区挪头像那处）。值不是我们上次写的 = 面板重建或游戏重排过，现值当原值
-// Stash widening (chronicle vault step 1): stash 10 → 14 columns, panel 392 units wider. The outer frame ControllerOverlay's Background is a single image shared by 14 panels,
+// Stash widening: stash 10 → 14 columns, panel 392 units wider. The outer frame ControllerOverlay's Background is a single image shared by 14 panels,
 // so the wide frame is a WideBackground added separately in the layout (392 wider than the original frame, placed after Background). The game ignores visible in the layout, so the wide frame normally sits off screen (x 99999).
 // While the stash is open: the wide frame moves to -196 (196 out on each side, still centered overall), the old frame is not drawn, the stash panel moves left 196 and widens by 392, the inventory panel moves right 196, and the two title texts and the cursor bounds follow; closing restores it.
 // Rect +0x70 x, +0x78 width; after changing, call vtable +0x10 to re-layout (same as the safe-area portrait move). A value that is not what we last wrote = the panel was rebuilt or the game re-laid it out, so the current value is taken as the original
@@ -2359,7 +2251,6 @@ static void ui_panel_state_pump(uint64_t root) {   // 游戏主线程，每帧 |
     void uimsg_emit(const char *, const char *, const char *);
     int st = (root_panel_shown(root, "BankExpansionLayout") ? DM_PS_BANK : 0) | (dm_shop_open() ? DM_PS_VENDOR : 0)   // 商人页：游戏自己的商店状态（dm_actions.c 每帧读） | vendor page: the game's own shop state (read every frame by dm_actions.c)
            | (root_panel_shown(root, "YouDiedModal") ? DM_PS_DEAD : 0) | (root_panel_shown(root, "ImbueItemsPanel") ? DM_PS_IMBUE : 0) | (root_panel_shown(root, "HoradricCubeLayout") ? DM_PS_CUBE : 0);
-    if (st & DM_PS_BANK) { uint64_t bk = ui_panel(root, "BankExpansionLayout"), tabs = bk ? ui_find(bk, "BankTabs", 0) : 0; if (tabs && TAB_SEL(tabs) == 5) st |= DM_PS_VAULT; }   // 第六页「编年史」：双击存入走 ui_use_pump，不发原版「按住 Y」（那一页游戏当魔盒页，会送进魔盒） | the sixth page 「编年史」(Chronicle): double-tap deposit goes through ui_use_pump and does not send the original 「按住 Y」(Hold Y) (the game treats that page as the cube page and would send the item into the cube)
     // 模式切换完成时死亡弹窗开着：这个弹窗不随界面重建换布局（开的时候按哪种模式建的就一直是哪份——手柄版有「按 ＋ 继续」那行，触屏版没有），
     // 让原版面板管理器关掉再开一次，按当前模式的布局重建。只走 PanelManager 的开关，不发「继续」（那才是复活）
     // The death popup is open when a mode switch completes: this popup does not change layout with the UI rebuild (it stays whichever copy it was built as when opened -- the controller version has the 「按 ＋ 继续」(Press + to continue) line, the touch version does not),
@@ -2408,13 +2299,13 @@ static void ui_panel_state_pump(uint64_t root) {   // 游戏主线程，每帧 |
 //     手柄模式与切换事务进行中不跑；在途的请求由切换清理作废（dm_ui_cache_mode_leave）。
 //   两种模式都跑：ui_target_pump（鉴定目标，含手柄按住 A）、ui_item_pump（命中查询，宿主自己也问）、ui_ptr_pump（指针事件，宿主合成的点击也走）、
 //     ui_safe_pump / ui_lift_pump / ui_trove_tabs_pump / ui_minimap_pump / ui_map_pump / ui_map_geom_pump / ui_map_center（屏幕几何，与输入方式无关）、ui_boss_pct_pump、ui_npcdlg_pump、
-//     ui_widestash_pump、mv_audit_pump、ui_pages_pump（含手柄 L / R 翻页）、ui_watch_pump、ui_panel_heal、ui_panel_state_pump、rs_pump（一键重开，在前端泵里调）
+//     ui_widestash_pump、mv_audit_pump、ui_watch_pump、ui_panel_heal、ui_panel_state_pump、rs_pump（一键重开，在前端泵里调）
 // Per-frame pumps fall into two classes by mode (the long line in dm_ui_mouse_pump below; tests/mode_scan.py checks that every pump on that line either has if (tm) or is on this "runs in both modes" list; a new pump in neither fails).
 //   Touch only (with if (tm)): requests all come from touch gestures: tap world / mercenary portrait, long-press pickup, double-tap use, tap-to-buy, drag and drop, tap skill binding, off-hand set tab, open mercenary page.
 //     Not run in controller mode or while a mode switch is in progress; in-flight requests are voided by the switch cleanup (dm_ui_cache_mode_leave).
 //   Both modes: ui_target_pump (identify target, including controller hold A), ui_item_pump (hit query, the host asks too), ui_ptr_pump (pointer events, host-synthesized clicks go through it too),
 //     ui_safe_pump / ui_lift_pump / ui_trove_tabs_pump / ui_minimap_pump / ui_map_pump / ui_map_geom_pump / ui_map_center (screen geometry, independent of input method), ui_boss_pct_pump, ui_npcdlg_pump,
-//     ui_widestash_pump, mv_audit_pump, ui_pages_pump (including controller L / R paging), ui_watch_pump, ui_panel_heal, ui_panel_state_pump, rs_pump (Quick Restart, called from the front-end pump)
+//     ui_widestash_pump, mv_audit_pump, ui_watch_pump, ui_panel_heal, ui_panel_state_pump, rs_pump (Quick Restart, called from the front-end pump)
 static int ui_touch_mode(void) { int dm_padmode_current(void), dm_padmode_busy(void); return !dm_padmode_current() && !dm_padmode_busy(); }
 void dm_ui_mouse_pump(void) {   // 游戏取手柄处调（hle_hid fill，主线程）；每个出图帧做一次 | called where the game fetches the controller (hle_hid fill, main thread); done once per presented frame
     static uint64_t last_frame = UINT64_MAX; uint64_t fr = dm_guest_frame();
@@ -2457,7 +2348,7 @@ void dm_ui_mouse_pump(void) {   // 游戏取手柄处调（hle_hid fill，主线
                 else fix = 0; }
             if (th) { ui_auto_key(th); tnext = fr + 8; } } } }
     { module_t *pm = main_module(); uint64_t proot = 0; if (pm) { memcpy(&proot, pm->base + 0x2f05458, 8); int32_t pw = *(int32_t *)(pm->base + 0x211da38), phh = *(int32_t *)(pm->base + 0x211da3c);
-        static uint64_t pf = UINT64_MAX; if (proot && pw > 0 && phh > 0 && pf != fr) { pf = fr; { static int dd; const char *dn; if (!dd && (dn = getenv("DM_UI_DUMP")) && atomic_load(&g_taps_base) && fr >= atomic_load(&g_taps_base) + (getenv("DM_UI_DUMP_AT") ? atoi(getenv("DM_UI_DUMP_AT")) : 45)) { dd = 1; ui_dump(proot, 0, dn, 0, pm); } } int tm = ui_touch_mode(); if (tm) ui_wtap_pump(pm, proot, pw, phh); if (tm) ui_long_pump(); ui_target_pump(pm, fr); if (tm) ui_use_pump(); if (tm) ui_buy_pump(pw, phh); ui_item_pump(proot, pw, phh); ui_ptr_pump(pm, proot, pw, phh); if (tm) ui_drag_pump(pm, proot, pw, phh); { int lu = atomic_load(&g_load_up); dm_uiscreen_set_ingame(ui_panel(proot, "HUDPanel") && !(lu < 0 ? ui_find(proot, "LoadScreenPanel", 0) != 0 : lu)); } ui_safe_pump(pm, proot, fr); ui_lift_pump(proot, fr); ui_trove_tabs_pump(pm, proot, fr); ui_minimap_pump(pm, proot, pw, phh, fr); ui_map_pump(pm); ui_map_geom_pump(pm, proot); ui_boss_pct_pump(pm, proot); ui_npcdlg_pump(proot); ui_map_center(pm, proot, *(volatile int32_t *)(pm->base + 0x2d5c748)); if (tm) ui_bind_pump(proot, fr); if (tm) swaptab_pump(proot); if (tm) ui_mercpg_pump(pm, proot, fr); ui_widestash_pump(proot); mv_audit_pump(proot, fr); ui_pages_pump(pm, proot); } } }
+        static uint64_t pf = UINT64_MAX; if (proot && pw > 0 && phh > 0 && pf != fr) { pf = fr; { static int dd; const char *dn; if (!dd && (dn = getenv("DM_UI_DUMP")) && atomic_load(&g_taps_base) && fr >= atomic_load(&g_taps_base) + (getenv("DM_UI_DUMP_AT") ? atoi(getenv("DM_UI_DUMP_AT")) : 45)) { dd = 1; ui_dump(proot, 0, dn, 0, pm); } } int tm = ui_touch_mode(); if (tm) ui_wtap_pump(pm, proot, pw, phh); if (tm) ui_long_pump(); ui_target_pump(pm, fr); if (tm) ui_use_pump(); if (tm) ui_buy_pump(pw, phh); ui_item_pump(proot, pw, phh); ui_ptr_pump(pm, proot, pw, phh); if (tm) ui_drag_pump(pm, proot, pw, phh); { int lu = atomic_load(&g_load_up); dm_uiscreen_set_ingame(ui_panel(proot, "HUDPanel") && !(lu < 0 ? ui_find(proot, "LoadScreenPanel", 0) != 0 : lu)); } ui_safe_pump(pm, proot, fr); ui_lift_pump(proot, fr); ui_trove_tabs_pump(pm, proot, fr); ui_minimap_pump(pm, proot, pw, phh, fr); ui_map_pump(pm); ui_map_geom_pump(pm, proot); ui_boss_pct_pump(pm, proot); ui_npcdlg_pump(proot); ui_map_center(pm, proot, *(volatile int32_t *)(pm->base + 0x2d5c748)); if (tm) ui_bind_pump(proot, fr); if (tm) swaptab_pump(proot); if (tm) ui_mercpg_pump(pm, proot, fr); ui_widestash_pump(proot); mv_audit_pump(proot, fr); } } }
     if (atomic_load(&g_fe_name_open) && atomic_load(&g_ut_phase) == 2) {   // 起名页：点输入框（底板 / 文本框）= 重新弹系统键盘，不发鼠标点击 | naming page: tapping the input box (backplate / text box) = pop up the system keyboard again, no mouse click is sent
         module_t *nm = main_module(); uint64_t nroot = 0; if (nm) memcpy(&nroot, nm->base + 0x2f05458, 8); uint64_t pn = nroot ? ui_find(nroot, "CharacterCreateNamePanel", 0) : 0;
         if (pn && nm) { int32_t w = *(int32_t *)(nm->base + 0x211da38), h = *(int32_t *)(nm->base + 0x211da3c); uint64_t v = atomic_load(&g_ut_xy);
@@ -2482,13 +2373,12 @@ void dm_ui_mouse_pump(void) {   // 游戏取手柄处调（hle_hid fill，主线
     int x = (int)(((r >> 16) & 0xffff) / 65535.0 * width), y = (int)((r & 0xffff) / 65535.0 * height); if (x >= width) x = width - 1; if (y >= height) y = height - 1;
     static uint64_t h_mv, h_dn, h_up; if (!h_mv) { h_mv = ui_hash("MouseMove"); h_dn = ui_hash("LeftMouseButtonDown"); h_up = ui_hash("LeftMouseButtonUp"); }
     static int logged;
-    { int dm_vault_ui_blocks(int, int); if (!((dm_ui_panel_state() & DM_PS_VAULT) && dm_vault_ui_blocks(x, y))) ui_send_mouse(m, root, h_mv, x, y); }   // 编年史页上不悬停（会冒出底下魔盒钮的原版说明，dm_vault_ui.c） | no hover on the chronicle page (it would bring up the original description of the cube button underneath, dm_vault_ui.c)
+    ui_send_mouse(m, root, h_mv, x, y);
     // 按下之前至少先悬停 2 帧：游戏下一帧才算出「光标在哪个控件上」，同一帧 Move + Down 会被当成点在空白处
     // （Mac 的 iOS 包：暂停菜单点「选项」→ 整个面板被关。之前没暴露是因为手柄光标先走到了那里）
     // Hover for at least 2 frames before pressing: the game only works out "which widget the cursor is on" on the next frame, and Move + Down in the same frame is treated as a click on empty space
     // (iOS app on the Mac: tapping 「选项」(Options) in the pause menu → the whole panel got closed. It was not exposed before because the controller cursor had gone there first)
     static uint64_t snapped;   // 这次点按已吸附过的位置（吸附后 g_ut_xy 改成可点控件上的点，再悬停、按下） | the position this tap has already been snapped at (after snapping, g_ut_xy is changed to a point on the clickable widget, then hover, then press)
-    if (ph == 2 && r != snapped && (dm_ui_panel_state() & DM_PS_VAULT) && ({ int dm_vault_ui_blocks(int, int); dm_vault_ui_blocks(x, y); })) snapped = r;   // 编年史页自己收的点（格子、部位页签、空处）不吸附：原先点部位页签被吸到旁边的搜索框上 | taps the chronicle page handles itself (cells, slot tabs, empty space) are not snapped: previously a tap on a slot tab got snapped onto the search box next to it
     if (ph == 2 && r != snapped) { int sx = x, sy = y, sn = ui_snap(m, root, &sx, &sy);
         if (sn == 6) { atomic_store(&g_ut_phase, 0); static int l6; if (l6++ < 40) LOG("界面鼠标：(%d,%d) 压着被上层面板盖住的按钮，不点", x, y); return; }
         if (sn == 2) { static int lg; if (lg++ < 40) LOG("界面鼠标：(%d,%d) 就近吸附到 (%d,%d)", x, y, sx, sy);
@@ -2505,7 +2395,6 @@ void dm_ui_mouse_pump(void) {   // 游戏取手柄处调（hle_hid fill，主线
         if (pn && hit >= 0 && ws[hit] && *(int32_t *)(ws[hit] + 0x13f4) == 3) ((void (*)(uint64_t, int))(m->base + 0xc2cf24))(ws[hit], 0);   // 被点的这位还在归队途中：先回到待机，游戏才收这次点击 | the one tapped is still on its way back to the lineup: return it to idle first, and only then does the game accept this click
     }
     if (ph == 2 && ui_bind_modal_tap(root, x, y)) { int e = 2; atomic_compare_exchange_strong(&g_ut_phase, &e, 0); return; }
-    if (ph == 2 && (dm_ui_panel_state() & DM_PS_VAULT)) { int dm_vault_ui_tap(int, int); if (dm_vault_ui_tap(x, y)) { int e = 2; atomic_compare_exchange_strong(&g_ut_phase, &e, 0); return; } }   // 编年史页的格子：单击说明 / 双击取出（dm_vault_ui.c），不发鼠标 | cells on the chronicle page: single tap for description / double-tap to take out (dm_vault_ui.c), no mouse event is sent
     if (ph == 2) {   // 合成钮（魔盒页 / 储藏箱魔盒格的 convert）：手上有物品时原版服务端直接丢掉这次合成（0x6e8740），先收进背包再按（兜底，守门之外再保一道） | transmute button (convert on the cube page / the stash cube cell): with an item in hand the original server simply drops this transmute (0x6e8740), so stow it into the inventory first and then press (a fallback, one more safeguard beyond the gatekeeping)
         int px = x, py = y; static uint64_t st0; dm_hud_info hh; dm_hud_get(&hh);
         if (hh.valid && hh.holding && ui_snap(m, root, &px, &py) && !strcmp(g_click_name, "convert")) {
@@ -2908,8 +2797,6 @@ void dm_ui_auto_mode_leave(void) {
 // Widget addresses and the move table remembered by this UI touch layer: moved original widgets are first written back to their original values (after a rebuild some panels are kept as they were), then the remembered addresses are cleared (after a rebuild the old addresses are dangling, and when a new widget happens to be allocated at an old address the two cannot be told apart)
 void dm_ui_cache_mode_leave(void) {
     module_t *m = main_module(); uint64_t root = 0; if (m) memcpy(&root, m->base + 0x2f05458, 8);
-    { uint64_t bk = root ? ui_panel(root, "BankExpansionLayout") : 0, tabs = bk && *(uint8_t *)(bk + 0x50) ? ui_find(bk, "BankTabs", 0) : 0;   // 储藏箱开着：记下页签，重建后选回去（ui_pages_pump） | Stash is open: remember the tab and select it again after the rebuild (ui_pages_pump)
-      g_bank_tab_keep = tabs ? TAB_SEL(tabs) : -1; g_bank_tab_until = dm_guest_frame() + 120; }
     for (int o = 0; o < MV_N; o++) mv_restore(root, o);
     g_nmv = 0; g_down_w = g_slot_w = g_bd_hit_w = g_click_w = 0; atomic_store(&g_tab_w, 0); atomic_store(&g_ut_phase, 0);
     // 在途的触摸请求（触屏专属的泵切到手柄后不再跑，留着会在切回触屏时突然落地）和保持中的悬停 / 没发完的指针事件

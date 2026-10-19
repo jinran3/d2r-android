@@ -8,17 +8,7 @@ dmUpdFailSite	检查更新失败 · 可在浏览器打开 %s 手动更新	Update
 dmUpdNewUrgent	新版本 %d · %s	New version %d · %s	建议立即更新档的说明行
 dmUpdUrgentTitle	建议立即更新	Update Recommended	建议立即更新档的红字标题
 dmUpdButton	更新	Update	选角页两个「更新」按钮（touch_layout.py）
-dmVaultStored	存着	Stored	编年史格子下的状态（dm_vault_ui.c）
-dmVaultSeen	收录过 · 没存	Not stored	编年史格子状态 / 说明框顶行
-dmVaultNone	还没遇到过	Not found	编年史格子状态 / 说明框顶行
-dmVaultStoredTip	存着 · 双击取出	Stored · Double-tap to withdraw	编年史说明框顶行；英文用原版词 ui[AdvancedStashWithdraw]「Withdraw」
-dmVaultStats	%d 件 · 已存 %d · 收录过 %d	%d · %d stored · %d seen	编年史暗金页统计行
-dmVaultSetStats	套装　%d 套 · 已存 %d / %d 件	Sets: %d · %d / %d pieces stored	编年史套装页统计行
-dmVaultSetFull	已存 %d / %d　已存齐	%d / %d stored · complete	编年史套装行计数（存齐）
-dmVaultSetHave	已存 %d / %d	%d / %d stored	编年史套装行计数
-dmVaultSearch	搜索「%s」：%d 件（暗金 %d · 套装 %d）	"%s": %d items (%d unique · %d set)	编年史搜索结果统计行
 dmStoreHead	存放：	Deposited: 	「存放」按钮完成后的系统提示开头（dm_pouch.c）；英文用原版词 ui[strGoldDeposit]「Deposit」
-dmStoreVault	编年史 %d 件	Chronicle %d	存放提示：进了编年史几件
 dmStoreStash	%s储藏箱 %d 件	%sStash %d	存放提示：进了储藏箱几件（%s = 分隔符）
 dmStorePouch	%s百宝囊 %d 件	%sPouch %d	存放提示：进了百宝囊几件（%s = 分隔符）
 dmStoreSep	，	, 	存放提示里的分隔符
@@ -81,18 +71,6 @@ dmCustomLangEnOpt	English	English	语言行的选项二
 dmCustomLangHintZh	点「应用」，然后把 App 关掉重开	点「应用」，然后把 App 关掉重开	语言行选了「中文」而当前不是中文界面时显示在这一行下半（提示用选中的那种语言写；两种界面同文，全球字体）
 dmCustomLangHintEn	Tap Apply, then close and reopen the app	Tap Apply, then close and reopen the app	语言行选了 English 而当前不是英文界面时显示
 dmTabGameSettings	游戏设定	Settings	触屏设置页第三个子页签（原版英文 Game Settings 放不进页签；中文取原版串原文）
-dmVaultPart0	头盔	Helms	编年史暗金页部位页签（wide_stash.py）
-dmVaultPart1	盔甲	Armor	编年史暗金页部位页签（wide_stash.py）
-dmVaultPart2	盾牌与手套	Shields\n& Gloves	编年史暗金页部位页签（wide_stash.py）
-dmVaultPart3	鞋子与腰带	Boots\n& Belts	编年史暗金页部位页签（wide_stash.py）
-dmVaultPart4	首饰	Jewelry	编年史暗金页部位页签（wide_stash.py）
-dmVaultPart5	剑与匕首	Swords\n& Daggers	编年史暗金页部位页签（wide_stash.py）
-dmVaultPart6	斧与爪	Axes\n& Claws	编年史暗金页部位页签（wide_stash.py）
-dmVaultPart7	锤与棍	Maces\n& Clubs	编年史暗金页部位页签（wide_stash.py）
-dmVaultPart8	长柄与矛	Polearms\n& Spears	编年史暗金页部位页签（wide_stash.py）
-dmVaultPart9	弓弩	Bows &\nCrossbows	编年史暗金页部位页签（wide_stash.py）
-dmVaultPart10	法杖与法器	Staves\n& Casters	编年史暗金页部位页签（wide_stash.py）
-dmVaultSearchHint	搜索名字	Search name	编年史搜索框提示字
 dmRvBytes	%lld 字节	%lld bytes	资源清单里的大小（romfs_validate.c，资源下载页显示）
 dmRvItem	%s%s（%s）	%s%s (%s)	资源清单：缺的文件（名字、应有大小）
 dmRvSep	、	, 	资源清单分隔符
@@ -179,10 +157,6 @@ dmDlBad3	%@ 下了 3 次校验都不过	%@ failed verification 3 times	资源下
 dmDlNetRetry	网络中断，%d 秒后自动重试	Network lost. Retrying in %d s	资源下载进度第三行
 dmDlReconnect	连接不稳，已重新连接（第 %d 次）	Unstable connection. Reconnected (attempt %d)	资源下载进度第三行：这一片掉速后换了新连接（asset_dl.m）
 dmShareLogFile	D2R Mobile Diagnostics_%@_%@.txt	D2RMobile_diagnostics_%@_%@.txt	分享诊断日志时系统分享面板上的文件名（dm_sharelog.m；文件内容给我们看，搜行用的中文键不翻）
-dmVaultTierN	普通	Norm	编年史档次勾选（wide_stash.py；中文同原版 NormalQuality）
-dmVaultTierX	优异	Exc	编年史档次勾选（中文同原版 ExceptionalQuality）
-dmVaultTierE	精英	Elite	编年史档次勾选（中文同原版 EliteQuality）
-dmStashVaultTab	编年史	Vault	储藏箱第六页签（中文同原版 Chronicle；英文原词放不下、压到前一个页签）
 dmTroveTab	珍宝匣	Trove	储藏箱第三个页签：宝石 / 符文 / 材料三页合成的一页（wide_stash.py；材料、符文两个页签挪出屏）
 dmRiftSayPrefix	秘境  %s	Rift  %s	秘境系统提示的前缀（dm_rift.c say）
 dmRiftSayFirst	第 %d 层首通奖励已掉在脚下	Level %d first clear reward	秘境系统提示（dm_rift.c）；英文：「首通」暗黑 3 无对应原文，拟
@@ -289,9 +263,6 @@ dmRiftMsN	每档另得 符文 · 赦免之证 · 打孔	+Rune, Token, Socket	大
 dmRiftPanelTitle	大秘境	Greater Rift	大秘境面板（touch_layout.py _rift_panel）
 dmPadLegDiff	难度	Difficulty	积分牌手柄提示条 X（dm_kills.c）；英文 = 原版 ui[automapdif]「Difficulty: %s」里的词
 dmPadLegSort	排序	Sort	积分牌手柄提示条 Y；英文 = 原版 ui[strSort]「Sort」
-dmPadLegView	查看 / 取出	View / Withdraw	编年史仓库页手柄提示条（dm_vault_ui.c）；Withdraw = 原版 ui[AdvancedStashWithdraw]
-dmPadLegPrev	上一页	Previous Page	同上；英文 = 原版 ui[NPCPreviousPage]
-dmPadLegNext	下一页	Next Page	同上；英文 = 原版 ui[NPCNextPage]
 dmPadHintDeposit	存入	Deposit	编年史页「按住 Y」那半句（dm_padmode.c）；英文 = 原版 ui[strGoldDeposit]
 dmPadLegIdentify	捡起（按住鉴定）	Pick Up (Hold to Identify)	手柄模式光标在未鉴定物品上时，原版提示条 A 那条的「捡起」换成这句（dm_padmode.c 换串小表）；写法照原版「捡起(按住使用)」；英文：拟
 dmPadDiffLine	游戏难度：%d	Game Difficulty: %d	手柄版暂停菜单的难度行（dm_padmode.c）；英文 = 原版 ui[OptionsMenuGameDifficulty]「Game Difficulty」

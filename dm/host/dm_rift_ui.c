@@ -69,7 +69,7 @@ static void btn_grey(uint64_t w, int grey) {
     int32_t *f = (int32_t *)(uintptr_t)(w + 0x6e8); int32_t want[4]; for (int k = 0; k < 4; k++) want[k] = grey ? sv[i].f[3] : sv[i].f[k];
     if (memcmp(f, want, 16)) { memcpy(f, want, 16); *(int32_t *)(uintptr_t)(w + 0x610) = want[0]; }
 }
-static void color(uint64_t w, int r, int g, int bl) { if (!w) return; int32_t *c = (int32_t *)(w + 0xbc); c[0] = r; c[1] = g; c[2] = bl; }   // 字色 +0xbc / +0xc0 / +0xc4（dm_vault_ui.c） | Text color +0xbc / +0xc0 / +0xc4 (dm_vault_ui.c)
+static void color(uint64_t w, int r, int g, int bl) { if (!w) return; int32_t *c = (int32_t *)(w + 0xbc); c[0] = r; c[1] = g; c[2] = bl; }   // 字色 +0xbc / +0xc0 / +0xc4 | Text color +0xbc / +0xc0 / +0xc4
 void dm_rift_ui_on_uimsg(const char *cat, const char *act, const char *arg) {
     if (strcmp(cat, "PanelManager") || strcmp(act, "ClosePanel") || strncmp(arg, "TouchRF_", 8)) return;
     const char *k = arg + 8;

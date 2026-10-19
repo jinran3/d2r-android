@@ -10,8 +10,6 @@ host/hle_touch.c	*	触屏采样调试串，只进日志
 host/dm_actions.c	*	动作结果说明，只进日志（LOG 的 %s 参数）
 host/dm_cursor.c	*	交互层判定说明 / 挪位审计 / 一键重开状态，只进日志
 host/dm_world.c	*	走近物品 / 单位分类的调试串，只进日志
-host/dm_vault.c	*	编年史存取对账说明，只进日志
-host/dm_pages.c	*	翻页对账说明，只进日志
 host/dm_cloudsync.c	*	iCloud 备份来源标签（写进备份文件名旁的日志）
 ios/Sources/dm_update.m	*	查更新失败原因 / 网络路径状态，只进日志（界面只显示 dm_update.c 的三种固定文字，已进中英表）
 ios/Sources/cloud_ios.m	*	iCloud 同步日志
@@ -51,7 +49,6 @@ host/dm_runeword.c	@list_close	清单关闭原因，只进日志
 host/dm_runeword.c	@job_readback	合成结果，只进日志
 host/dm_runeword.c	储藏箱格	符文来源位置，只进日志
 host/dm_runeword.c	背包格	符文来源位置，只进日志
-host/dm_vault_ui.c	@vu_guard	控件守卫的日志标签
 ios/Sources/main.m	@dm_host_shutdown	退出原因，只进日志
 ios/Sources/main.m	DM_LOG_PORT	日志端口回执
 ios/Sources/main.m	下载游戏资源	fail:what 只进日志

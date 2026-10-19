@@ -978,9 +978,7 @@ static void hud_tick(uint64_t G) {        // 每拍：受控玩家等级 / 本�
       if (main && player && !shown && dm_cloud_conflict_take()) { shown = 1; dm_game_notice((uint8_t *)main->base, dm_str((uint8_t *)main->base, "dmCloudConflict")); LOG("iCloud 同步：弹了共享仓库不一致的提示"); } }
     if (main && player) dm_bossrush_tick(G, player, (uint8_t *)main->base);   // 首领连战（dm_bossrush.c） | Boss rush (dm_bossrush.c)
     if (main && player) { void dm_rift_tick(uint64_t, uint64_t, uint8_t *); dm_rift_tick(G, player, (uint8_t *)main->base); }   // 秘境爬塔（dm_rift.c） | Rift tower climb (dm_rift.c)
-    { void dm_pages_tick(uint64_t, uint64_t, uint8_t *); if (main) dm_pages_tick(G, player, (uint8_t *)main->base); }   // 个人仓库 2–5 页（dm_pages.c）；不在局内 player 为 0，模块自己清状态 | Personal stash pages 2–5 (dm_pages.c); player is 0 when not in a run, and the module clears its own state
-    { void dm_vault_tick(uint64_t, uint64_t, uint8_t *); if (main) dm_vault_tick(G, player, (uint8_t *)main->base); }
-    { void dm_pouch_srv_tick(uint8_t *, uint64_t, uint64_t); if (main) dm_pouch_srv_tick((uint8_t *)main->base, G, player); }   // 百宝囊收 / 放、存放的系统提示（dm_pouch.c）；不在局内 player 为 0   // 编年史仓库存取（dm_vault.c）；同上 | System prompts for pouch take / put and deposit (dm_pouch.c); player is 0 when not in a run   // Chronicle vault deposit / withdraw (dm_vault.c); same as above
+    { void dm_pouch_srv_tick(uint8_t *, uint64_t, uint64_t); if (main) dm_pouch_srv_tick((uint8_t *)main->base, G, player); }   // 百宝囊收 / 放、存放的系统提示（dm_pouch.c）；不在局内 player 为 0 | System prompts for pouch take / put and deposit (dm_pouch.c); player is 0 when not in a run
     if (main && player) dm_kills_tick(G, player, (uint8_t *)main->base);   // 刷怪积分牌（dm_kills.c）：在首领连战之后，连战本关的首领它已记好 id | Kill board (dm_kills.c): runs after boss rush, which has already recorded the id of the boss of the current boss rush stage
     cube_diag_tick(G, player);   // 合成读数 | Transmute readout
     if (main && player) seek_tp_step(G, player, main);
@@ -1739,9 +1737,8 @@ static void loadscreen_on_uimsg(const char *cat, const char *act, const char *ar
     { void dm_textinput_on_uimsg(const char *, const char *, const char *); dm_textinput_on_uimsg(cat, act, arg); }
     { void dm_update_on_uimsg(const char *, const char *, const char *); dm_update_on_uimsg(cat, act, arg); }
     { void dm_kills_on_uimsg(const char *, const char *, const char *); dm_kills_on_uimsg(cat, act, arg); } { void dm_rift_ui_on_uimsg(const char *, const char *, const char *); dm_rift_ui_on_uimsg(cat, act, arg); }   // 编年史「首领」页签（dm_kills.c） | The chronicle's 「首领」(Bosses) tab (dm_kills.c)
-    { void dm_vault_on_uimsg(const char *, const char *, const char *); dm_vault_on_uimsg(cat, act, arg); }
     { void dm_padmode_on_uimsg(const char *, const char *, const char *); dm_padmode_on_uimsg(cat, act, arg); }   // 手柄版暂停菜单「游戏难度」行（dm_padmode.c） | "Game Difficulty" row of the controller pause menu (dm_padmode.c)
-    { void dm_pouch_on_uimsg(const char *, const char *, const char *); dm_pouch_on_uimsg(cat, act, arg); }   // 百宝囊框 / 存放按钮（dm_pouch.c）   // 储藏箱第六页「编年史」（dm_vault_ui.c） | Pouch frame / deposit button (dm_pouch.c)   // stash page six 「编年史」(Chronicle) (dm_vault_ui.c)
+    { void dm_pouch_on_uimsg(const char *, const char *, const char *); dm_pouch_on_uimsg(cat, act, arg); }   // 百宝囊框 / 存放按钮（dm_pouch.c） | Pouch frame / deposit button (dm_pouch.c)
     { void dm_runeword_on_uimsg(const char *, const char *, const char *); dm_runeword_on_uimsg(cat, act, arg); }   // 符文之语助手（dm_runeword.c） | Runeword helper (dm_runeword.c)
     { extern void (*g_dm_charsel_hook)(void); if (g_dm_charsel_hook && !strcmp(cat, "FrontEndNavigation") && !strcmp(act, "ToFrontEnd")) g_dm_charsel_hook(); }   // 退出这一局、回到前端（主菜单 / 选角页）：iOS 把这一局攒下的存档传 iCloud（cloud_ios.m）   // 构建号 + 新版本提示（dm_update.c） | Exiting this run and returning to the front end (main menu / character select page): iOS uploads the saves accumulated during this run to iCloud (cloud_ios.m)   // build number + new version notice (dm_update.c)
     if (!strcmp(cat, "PanelManager") && !strcmp(act, "ClosePanel") && !strcmp(arg, "TouchShareLog")) {   // 暂停菜单「分享诊断日志」（按钮发这条空操作，布局见 touch_layout.py _pause_no_help） | Pause menu 「分享诊断日志」(Share Diagnostics) (the button sends this no-op; for the layout see touch_layout.py _pause_no_help)

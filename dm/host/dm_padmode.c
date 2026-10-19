@@ -178,12 +178,12 @@ uint64_t dm_padmode_page_filter(uint64_t bt) {
     atomic_store(&g_pg_ev, 0); atomic_store(&g_pg_held, 0); eat &= bt; return (bt & ~eat) | pulse;
 }
 // 编年史仓库页开着时（手柄模式）把原版「按住 Y」那半句提示的字换成我们实际做的事：原版在储藏箱各页对背包物品的提示是「丢弃（按住移动到私人储藏箱）」，
-// 第六页上按住 Y 被我们接管成存入编年史仓库（dm_vault_ui.c）。这半句只写「存入」：原版那条本来就超宽、在限宽里滚动（截图对照），写短到不滚，人就在编年史页上。换法同上面的手柄 / 触屏说法：只换当前语言串表里这个键的串指针，离开那一页换回
+// 这半句只写「存入」：原版那条本来就超宽、在限宽里滚动（截图对照），写短到不滚，人就停在那一页上。换法同上面的手柄 / 触屏说法：只换当前语言串表里这个键的串指针，离开那一页换回
 // 同一个换法现在有两条（一张小表）：编年史页的「存入」，和光标停在未鉴定物品上时把「捡起」换成「捡起（按住鉴定）」（手柄按住 A = 免费鉴定，dm_cursor.c；
 // 原版对未鉴定装备只提示「A 捡起」，往提示条里加条目会被原版每帧按光标下的物品重建盖掉，所以换它取的那条串）
 // While the Chronicle vault page is open (controller mode), replace the text of the original "hold Y" half of the hint with what we actually do:
 // on every stash page the original hint for an inventory item is "Drop (hold to move to private stash)",
-// and on the sixth page holding Y is taken over by us to deposit into the Chronicle vault (dm_vault_ui.c). This half only says "Deposit": the
+// This half only says "Deposit": the
 // original string is already too wide and scrolls within the width limit (compared against screenshots), so it is kept short enough not to
 // scroll, and the player is on the Chronicle page anyway. The swap works like the controller / touch wording above: only the string pointer of
 // this key in the current language's string table is swapped, and it is swapped back on leaving that page

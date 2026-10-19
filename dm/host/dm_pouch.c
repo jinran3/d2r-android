@@ -6,7 +6,7 @@
 //       从仓库取出来的（没在地上出现过）不收。
 //   放：开着储藏箱时，囊里的逐件建回背包（读位流建物品 0x5793a0 + 0x6564e0 → 原版找空位 0x55f620 → 读档放物品 0x6f1940 → 通知 0x642f70(…, 1, 2, 0, 0, 0, x | y << 16)，
 //       同编年史取出；背包满了就停，下一批再放），等这一件落盘证明后，服务端代发原版 0x63 进宝石页 / 符文页、叠堆；2 秒还在背包（页满 / 叠满）就收回囊里。
-//   存放按钮：背包里已鉴定的暗金 / 套装件 → 编年史仓库（dm_vault.c 存入，一件一件排队）；符文 / 宝石 → 储藏箱旁进高级仓库，别处进百宝囊。别的不动。
+//   存放按钮：符文 / 宝石 → 储藏箱旁进高级仓库，别处进百宝囊；已鉴定的暗金 / 套装件没有去处（编年史仓库已随裁剪批 7k 摘掉），不搬、只算「留在背包」。别的不动。
 //          做完出一条原版系统提示（聊天栏 + 提示框，dm_game_notice，服务端线程发）：「存放：编年史 N 件，储藏箱 M 件，百宝囊 K 件」，没东西可存也提示。
 // 落盘（不变式：同一件只在一处——侧文件 <角色>/<角色>.swpouch 里，或原版角色档里；侧文件跟着角色目录走 iCloud，dm_cloudsync.c）：
 //   符文 / 宝石是简单物品，同种的字节一样，不能像编年史那样只认「在不在」；但位流前 8 字节带着位置（方式 / x / y / 页），背包同一格同一时刻只有一件，
@@ -27,7 +27,7 @@
 //       Items taken out of the stash (never seen on the ground) are not stowed.
 //   Release: while the stash is open, the pouch items are built back into the inventory one by one (read bitstream and build item 0x5793a0 + 0x6564e0 -> original free-spot search 0x55f620 -> load-time item placement 0x6f1940 -> notify 0x642f70(..., 1, 2, 0, 0, 0, x | y << 16),
 //       same as chronicle retrieve; stop when the inventory is full and continue in the next batch); once this item is proven persisted, the server sends the original 0x63 on the player's behalf into the gem page / rune page, stacking; if still in the inventory after 2 seconds (page full / stack full), take it back into the pouch.
-//   Deposit button: identified unique / set items in the inventory -> chronicle vault (dm_vault.c store, queued one at a time); runes / gems -> advanced stash when next to the stash, pouch elsewhere. Nothing else is touched.
+//   Deposit button: runes / gems -> advanced stash when next to the stash, pouch elsewhere; identified unique / set items have no destination (the chronicle vault was removed in trim batch 7k), so they are not moved and only count as "left in the inventory". Nothing else is touched.
 //          When done, show one original game system notice (chat bar + notice box, dm_game_notice, sent from the server thread): 「存放：编年史 N 件，储藏箱 M 件，百宝囊 K 件」(Deposited: Chronicle N, Stash M, Pouch K); a notice is shown even when there is nothing to deposit.
 // Persistence (invariant: the same item exists in only one place -- in the sidecar file <character>/<character>.swpouch, or in the original character save; the sidecar file goes to iCloud with the character directory, dm_cloudsync.c):
 //   runes / gems are simple items and same-kind bytes are identical, so "present or not" alone cannot be used as with the chronicle; but the first 8 bytes of the bitstream carry the position (placement / x / y / page), and one inventory cell holds only one item at a time,
@@ -54,9 +54,46 @@ int dm_custom_get(const char *key);
 uint64_t dm_guest_frame(void);
 int dm_ui_panel_state(void);
 void dm_game_notice(uint8_t *main_base, const char *text);
-const char *dm_save_workdir(void); uint64_t dm_fs_commit_count(void); uint64_t dm_diag_srv_item(uint32_t id); void *dm_memfind(const uint8_t *h, size_t hn, const uint8_t *n, size_t nn);
-int dm_item_write(uint8_t *b, uint64_t it, uint8_t *buf); uint64_t dm_item_make(uint8_t *b, uint64_t G, uint64_t room, const uint8_t *buf, int len, int *socks_out);
-int dm_request_save(void); void dm_vault_request_deposit(uint32_t item_id); int dm_vault_put_pending(void); int dm_vault_ready(void); int dm_vault_has(int kind, int idx); int dm_item_quest(uint8_t *b, uint64_t it);
+const char *dm_save_workdir(void); uint64_t dm_fs_commit_count(void); uint64_t dm_diag_srv_item(uint32_t id);
+int dm_request_save(void);
+// ---- 物品位流的写 / 读：编年史仓库与个人仓库多页随裁剪批 7k 摘掉后，这两个原版包装只剩百宝囊用，从 dm_pages.c / dm_vault.c 搬过来 ----
+// The original game's bitstream write / read wrappers: after the chronicle vault and the multi-page personal stash were removed in trim batch 7k, only the pouch uses them; moved here from dm_pages.c / dm_vault.c
+#define ITEM_BYTES 1024   // 单件位流上限（含孔里的） | Upper limit of a single item's bitstream (including socketed ones)
+static int dm_item_write(uint8_t *b, uint64_t it, uint8_t *buf) {   // 原版写位流（模板 main+0x65a840）：写入器 {缓冲, 容量位, 字节, 余位, 错误}，上下文 = GOT 虚表 + 0x10 | The original game's bitstream write (template main+0x65a840): writer {buffer, capacity in bits, bytes, remaining bits, error}, context = GOT vtable + 0x10
+    struct { uint64_t buf, cap, n, bits; uint32_t err, pad; uint8_t rest[0x60]; } w; uint64_t ctx[2] = { *(uint64_t *)(b + 0x211feb8) + 0x10, 0 };
+    memset(&w, 0, sizeof w); memset(buf, 0, ITEM_BYTES); w.buf = (uint64_t)buf; w.cap = ITEM_BYTES * 8;
+    ((void (*)(uint64_t, void *, int, int, int, void *))(b + 0x581b60))(it, &w, 1, 1, 0, ctx);
+    int len = w.err ? 0 : (int)w.n + (w.bits != 0); return len > 0 && len <= ITEM_BYTES ? len : 0;
+}
+// 读位流建物品（含孔里镶的，照原版复制物品 0x65a840：母件后面紧跟孔里的件数 = 信息块 +0x14），清「新物品」位。room = 落在哪个房间（0 = 不进房间，放进物品栏用）
+// Read a bitstream and build the item (including socketed ones, following the original game's item copy 0x65a840: the parent item is immediately followed by the socketed items, count = info block +0x14), clearing the "new item" bit. room = which room it goes into (0 = not into a room, put into the inventory)
+static uint64_t dm_item_make(uint8_t *b, uint64_t G, uint64_t room, const uint8_t *buf, int len, int *socks_out) {
+    uint8_t info[0x100]; int used = 0; memset(info, 0, sizeof info);
+    ((void (*)(int, const void *, int64_t, int, void *, int))(b + 0x5793a0))(*(uint8_t *)(G + 0x106), buf, len, 1, info, 0x69);
+    uint64_t nu = ((uint64_t (*)(uint64_t, uint64_t, const void *, int, int, void *, int *, int))(b + 0x6564e0))(G, room, buf, len, 1, info, &used, 0x69);
+    if (!nu) return 0;
+    { uint64_t nd = *(uint64_t *)(nu + 0x10); if (nd) *(uint32_t *)(nd + 0x18) &= ~0x2000u; }
+    int socks = *(int32_t *)(info + 0x14), off = used, rem = len - used, okn = 0;
+    for (int s = 0; s < socks && rem > 0; s++) { uint8_t ci[0x100]; int cu = 0; memset(ci, 0, sizeof ci);
+        ((void (*)(int, const void *, int64_t, int, void *, int))(b + 0x5793a0))(*(uint8_t *)(G + 0x106), buf + off, rem, 1, ci, 0x69);
+        uint64_t ch = ((uint64_t (*)(uint64_t, uint64_t, const void *, int, int, void *, int *, int))(b + 0x6564e0))(G, 0, buf + off, rem, 1, ci, &cu, 0x69);
+        if (!ch || cu <= 0) { LOG("【红】建物品：孔里第 %d 件建不出来", s + 1); break; }
+        ((void (*)(uint64_t, int))(b + 0x5ca8a0))(ch, 4);
+        if (!((int (*)(uint64_t, uint64_t, uint32_t, uint32_t, int))(b + 0x64d080))(G, nu, *(uint32_t *)(ch + 8), *(uint32_t *)(nu + 8), 2)) LOG("【红】建物品：孔里第 %d 件镶不回去", s + 1); else okn++;
+        { uint64_t cd = *(uint64_t *)(ch + 0x10); if (cd) *(uint32_t *)(cd + 0x18) &= ~0x2000u; }
+        off += cu; rem -= cu; }
+    if (socks_out) *socks_out = okn; return nu;
+}
+static void *dm_memfind(const uint8_t *h, size_t hn, const uint8_t *n, size_t nn) { if (!nn || hn < nn) return NULL; for (size_t i = 0; i + nn <= hn; i++) if (h[i] == n[0] && !memcmp(h + i, n, nn)) return (void *)(h + i); return NULL; }
+// 任务物品（王者之杖、卡林的连枷、毒蛇护身符……）：游戏自己的物品表记录（步长 0x1c0，[版本表+0x15c0]，下标 [物品+4]，同 dm_cursor_item.c）+0x13a = weapons / armor / misc.txt 的 quest 列。
+// 存进编年史会卡任务进度：存放与手动存入都不收；已经存进去的照常能取出
+// Quest items (Staff of Kings, Khalim's Flail, Amulet of the Viper...): the game's own item table record (stride 0x1c0, [version table+0x15c0], index [item+4], same as dm_cursor_item.c) +0x13a = the quest column of weapons / armor / misc.txt.
+// Storing them in the chronicle would block quest progress: neither Deposit nor manual storing accepts them; ones already stored can still be withdrawn as usual
+static int dm_item_quest(uint8_t *b, uint64_t it) {
+    uint8_t ver = *(uint8_t *)(it + 0x1bd); if (ver < 1 || ver > 3) return 0;
+    uint64_t t = *(uint64_t *)(b + 0x2d64a18 + (uint64_t)ver * 16); uint64_t recs = t ? *(uint64_t *)(t + 0x15c0) : 0; uint32_t cls = *(uint32_t *)(it + 4);
+    return recs && cls < *(uint32_t *)(t + 0x15c8) && *(uint8_t *)(recs + (uint64_t)cls * 0x1c0 + 0x13a) != 0;
+}
 #define PICK_R 3          // 格（同药水自动拾取） | Tiles (same as potion auto pickup)
 #define T_RUNE 75         // 原版物品类型号：rune（0x574bc0(物品, 类型) 含父类型；宿主逐号探：一号符文认 0 52 53 75） | Original game item type number: rune (0x574bc0(item, type) includes parent types; probed number by number on the host: the No. 1 rune matches 0 52 53 75)
 #define T_GEM 20          // gem：各色宝石与骷髅的父类型（宿主实测：红宝石 gsr、碎紫 gcv、碎骷髅 skc 都认 20） | gem: the parent type of gems of every color and skulls (measured on the host: ruby gsr, chipped amethyst gcv, chipped skull skc all match 20)
@@ -138,14 +175,14 @@ static void pouch_hook(const char *wd) {   // 提交前钩子（写盘线程，�
             LOG("百宝囊：提交前核对 #%llu —— %.3s %s → 并进盘上状态", (unsigned long long)cno, (const char *)&p->it.code, p->put ? "收进囊：角色档里已没有背包那一串" : "放到背包：角色档里已有放好的那一串");
             g_up[i] = g_up[--g_nup]; done++; }
         free(bl.d);
-        // 侧文件没写成：同编年史（dm_vault.c vault_pre_commit）——这次提交拒绝、盘上状态标脏，服务端拍接着请存盘，写成为止
-        // The side file failed to write: same as the Chronicle (dm_vault.c vault_pre_commit) -- this commit is refused, the on-disk state is marked dirty, and the server tick keeps requesting a save until the write succeeds
+        // 侧文件没写成：这次提交拒绝、盘上状态标脏，服务端拍接着请存盘，写成为止
+        // The side file failed to write: this commit is refused, the on-disk state is marked dirty, and the server tick keeps requesting a save until the write succeeds
         if (done || g_udirty) { if (pouch_save(wd) == 0) { LOG("百宝囊：侧文件随这次提交落盘（盘上 %d 件、囊里 %d 件、还有 %d 条待证明）", g_nud, g_nu, g_nup); g_udirty = 0; }
             else { void dm_fs_save_poison(int e); g_udirty = 1; dm_fs_save_poison(EIO); LOG("【红】百宝囊：侧文件没写成 → 这次存档提交拒绝，之后重试（盘上状态 %d 件留在内存）", g_nud); } }
     }
     pthread_mutex_unlock(&g_umu);
 }
-__attribute__((constructor)) static void pouch_hook_install(void) { extern void (*g_dm_pre_commit_hook[4])(const char *); g_dm_pre_commit_hook[2] = pouch_hook; }
+__attribute__((constructor)) static void pouch_hook_install(void) { extern void (*g_dm_pre_commit_hook[4])(const char *); g_dm_pre_commit_hook[0] = pouch_hook; }
 
 // 收进囊：背包里的这件符文 / 宝石（服务端物品）→ 写位流 → 摘下 → 通知 → 释放；记一条「收」（持 g_umu 调）
 // Stow into the pouch: this rune / gem in the inventory (server item) -> write bitstream -> remove -> notify -> free; record one "stow" entry (called holding g_umu)
@@ -182,7 +219,7 @@ static int pouch_take(uint8_t *b, uint64_t G, uint64_t player) {
     g_nu--; pouch_pub(); LOG("百宝囊：%.3s 放到背包格 %u,%u（新 id %u）→ 囊里还剩 %d 件，等落盘证明后进高级仓库", (const char *)&u.code, fx, fy, p->nid, g_nu);
     return 1;
 }
-static uint32_t adv_stash_unit(uint64_t pl) {   // 玩家自己的高级仓库单位 id：物品栏 +0x68 附属单位表（+0 单位 id、+0xa 类，+0x10 下一个），类 1 = 高级仓库（同 dm_vault.c item_dump；客户端 / 服务端玩家同一布局） | The player's own advanced stash unit id: the attached unit table at item container +0x68 (+0 unit id, +0xa class, +0x10 next), class 1 = advanced stash (same as item_dump in dm_vault.c; client / server players share the same layout)
+static uint32_t adv_stash_unit(uint64_t pl) {   // 玩家自己的高级仓库单位 id：物品栏 +0x68 附属单位表（+0 单位 id、+0xa 类，+0x10 下一个），类 1 = 高级仓库（客户端 / 服务端玩家同一布局） | The player's own advanced stash unit id: the attached unit table at item container +0x68 (+0 unit id, +0xa class, +0x10 next), class 1 = advanced stash (client / server players share the same layout)
     uint64_t inv = *(uint64_t *)(pl + 0x90); int k = 0;
     for (uint64_t en = inv ? *(uint64_t *)(inv + 0x68) : 0; en && k < 32; en = *(uint64_t *)(en + 0x10), k++) if (*(uint8_t *)(en + 0xa) == 1) return *(uint32_t *)en;
     return 0;
@@ -326,8 +363,8 @@ static void auto_pick(uint64_t pl, uint64_t fr) {
 
 // ---- 存放：一件一件做
 // ---- Deposit: done one item at a time
-typedef struct { uint32_t id, code; uint8_t to_vault, page; } sitem;   // page：这件原来在哪一页（0 背包 / 3 魔盒） | page: which page this item was originally on (0 inventory / 3 Horadric Cube)
-static sitem g_st[128]; static int g_nst, g_ist = -1, g_sv, g_sg, g_sp, g_sleft, g_snear; static uint64_t g_sfr;
+typedef struct { uint32_t id, code; uint8_t page; } sitem;   // page：这件原来在哪一页（0 背包 / 3 魔盒） | page: which page this item was originally on (0 inventory / 3 Horadric Cube)
+static sitem g_st[128]; static int g_nst, g_ist = -1, g_sg, g_sp, g_sleft, g_snear; static uint64_t g_sfr;
 static _Atomic int g_store_req, g_pouch_tap;
 static char g_notice[160]; static _Atomic int g_notice_req;
 // 这件还在不在原来那一页（客户端物品栏；方式 0 = 在容器里）
@@ -338,45 +375,39 @@ static uint64_t page_item(uint64_t pl, uint32_t id, int page) {
     return 0;
 }
 static void store_begin(uint64_t pl) {
-    int ncube = 0;
-    g_nst = 0; g_sv = g_sg = g_sp = g_sleft = 0; int vault = dm_vault_ready(), adv = adv_stash_unit(pl) != 0; g_snear = atomic_load(&g_near_pub);
+    g_nst = 0; g_sg = g_sp = g_sleft = 0; int adv = adv_stash_unit(pl) != 0; g_snear = atomic_load(&g_near_pub);
     uint64_t inv = *(uint64_t *)(pl + 0x90), it = inv && *(uint32_t *)inv == 0x01020304 ? *(uint64_t *)(inv + 0x10) : 0;
     for (int k = 0; it && k < 2048 && g_nst < 128; k++) { uint64_t d = *(uint64_t *)(it + 0x10); if (!d) break;
-        // 来源页：背包（页 0）全套规则；魔盒（页 3）只搬已鉴定的暗金 / 套装进编年史——魔盒里的符文 / 宝石不动：
-        // 常是正要合成的材料，而且原版「移到仓库」不收来源在魔盒里的物品
-        // Source page: the inventory (page 0) gets the full rule set; the Horadric Cube (page 3) only moves identified unique / set items into the Chronicle.
-        // Runes / gems in the Cube are left alone:
+        // 来源页：背包（页 0）全套规则；魔盒（页 3）里的东西不搬：常是正要合成的材料，而且原版「移到仓库」不收来源在魔盒里的物品
+        // Source page: the inventory (page 0) gets the full rule set; items in the Horadric Cube (page 3) are left alone:
         // they are usually materials about to be combined, and the original "move to stash" does not accept items whose source is the Cube
         int page = *(uint32_t *)(it + 0xc) == 0 ? *(uint8_t *)(d + 0x55) : -1;
         if (*(uint32_t *)d == 7 || *(uint32_t *)d == 5) LOG("存放：暗金 / 套装件 id %u 方式 %u 页 %u 已鉴定 %d（收的是方式 0、背包页 0 或魔盒页 3、已鉴定的）", *(uint32_t *)(it + 8), *(uint32_t *)(it + 0xc), *(uint8_t *)(d + 0x55), (*(uint32_t *)(d + 0x18) & 0x10) != 0);
         if (page == 0 || page == 3) { uint32_t q = *(uint32_t *)d, id = *(uint32_t *)(it + 8);
-            if (is_rune_gem(it) || is_mat(it)) { if (adv && page == 0) g_st[g_nst++] = (sitem){ id, item_code(it), 0, 0 }; }   // 没有高级仓库：符文宝石不动、也不算「留在背包」 | No advanced stash: runes and gems are not touched and do not count as "left in the inventory" either
-            else if ((q == 7 || q == 5) && (*(uint32_t *)(d + 0x18) & 0x10) && !is_charm(it) && !dm_item_quest(B, it)) {   // 已鉴定的暗金 / 套装件（同 dm_vault.c item_key）；护身符（常驻背包）与任务物品（编年史不收）不搬、也不算「留在背包」 | Identified unique / set items (same as item_key in dm_vault.c); charms (kept permanently in the inventory) and quest items (not accepted by the chronicle) are not moved and do not count as "left in the inventory" either
-                uint32_t key = (uint32_t)(q == 7) << 16 | (*(uint32_t *)(d + 0x34) & 0xffff); int dup = 0;   // 这一批里已有同一款（背包一件、魔盒又一件）：只存头一件，后一件不动——不然后一件会把前一件从编年史换回背包 | The same item is already in this batch (one in the inventory, another in the Horadric Cube): store only the first and leave the second alone, otherwise the second would swap the first back from the Chronicle into the inventory
-                for (int i = 0; i < g_nst; i++) if (g_st[i].to_vault && g_st[i].code == key) dup = 1;
-                if (vault && !dup && !dm_vault_has(q == 7, (int)*(uint32_t *)(d + 0x34))) { g_st[g_nst++] = (sitem){ id, key, 1, (uint8_t)page }; ncube += page == 3; } else if (page == 0) g_sleft++; } }
+            if (is_rune_gem(it) || is_mat(it)) { if (adv && page == 0) g_st[g_nst++] = (sitem){ id, item_code(it), 0 }; }   // 没有高级仓库：符文宝石不动、也不算「留在背包」 | No advanced stash: runes and gems are not touched and do not count as "left in the inventory" either
+            else if ((q == 7 || q == 5) && (*(uint32_t *)(d + 0x18) & 0x10) && !is_charm(it) && !dm_item_quest(B, it)) {   // 已鉴定的暗金 / 套装件：编年史仓库摘掉后没有去处 —— 不搬、只算「留在背包」 | Identified unique / set items: with the chronicle vault removed they have no destination - they are not moved and only count as "left in the inventory"
+                if (page == 0) g_sleft++; } }
         it = *(uint64_t *)(d + 0xb0); }
-    g_ist = 0; g_sfr = 0; LOG("存放：背包里 %d 件、魔盒里 %d 件要存（编年史里已有同件 / 没有编年史仓库的 %d 件不动；符文宝石%s）", g_nst - ncube, ncube, g_sleft, g_snear ? "在储藏箱旁，进高级仓库" : "进百宝囊");
+    g_ist = 0; g_sfr = 0; LOG("存放：背包里 %d 件要存（已鉴定的暗金 / 套装件 %d 件没有去处、留在背包；符文宝石%s）", g_nst, g_sleft, g_snear ? "在储藏箱旁，进高级仓库" : "进百宝囊");
 }
 static void store_step(uint64_t pl, uint64_t fr) {
     if (g_ist < 0) return;
     if (g_ist < g_nst) { sitem *s = &g_st[g_ist]; uint64_t it = page_item(pl, s->id, s->page);
         if (!g_sfr) { if (!it) { g_ist++; return; }   // 已经不在背包（玩家自己挪了） | No longer in the inventory (the player moved it)
-            if (s->to_vault) { if (dm_vault_put_pending()) return; dm_vault_request_deposit(s->id); } else absorb_push(s->id);
+            absorb_push(s->id);
             g_sfr = fr; return; }
-        if (!it) { if (s->to_vault) g_sv++; else if (g_snear) g_sg++; else g_sp++; g_ist++; g_sfr = 0; return; }
-        if (fr - g_sfr > (!s->to_vault && g_snear ? 240 : 120)) {   // 储藏箱旁：服务端等 2 秒没进仓库才收回囊里，这边多等一会儿，别抢在它前面判「留在背包」 | next to the stash: the server waits 2 seconds and only takes it back into the pouch if it has not entered the stash, so wait a little longer here and do not judge "stays in the inventory" ahead of it
-            g_sleft++; LOG("【红】存放：物品 id %u 2 秒还在%s（%s不收）", s->id, s->page == 3 ? "魔盒" : "背包", s->to_vault ? "编年史" : g_snear ? "储藏箱" : "百宝囊"); g_ist++; g_sfr = 0; }
+        if (!it) { if (g_snear) g_sg++; else g_sp++; g_ist++; g_sfr = 0; return; }
+        if (fr - g_sfr > (g_snear ? 240 : 120)) {   // 储藏箱旁：服务端等 2 秒没进仓库才收回囊里，这边多等一会儿，别抢在它前面判「留在背包」 | next to the stash: the server waits 2 seconds and only takes it back into the pouch if it has not entered the stash, so wait a little longer here and do not judge "stays in the inventory" ahead of it
+            g_sleft++; LOG("【红】存放：物品 id %u 2 秒还在%s（%s不收）", s->id, s->page == 3 ? "魔盒" : "背包", g_snear ? "储藏箱" : "百宝囊"); g_ist++; g_sfr = 0; }
         return; }
-    {   // 「存放：编年史 N 件，储藏箱 M 件，百宝囊 K 件」，为 0 的那类不写；一件没存也提示。「存放」「编年史」「储藏箱」是原版字符串（strGoldDeposit / Chronicle / 储藏箱标题） | 「存放：编年史 N 件，储藏箱 M 件，百宝囊 K 件」(Deposited: Chronicle N, Stash M, Pouch K); categories that are 0 are omitted; a notice is shown even if nothing was deposited. 「存放」(Deposit), 「编年史」(Chronicle) and 「储藏箱」(Stash) are original game strings (strGoldDeposit / Chronicle / the stash title)
+    {   // 「存放：储藏箱 M 件，百宝囊 K 件」，为 0 的那类不写；一件没存也提示。「存放」「储藏箱」是原版字符串（strGoldDeposit / 储藏箱标题） | 「存放：储藏箱 M 件，百宝囊 K 件」(Deposited: Stash M, Pouch K); categories that are 0 are omitted; a notice is shown even if nothing was deposited. 「存放」(Deposit) and 「储藏箱」(Stash) are original game strings (strGoldDeposit / the stash title)
         int k = snprintf(g_notice, sizeof g_notice, "%s", dm_str(B, "dmStoreHead")), any = 0;
-        if (g_sv) { k += snprintf(g_notice + k, sizeof g_notice - k, dm_str(B, "dmStoreVault"), g_sv); any = 1; }
         if (g_sg) { k += snprintf(g_notice + k, sizeof g_notice - k, dm_str(B, "dmStoreStash"), any ? dm_str(B, "dmStoreSep") : "", g_sg); any = 1; }
         if (g_sp) { k += snprintf(g_notice + k, sizeof g_notice - k, dm_str(B, "dmStorePouch"), any ? dm_str(B, "dmStoreSep") : "", g_sp); any = 1; }
         if (!any) k += snprintf(g_notice + k, sizeof g_notice - k, "%s", dm_str(B, "dmStoreNone"));
         else if (g_sleft) snprintf(g_notice + k, sizeof g_notice - k, dm_str(B, "dmStoreLeft"), g_sleft); }
-    int sv = g_sv + g_sg ? dm_request_save() : 0;   // 存放完请游戏存一次盘（同编年史存取）；进囊的由服务端拍自己请 | After depositing, ask the game to save once (same as chronicle store / retrieve); for items going into the pouch the server tick requests it itself
-    atomic_store(&g_notice_req, 1); LOG("存放：完成——编年史 %d、储藏箱 %d、百宝囊 %d、留在背包 %d → 提示「%s」；请存盘 → %d", g_sv, g_sg, g_sp, g_sleft, g_notice, sv); g_ist = -1;
+    int sv = g_sg ? dm_request_save() : 0;   // 存放完请游戏存一次盘；进囊的由服务端拍自己请 | After depositing, ask the game to save once; for items going into the pouch the server tick requests it itself
+    atomic_store(&g_notice_req, 1); LOG("存放：完成——储藏箱 %d、百宝囊 %d、留在背包 %d → 提示「%s」；请存盘 → %d", g_sg, g_sp, g_sleft, g_notice, sv); g_ist = -1;
 }
 
 // ---- 界面（只写我们自己的控件）
@@ -389,7 +420,7 @@ static uint64_t find_w(uint64_t w, const char *name, int dep) {
 }
 static int ours(uint64_t w) { const char *nm = w ? (const char *)*(uint64_t *)(w + 8) : NULL; return nm && (!strncmp(nm, "TouchPouch", 10) || !strcmp(nm, "TouchStore")); }
 static void w_move(uint64_t w, int x, int y) { if (!ours(w)) return; int32_t *r = (int32_t *)(w + 0x70); if (r[0] == x && r[1] == y) return; r[0] = x; r[1] = y; ((void (*)(uint64_t))*(uint64_t *)(*(uint64_t *)w + 0x10))(w); }
-static void w_text(uint64_t w, const char *s) {   // 文字控件改字（虚表 main+0x20ba4c8，串 +0x88 / 长 +0x90，改完 0xadc434 重排；同 dm_vault_ui.c vu_text） | Change a text widget's text (vtable main+0x20ba4c8, string +0x88 / length +0x90, re-layout with 0xadc434 after changing; same as vu_text in dm_vault_ui.c)
+static void w_text(uint64_t w, const char *s) {   // 文字控件改字（虚表 main+0x20ba4c8，串 +0x88 / 长 +0x90，改完 0xadc434 重排） | Change a text widget's text (vtable main+0x20ba4c8, string +0x88 / length +0x90, re-layout with 0xadc434 after changing; )
     if (!ours(w) || *(uint64_t *)w - (uint64_t)(uintptr_t)B != 0x20ba4c8) return; size_t n = strlen(s);
     if (*(uint64_t *)(w + 0x90) == n && !memcmp(*(const char **)(w + 0x88), s, n)) return;
     ((void (*)(uint64_t, const char *, uint64_t))(B + 0x136e5c))(w + 0x88, s, n); ((void (*)(uint64_t))(B + 0xadc434))(w); }

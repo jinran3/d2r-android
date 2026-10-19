@@ -23,7 +23,7 @@ Every file opens with a comment saying what it does and what that is based on. A
 | `stash_seed.h` | The preset content used the first time the shared stash is created. Not shipped in the public repository (it is the bytes of a save the game generated): without it nothing is seeded |
 | `dm_derived_rt.h` | Used only in the "shell" that contains no game content: the tables generated from game files are not compiled in but read from the install package at run time; see [docs/NO_XCODE.md](../../docs/NO_XCODE.md) |
 
-Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: work that `dm_vault.c`, `dm_pages.c` and others must do inside a server tick is called from there.
+Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: work that `dm_rift.c`, `dm_kills.c` and others must do inside a server tick is called from there.
 
 ## In-game features (`dm_*`)
 
@@ -75,9 +75,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 
 | File | What it does |
 |---|---|
-| `dm_vault.c` | The server half of the Chronicle vault: depositing and withdrawing identified unique and set items |
-| `dm_vault_ui.c` | The Chronicle vault's UI: the sixth tab of the stash |
-| `dm_pages.c` | Personal stash pages 2–5: the items of the other pages are kept in a side file in the character's directory, and page turning happens inside the server tick |
 | `dm_pouch.c` | The pouch and "Deposit": runes and gems picked up in the field go into the pouch without taking inventory cells, and are stored away when you open the stash back in town |
 | `dm_runeword.c` | The runeword helper: long-press a socketed base to list the runewords it can make, and socket them in one tap once you have the runes |
 
