@@ -313,7 +313,6 @@ static void auto_pick(uint64_t pl, uint64_t fr) {
         uint32_t id = *(uint32_t *)(it + 8); gnd_add(id);
         uint64_t ip = *(uint64_t *)(it + 0x38); if (want || !ip) continue; int x = *(int32_t *)(ip + 0x10), y = *(int32_t *)(ip + 0x14);
         if (abs(x - px) > PICK_R || abs(y - py) > PICK_R || !auto_ok(it)) continue;
-        { int dm_lootfilter_hidden(uint8_t *, uint64_t); if (dm_lootfilter_hidden(B, it)) continue; }   // 被原版掉落过滤藏着的不自动捡（现行规则不藏符文宝石，守的是以后改规则） | items hidden by the game's loot filter are not auto-picked (current rules do not hide runes or gems; this guards future rule changes)
         int seen = 0; for (int i = 0; i < 16; i++) if (g_pk[i].id == id && (g_pk[i].st || fr - g_pk[i].fr < 120)) seen = 1;
         if (!seen) { want = id; wx = x; wy = y; wcode = item_code(it); }
     }
