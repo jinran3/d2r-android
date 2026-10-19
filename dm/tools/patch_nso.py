@@ -76,8 +76,6 @@ CUTS = {'db0507f36b84200ac05f75d76ed5026f': [
      '不触发 0x80ec44 的联网检查、断网弹窗与回标题页）；r4 版目标 0x8019bc 会置联机模式 1，实测仍回标题页并弹断网框'),
     # 宿主原生实现剪口（仅宿主：真值模拟器不应用，Ryujinx 不认识 0x80 起的宿主调用号；等价由逐块解码 5511/5511 一致证明）
     # Cuts for host-native implementations (host only: the ground-truth emulator does not apply them, Ryujinx does not know host call numbers from 0x80 up; equivalence is proven by per-block decoding matching 5511/5511)
-    (0x1b0ee60, 'fc6fbaa9fa6701a9', '011000d4c0035fd6', 'TACT BLTE 块 zlib 解码入口（DecodeZlib）→ svc #0x80 ; ret：宿主用 libdeflate 实现'
-     '（hle_tact.c，调用号登记在 hle.h SVC_HOST_TACT_ZLIB）；改写器先打剪口再扫描，svc #0x80 自动成为宿主门，门块保存恢复 x30，ret 回原调用者', '仅宿主'),
     # 宿主测试开关的落点（仅宿主）：缺省宿主原样转调，行为不变
     # Hook points for host test switches (host only): by default the host forwards as is, behavior unchanged
     (0x5d3a88, 'a27a0194', '211000d4', '收包泵 0x5d3960 投递客户端命令包的调用点 bl 0x632510 → svc #0x81：宿主缺省以原参数原样调用 0x632510（返回值调用方不用）；'

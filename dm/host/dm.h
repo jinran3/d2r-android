@@ -87,7 +87,7 @@ extern struct dm_flags { int thr, svc, fs, movie, dbg, imports, bootprof; } g_fl
 // 启动时间线（DM_BOOTPROF=1，diag.c）：分段打点 + 计数器（纳秒 / 字节，全线程累加）；可用 PROF_GFX_* 埋点
 // Boot timeline (DM_BOOTPROF=1, diag.c): segment marks + counters (nanoseconds / bytes, accumulated over all threads); PROF_GFX_* can be used for instrumentation
 enum { PROF_FS_READ, PROF_WAIT_LOCK, PROF_WAIT_CV, PROF_WAIT_ADDR, PROF_WAIT_SYNC, PROF_SLEEP, PROF_MAIN_WAIT,
-       PROF_GFX_PRESENT, PROF_GFX_SHADER, PROF_TACT, PROF_N };   // PROF_TACT：TACT 块 zlib 解码（svc #0x80，宿主 libdeflate）耗时与输出字节 | PROF_TACT: time and output bytes of TACT block zlib decode (svc #0x80, host libdeflate)
+       PROF_GFX_PRESENT, PROF_GFX_SHADER, PROF_N };
 void dm_prof_add(int id, uint64_t ns, uint64_t bytes);
 void dm_prof_mark(const char *seg);
 uint64_t dm_prof_ribbon_ns(void);   // 第一次出现 OpenPanel MainMenuButtonRibbon 的 now_ns 时刻（0 = 尚未；需 DM_BOOTPROF=1） | The now_ns time at which OpenPanel MainMenuButtonRibbon first appeared (0 = not yet; needs DM_BOOTPROF=1)

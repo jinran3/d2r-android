@@ -54,8 +54,6 @@ if __name__ == "__main__":
     sources += [(ROOT / "gfx/nvn" / name, []) for name in ["hle_nvn.c", "nvn_tex.c", "nvn_dirty.c"]]
     sources += [(ROOT / "gfx/tex/nvn_deswizzle.c", [])]
     sources += [(OUT / (name + "_elf.S"), []) for name in ["nvn_thunks", "nvn_entry"]]
-    third = ROOT / "third_party/libdeflate/lib"
-    sources += [(third / name, []) for name in ["deflate_decompress.c", "zlib_decompress.c", "adler32.c", "utils.c", "arm/cpu_features.c"]]
     with ThreadPoolExecutor(max_workers=4) as pool: objects = list(pool.map(compile, sources))
     if any(obj is None for obj in objects): sys.exit(1)
     output = OUT / ("libdmandroid.so" if args.activity else "dmhost-android")

@@ -10,7 +10,7 @@
 #endif
 #include <sys/time.h>
 #include <unistd.h>
-void probe_install(void); void ticks_install(void); void hid_keys_init(void); void tact_prefetch_start(const char *outdir); void tact_chk_init(void); void stubs_report(void); void crash_install(void); void guest_thread_init(void); uint32_t svc_thread_main_init(void);
+void probe_install(void); void ticks_install(void); void hid_keys_init(void); void stubs_report(void); void crash_install(void); void guest_thread_init(void); uint32_t svc_thread_main_init(void);
 typedef void (*fn0)(void); typedef void (*fn2)(uint64_t, uint64_t); typedef void (*fnp)(void *);
 static void *req(const char *n){ void *p=guest_sym(n); if(!p) die("缺符号 %s", n); return p; }
 
@@ -149,11 +149,8 @@ static void host_preload(int argc, char **argv) {
     { void target_rank_install(void); target_rank_install(); }   // 触屏版自动选怪 Boss > 精英 > 普通（hle_target.c） | Touch version auto-targeting Boss > elite > normal (hle_target.c)
     hid_keys_init();   // DM_KEYS 脚本输入（按 UI 消息驱动的步骤要在消息出现前订阅） | DM_KEYS scripted input (steps driven by UI messages must subscribe before the message appears)
     uint64_t tb = now_ns();
-    tact_chk_init();                // DM_TACTCHK 逐块记录（到选角停记） | DM_TACTCHK per-block log (logging stops at character select)
-    tact_prefetch_start(argv[1]);   // 启动块后台预解码（缺省开：产物目录 bootlist.tsv；DM_TACT_PREFETCH=0 关） | Background pre-decode of boot blocks (on by default: bootlist.tsv in the build output directory; DM_TACT_PREFETCH=0 turns it off)
-    uint64_t tc = now_ns();
     stubs_report();
-    if (g_flag.bootprof) LOG("① 细分（装载后）：探针 / 拍门 / 按键 %.1f ms、预取启动（读清单）%.1f ms、桩报告 %.1f ms", (tb - ta) / 1e6, (tc - tb) / 1e6, (now_ns() - tc) / 1e6);
+    if (g_flag.bootprof) LOG("① 细分（装载后）：探针 / 拍门 / 按键 %.1f ms、桩报告 %.1f ms", (tb - ta) / 1e6, (now_ns() - tb) / 1e6);
     dm_prof_mark("① 宿主装载（读 NSO / 重定位 / 强制接管）");
     { void loader_hash_log(void); loader_hash_log(); }   // DM_LOADHASH=1：装载结果的地址无关哈希（loader.c） | DM_LOADHASH=1: address-independent hash of the load result (loader.c)
 }

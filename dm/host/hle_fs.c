@@ -442,12 +442,12 @@ HLE_FORCE("_ZN2nn2fs7UnmountEPKc", "fsp-srv；挂载表常驻，卸载为空操�
 // 剔零档案：资源包里被填零的大段（过场视频、旧版音乐）不随包分发——档案文件里把这些零段剔掉，旁边放一张区段表
 // 「<档案名>.holes」（文本：首行 `size <原始字节数>`，其后每行 `<零段起点> <零段长度>`，按起点升序、互不重叠）。
 // 宿主读这类档案时按表换算偏移：落在零段的字节返回 0，文件大小报原始值；游戏与启动预取看到的仍是原始布局，索引一个字不用改。
-// 读入口只有两处：本文件的 ReadFile 与 hle_tact.c 的启动预取，都走 dm_data_pread。没有 .holes 的文件走原路径，零额外开销。
+// 读入口：本文件的 ReadFile 走 dm_data_pread。没有 .holes 的文件走原路径，零额外开销。
 // ---------- Files ----------
 // Zero-stripped archives: large zero-filled ranges in the resource pack (cutscene videos, old-version music) are not distributed with the package -- these zero-filled ranges are stripped from the archive file, and an extent table is placed beside it,
 // "<archive name>.holes" (text: first line `size <original byte count>`, then one line `<zero-filled range start> <zero-filled range length>` each, ascending by start, non-overlapping).
 // When reading such archives the host translates offsets through the table: bytes falling in a zero-filled range return 0 and the file size is reported as the original value; the game and the startup prefetch still see the original layout, and not a single word of the index needs changing.
-// There are only two read entry points: ReadFile in this file and the startup prefetch in hle_tact.c, both going through dm_data_pread. Files without .holes take the original path with zero extra overhead.
+// Read entry point: ReadFile in this file goes through dm_data_pread. Files without .holes take the original path with zero extra overhead.
 typedef struct { int64_t size; int n; int64_t *log, *len, *phys; char name[40]; } holemap;   // 保留段：原始起点 / 长度 / 在剔零文件里的起点 | Kept segment: original start / length / start in the zero-stripped file
 static _Atomic uint64_t g_hole_reads;   // 读到零段的次数：正常应为 0（零段是砍掉的过场视频 / 旧版音乐，游戏不该来读）；非 0 = 砍错了 | Number of reads that hit a zero-filled range: should normally be 0 (zero-filled ranges are stripped cutscene videos / old-version music the game should not come to read); non-zero = stripped wrongly
 static holemap *g_hm[4096];

@@ -259,7 +259,7 @@ static void json_str(FILE *f, const char *s) {
 // Segments: ① host loading ② SDK initialization ③ init_array (marked in main.c); ④ nnMain→ToFrontEnd ⑤ loading panel open→close ⑥ →MainMenuButtonRibbon (marked by UI messages).
 // Each segment records wall clock and the delta of each counter; wait-type counters are summed over all threads (thread-seconds), with 「主线程等」(main thread wait) listed separately. A table is printed on reaching MainMenuButtonRibbon.
 static _Atomic uint64_t g_pns[PROF_N], g_pby[PROF_N];
-static const char *const g_pname[PROF_N] = {"RomFS读", "锁等", "条件变量等", "地址等", "同步对象等", "Sleep", "主线程等", "出图等(图形)", "着色器/管线(图形)", "TACT解码"};
+static const char *const g_pname[PROF_N] = {"RomFS读", "锁等", "条件变量等", "地址等", "同步对象等", "Sleep", "主线程等", "出图等(图形)", "着色器/管线(图形)"};
 #define MAX_SEG 12
 static struct { const char *name; uint64_t t, ns[PROF_N], by[PROF_N]; } g_seg[MAX_SEG];
 static int g_nseg, g_prof_done;
@@ -273,12 +273,12 @@ static void prof_table(void) {
     fprintf(stderr, "[dm] ===== 启动时间线（DM_BOOTPROF；等待类为全线程累加的线程·秒）=====\n");
     fprintf(stderr, "[dm] %-40s %8s %8s", "分段", "墙钟s", "累计s");
     for (int k = 0; k < PROF_N; k++) fprintf(stderr, " %10s", g_pname[k]);
-    fprintf(stderr, " %9s %9s\n", "读MiB", "解码MiB");
+    fprintf(stderr, " %9s\n", "读MiB");
     uint64_t prev_t = g_t0_ns, prev_ns[PROF_N] = {0}, prev_by[PROF_N] = {0};
     for (int j = 0; j < g_nseg; j++) {
         fprintf(stderr, "[dm] %-40s %8.3f %8.3f", g_seg[j].name, (g_seg[j].t - prev_t) / 1e9, (g_seg[j].t - g_t0_ns) / 1e9);
         for (int k = 0; k < PROF_N; k++) fprintf(stderr, " %10.3f", (g_seg[j].ns[k] - prev_ns[k]) / 1e9);
-        fprintf(stderr, " %9.1f %9.1f\n", (g_seg[j].by[PROF_FS_READ] - prev_by[PROF_FS_READ]) / 1048576.0, (g_seg[j].by[PROF_TACT] - prev_by[PROF_TACT]) / 1048576.0);
+        fprintf(stderr, " %9.1f\n", (g_seg[j].by[PROF_FS_READ] - prev_by[PROF_FS_READ]) / 1048576.0);
         prev_t = g_seg[j].t; memcpy(prev_ns, g_seg[j].ns, sizeof prev_ns); memcpy(prev_by, g_seg[j].by, sizeof prev_by);
     }
 }

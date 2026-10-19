@@ -6,7 +6,6 @@ host/hle_thread.c	*	卡死现场 / 线程转储，只进日志
 host/crash.c	*	崩溃与看门狗现场，只进日志
 host/hle_movie.c	*	过场播放日志（MVLOG）
 host/hle_granny.c	*	启动分段计时标签，只进日志
-host/hle_tact.c	*	启动分段计时标签，只进日志
 host/hle_fdstat.c	*	文件描述符统计，只进日志
 host/hle_fs.c	*	存档写错误注入 / 错误码说明，只进日志
 host/hle_touch.c	*	触屏采样调试串，只进日志
@@ -30,7 +29,6 @@ host/diag.c	同步对象等	卡顿分类表（日志）
 host/diag.c	主线程等	卡顿分类表（日志）
 host/diag.c	出图等	卡顿分类表（日志）
 host/diag.c	着色器/管线	卡顿分类表（日志）
-host/diag.c	TACT解码	卡顿分类表（日志）
 host/diag.c	=物	怪物血条后的抗性缩写：物品注释一系，只在简中显示（monres_on_setinfo 判 dm_lang_zh）
 host/diag.c	=魔	同上
 host/diag.c	=火	同上
