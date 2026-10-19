@@ -173,8 +173,22 @@ BUILD_ID = d[0x40:0x50].hex()
 # 构建期产品规则：旧原资源/对拍域默认不变；触屏版单独出新版本，不在运行时写客体代码。
 # Build-time product rules: the old original-resource / comparison domain is unchanged by default; the touchscreen version is issued separately as a new version, and guest code is not written at runtime.
 RULESET = os.environ.get('DM_RULESET', 'native')
-assert RULESET in ('native', 'touch-run-v4'), f'未知规则域 {RULESET}'
+# 规则域决定要不要在「跨平台必需改写」之外再叠加玩法类的定点剪口：
+#   native        —— 只做必需改写 + 按构建号登记的 CUTS，不叠加玩法规则（真值对拍用）
+#   touch-run-v4  —— 暗黑2 的触屏/跑步规则域（D2R 专属，需要 RULE_BUILD 构建号断言）
+#   totk-run-v1   —— 王国之泪的首版规则域：目前不带任何剪口，只走必需改写。
+#                    TotK 的 CUTS/OBS 必须按它自己的构建号逐条登记；在此之前表为空是正确状态。
+# RULESET selects whether game-specific in-place cuts are applied on top of the
+# cross-platform-required rewrites:
+#   native       -- required rewrites plus build-id-keyed CUTS only (ground-truth comparison)
+#   touch-run-v4 -- Diablo II's touch/run domain (D2R-specific; asserts RULE_BUILD)
+#   totk-run-v1  -- Tears of the Kingdom's first domain: no cuts yet, required rewrites only.
+#                   TotK's CUTS/OBS must be registered per its own build id; empty is correct until then.
+RULESETS = ('native', 'touch-run-v4', 'totk-run-v1')
+assert RULESET in RULESETS, f'未知规则域 {RULESET}（可选：{", ".join(RULESETS)}）'
 RULE_BUILD = 'db0507f36b84200ac05f75d76ed5026f'
+# RULE_RUN 只对 D2R 的触屏规则域成立；totk-run-v1 因此天然不套用任何 D2R 剪口与私有门。
+# RULE_RUN is true only for D2R's touch domain, so totk-run-v1 never applies D2R cuts or private gates.
 RULE_RUN = RULESET == 'touch-run-v4' and NAME == 'main'
 if RULE_RUN:
     import hashlib

@@ -54,12 +54,37 @@ def minimal_keyset(source, directory):
     return target
 
 
-def program(directory, tool, keys, titlekey):
+def program(directory, tool, keys, titlekey, title_id=None):
+    """从解开的 NCA 里挑出游戏本体的 Program 内容。
+    上游把暗黑2的标题号 0100726014352000 写死在正则里，换游戏就认不出。
+    这里改成：可选的 title_id 过滤；不给时按内容类型挑，若出现多个不同标题号
+    就明确报错并列出看到的标题号，让调用方用 --title-id 指定，而不是随便挑一个。
+    Pick the game's Program NCA out of the extracted NCAs.
+    Upstream hardcoded Diablo II's title id 0100726014352000 in the regex, which cannot
+    recognise another game. Here title_id is an optional filter; without it the choice is
+    by content type, and when several distinct title ids appear this fails loudly and lists
+    them so the caller passes --title-id instead of silently taking one."""
+    found = []
     for file in directory.glob("*.nca"):
         info = run(tool, keys, ["-t", "nca", file], titlekey)
-        if re.search(r"Content Type:\s*Program", info) and re.search(r"Title ID:\s*0100726014352000", info):
-            return file
-    raise RuntimeError("Game program NCA not found")
+        if not re.search(r"Content Type:\s*Program", info):
+            continue
+        match = re.search(r"Title ID:\s*([0-9a-fA-F]{16})", info)
+        if not match:
+            continue
+        found_id = match.group(1).lower()
+        if title_id and found_id != title_id.lower():
+            continue
+        found.append((found_id, file))
+    if not found:
+        raise RuntimeError("Game program NCA not found" + (f" for title id {title_id}" if title_id else ""))
+    ids = sorted({found_id for found_id, _ in found})
+    if len(ids) > 1:
+        raise RuntimeError("Multiple program title ids in " + str(directory) + ": " + ", ".join(ids)
+                           + "; pass --title-id to choose one")
+    # 同一标题在本体/更新里各有一份 Program NCA 时按大小取最大的一份。
+    # When base and update each carry a Program NCA for the same title, take the largest.
+    return max(found, key=lambda item: item[1].stat().st_size)
 
 
 if __name__ == "__main__":
@@ -69,6 +94,7 @@ if __name__ == "__main__":
     p.add_argument("keys", type=Path)
     p.add_argument("output", type=Path)
     p.add_argument("--hactool", type=Path, required=True)
+    p.add_argument("--title-id", help="16-hex-digit title id to select; omit to accept the single Program title found")
     a = p.parse_args()
     a.output.mkdir(parents=True, exist_ok=True)
     cache = a.output.parent / "package-ncas"
@@ -82,8 +108,12 @@ if __name__ == "__main__":
             (directory / ".extracted").touch()
     base_key = ticket_key(cache / "base", a.keys)
     update_key = ticket_key(cache / "update", a.keys)
-    base = program(cache / "base", a.hactool, a.keys, base_key)
-    update = program(cache / "update", a.hactool, a.keys, update_key)
+    base_id, base = program(cache / "base", a.hactool, a.keys, base_key, a.title_id)
+    update_id, update = program(cache / "update", a.hactool, a.keys, update_key, a.title_id)
+    if base_id != update_id:
+        raise RuntimeError(f"Base and update program title ids differ: {base_id} vs {update_id}")
+    print("Title ID:", base_id, flush=True)
+    (a.output / "title-id.txt").write_text(base_id + "\n", encoding="utf-8")
     # 本体和更新可能使用不同的标题密钥；解密本体到本机缓存供 BKTR 叠加。
     # Base and update may use different title keys; decrypt the base locally for BKTR layering.
     plain = cache / "base-plain.nca"
