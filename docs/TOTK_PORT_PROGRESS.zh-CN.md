@@ -4,6 +4,8 @@
 
 路线图与分阶段验收门见 [TotK 移植脚手架计划](TOTK_PORT_SCAFFOLD.zh-CN.md)（下称「计划」）。
 
+交接入口见 [TotK 移植交接文档（HANDOFF）](HANDOFF.zh-CN.md)。
+
 - 目标设备：一加 12（Snapdragon 8 Gen 3 / **Adreno 750** / Android）
 - 起点：fork 自 `sydeEvans/d2r-android`（HEAD `5d8e322`），上游是 `jhaizhou-ops/d2r-mobile`
 - 分支：`totk/scaffold`（`main` 保持 D2R 可构建，不混入 TotK 工作）

@@ -167,6 +167,11 @@ def main():
 
         hygiene()
         table_stubs()
+        # 交接控制面是上下文压缩后的唯一恢复入口，必须和代码检查一起验证。
+        # The handoff control plane is the only recovery entry after context compaction, so it is
+        # checked together with the code gates rather than left to manual review.
+        python_check("Agent 交接控制面（HANDOFF + 日志）", "tools/agent_handoff_check.py", "--verify")
+        python_check("Agent 交接校验器负向测试", "tools/test_agent_handoff_check.py")
 
         skipped.append("t_thread_leak / t_i18n：依赖 macOS 专有头文件，Linux/CI 上不跑")
         print()
