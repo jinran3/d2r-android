@@ -36,7 +36,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 | `dm_world.c`, `dm_world.h` | Tapping a target in the game world interacts with it: tap an item name to pick it up; tap an NPC, object or exit to walk over and interact. Reuses the game's own click entry point |
 | `dm_actions.c`, `dm_actions.h` | Entry points for "select first, then confirm": buying and selling at merchants, stat and skill point allocation, setting the quantity box. All through the paths of the game's own controller version |
 | `dm_textinput.c` | Connects UI text boxes (gold amount, Chronicle search and so on) to the system keyboard |
-| `dm_textbox.c`, `dm_textbox_core.c`, `dm_textbox_core.h` | Makes plain text boxes display the color codes in item annotations correctly; `_core` is pure logic that does not touch game memory and is tested directly by the unit tests |
 
 ### Controller and the two modes
 

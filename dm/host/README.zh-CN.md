@@ -36,7 +36,6 @@ English: [README.md](README.md)
 | `dm_world.c`、`dm_world.h` | 点游戏世界里的目标就是与它交互：点物品名拾取，点 NPC、物件、出口走过去再交互。复用游戏自己的点击入口 |
 | `dm_actions.c`、`dm_actions.h` | 「先选中、再确认」的入口：商人买卖、属性与技能加点、数量框设值。全部走游戏手柄版自己的路径 |
 | `dm_textinput.c` | 界面文本框（金币数量、编年史搜索等）接系统键盘 |
-| `dm_textbox.c`、`dm_textbox_core.c`、`dm_textbox_core.h` | 让普通文字框正确显示物品注释里的颜色码；`_core` 是不碰游戏内存的纯逻辑，单测直接测它 |
 
 ### 手柄与两种模式
 

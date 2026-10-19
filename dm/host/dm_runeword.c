@@ -28,7 +28,6 @@
 #include "dm_actions.h"
 #include "dm_input.h"
 #include "dm_cursor_item.h"
-#include "dm_textbox_core.h"
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -56,15 +55,15 @@ static int nfilled(uint64_t it) { uint64_t c = *(uint64_t *)(it + 0x90); int n =
 static int is_type(uint8_t *b, uint64_t it, int t) { return ((int (*)(uint64_t, int))(b + 0x574bc0))(it, t); }
 static const char *loc_str(uint8_t *b, const char *key) { struct { const char *p; uint64_t n; } k = { key, strlen(key) }; const char *s = ((const char *(*)(void *))(b + 0x7f5630))(&k); return s && *s ? s : key; }
 // 本地化串的文字框版：物品注释把带颜色码、带点评行的注释版写进了原版字符串键（名字前几行是点评，游戏倒着画），普通文字框不认颜色码。
-// 改写规则只有一份：文字框对照表（dm_textbox_core.c，门 14 在文字框写字入口按表改写，注释关着时没有表、串里也没有码）。
+// 改写规则随 D2R 专属的文字框颜色码一族摘除（裁剪批 7g）：本地化串原样用。
 // 这里同一张表先换好再用（清单名字也要进日志）；不在表里的原样用
 // Text box version of localized strings: item annotations wrote the annotated version, with color codes and comment lines, into the original game's string keys (the lines before the name are comments; the game draws them in reverse), and ordinary text boxes do not understand color codes.
-// There is only one copy of the rewrite rule: the text box mapping table (dm_textbox_core.c; gate 14 rewrites by the table at the text box set-text entry; with annotations off there is no table and no codes in the strings).
+// The rewrite rule was removed together with the D2R-only text box colour-code family (trim batch 7g): localized strings are used as is.
 // Here the same table is applied first, then the result is used (list names also go into the log); strings not in the table are used as is
 static void loc_tb(uint8_t *b, const char *key, char *out, size_t n) {
-    dm_textbox_ensure_loaded();   // 表由门 14 第一次触发时读；门没挂（DM_TEXTBOX_OFF / rules 产物）或清单比任何文字框先取名字时，这里先读 | The table is read when gate 14 first fires; when the gate is not hooked (DM_TEXTBOX_OFF / rules build output) or the list fetches names before any text box does, read it here first
-    const char *s = loc_str(b, key); char *o = NULL; size_t on = 0;
-    if (dm_textbox_rewrite(s, strlen(s), &o, &on) && o) { snprintf(out, n, "%s", o); free(o); } else snprintf(out, n, "%s", s);
+    // 原表已随文字框颜色码一族摘除，这里直接取原串
+    const char *s = loc_str(b, key);
+    snprintf(out, n, "%s", s);
 }
 #define CC "\xee\x81\xbe"   // 颜色码前缀（游戏串里的 ÿc），后接颜色号：0 白 1 红 4 金 5 灰 | Color code prefix (ÿc in game strings), followed by the color number: 0 white 1 red 4 gold 5 gray
 static void send_pkt(uint8_t *b, const uint8_t *p, int n) { ((void (*)(const uint8_t *, int))(b + 0x2ceab0))(p, n); }

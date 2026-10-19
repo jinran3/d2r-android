@@ -4,14 +4,13 @@ DM_ROOT ?= $(HOME)/dm-work
 PY ?= $(DM_ROOT)/build/cache/dm/venv/bin/python
 EXEFS ?= $(DM_ROOT)/data/switch/3.3.94012/Update/ExeFS
 B = build
-run: $(B)/t_thread_leak $(B)/t_rift_clock $(B)/t_textbox $(B)/t_padmap $(B)/t_touch $(B)/t_hid_receipt $(B)/t_hid_script $(B)/t_touch_mac $(B)/t_oe $(B)/t_fs $(B)/t_fs_case $(B)/t_romfs_validate $(B)/t_audio $(B)/t_audio_spsc $(B)/t_swkbd $(B)/t_altstack $(B)/t_condvar $(B)/t_condvar_old $(B)/t_target_rank $(B)/t_hud_dead $(B)/t_namegen $(B)/t_modetx $(B)/t_unit_level $(B)/t_widget $(B)/t_doorspot $(B)/t_cloudsync $(B)/t_i18n $(B)/main.orig.bin $(B)/subsdk0.orig.bin
+run: $(B)/t_thread_leak $(B)/t_rift_clock $(B)/t_padmap $(B)/t_touch $(B)/t_hid_receipt $(B)/t_hid_script $(B)/t_touch_mac $(B)/t_oe $(B)/t_fs $(B)/t_fs_case $(B)/t_romfs_validate $(B)/t_audio $(B)/t_audio_spsc $(B)/t_swkbd $(B)/t_altstack $(B)/t_condvar $(B)/t_condvar_old $(B)/t_target_rank $(B)/t_hud_dead $(B)/t_namegen $(B)/t_modetx $(B)/t_unit_level $(B)/t_widget $(B)/t_doorspot $(B)/t_cloudsync $(B)/t_i18n $(B)/main.orig.bin $(B)/subsdk0.orig.bin
 	python3 native_write_scan.py --selftest ..
 	python3 mode_scan.py ../..
 	python3 ../../ios/tools/dm_i18n.py --check
 	python3 ../../i18n/scan_literals.py
 	$(B)/t_thread_leak
 	$(B)/t_rift_clock
-	$(B)/t_textbox
 	$(B)/t_touch
 	$(B)/t_hid_script 2>/dev/null
 	$(B)/t_hid_receipt 2>/dev/null
@@ -41,8 +40,6 @@ $(B)/t_i18n: t_i18n.c ../dm_i18n.c ../dm_i18n.h ../dm_i18n_tab.h | $(B)
 	clang -O1 -Wall -Werror -I.. -o $@ t_i18n.c ../dm_i18n.c
 $(B)/t_hud_dead: t_hud_dead.c ../dm_hud.h | $(B)
 	clang -O1 -Wall -Werror -I.. -o $@ t_hud_dead.c
-$(B)/t_textbox: t_textbox.c ../dm_textbox_core.c ../dm_textbox_core.h | $(B)
-	clang -O1 -Wall -Werror -o $@ t_textbox.c ../dm_textbox_core.c
 $(B)/t_doorspot: t_doorspot.c ../dm_doorspot.h | $(B)
 	clang -O1 -Wall -Werror -I.. -o $@ t_doorspot.c
 $(B)/t_widget: t_widget.c ../dm_widget.h | $(B)

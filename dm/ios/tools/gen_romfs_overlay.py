@@ -221,7 +221,6 @@ with tempfile.TemporaryDirectory() as t:
             n1,z1=emit(RS,dst,name+'_')
             for key,mod in combo:   # 特性模块自带的旁路文件（不进 CASC 的，如物品注释的文字框对照表）写在变体目录根上，宿主按 DM_ROMFS_OVERLAY 找 | Sidecar files that feature modules bring along (those not in CASC, e.g. the item notes' text box mapping table) are written at the variant directory root; the host finds them via DM_ROMFS_OVERLAY
                 m=importlib.import_module(mod)
-                if hasattr(m,'write_textbox_table'): m.write_textbox_table(dst)
             with open(os.path.join(dst,'features.txt'),'w') as f: f.write('\n'.join(k for k,_ in combo)+'\n'+''.join(f'{p}\n' for p in sorted(touched)))
             print(f'romfs_overlay_variants/{name}：{n1} {z1} 字节；改了 {len(touched)} 个文件；{stats}')
             if ASTC:   # 同一组合的 ASTC 版：索引另出，旁路文件（features.txt、文字框对照表…）照抄 | ASTC version of the same combination: the index is emitted separately, sidecar files (features.txt, text box mapping table...) are copied as is
