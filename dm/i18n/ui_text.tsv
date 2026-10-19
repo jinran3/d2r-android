@@ -10,35 +10,6 @@ dmUpdUrgentTitle	建议立即更新	Update Recommended	建议立即更新档的�
 dmUpdButton	更新	Update	选角页两个「更新」按钮（touch_layout.py）
 dmRwTitle	%s · %d 孔 · 可做的符文之语	%s · Socketed (%d) · Runewords	符文之语清单标题（dm_runeword.c；%s = 底材名）；英文用原版词：item-modifiers[Socketable]「Socketed (%i)」、ui[Runewords]
 dmRwLevel	需要等级 %d	Required Level: %d	符文之语清单每行的需要等级；英文 = 原版 item-modifiers[ItemStats1p]「Required Level: %d」
-dmKbJoin3	%s、%s、%s	%s, %s, %s	积分牌：三位先祖名字拼接（dm_kills.c）
-dmKbKilledNth	%s第 %d 次成功击杀！	%s slain! (kill #%d)	击杀首领后的系统提示
-dmKbKilledTotal	%s已累计击杀 %d 次！	%s slain %d times in total!	整十次等里程碑提示
-dmKbKills	击杀 %d	Kills %d	积分牌行：次数
-dmKbFirst	首杀 %m-%d %H:%M	First %m-%d %H:%M	积分牌行：首杀时刻（strftime）
-dmKbDrops	暗金 %d · 套装 %d	Unique %d · Set %d	积分牌行：掉落件数
-dmKbTimes	最快 %s · 最近 %s · 平均 %s	Best %s · Last %s · Avg %s	积分牌行：用时
-dmKbTotal	总击杀 %s	Total kills %s	积分牌底部总数
-dmKbAct1	第一幕	Act I	积分牌幕页签（touch_layout.py）
-dmKbAct2	第二幕	Act II	积分牌幕页签
-dmKbAct3	第三幕	Act III	积分牌幕页签
-dmKbAct4	第四幕	Act IV	积分牌幕页签
-dmKbAct5	第五幕	Act V	积分牌幕页签
-dmKbSortAct	按幕顺序	By Act	积分牌排序下拉
-dmKbSortCount	按次数	By Kills	积分牌排序下拉（宿主 kb_sort 按这个键认）
-dmKbSortFast	按最快	By Best Time	积分牌排序下拉（宿主 kb_sort 按这个键认）
-dmBrPrefix	首领连战  %s	Boss Rush  %s	首领连战所有提示的前缀（dm_bossrush.c）
-dmBrDoneThisGame	本局已完成，下局再来	Already completed this game. Try again next game	首领连战：本局打过了
-dmBrToChamber	前 5 关完成，进门前往世界之石大殿	First 5 stages done. Enter the portal to the Worldstone Chamber	首领连战：前 5 关完成
-dmBrAllDone	全部完成	All stages complete	首领连战：全部完成
-dmBrStage	第 %d / %d 关：%s%s	Stage %d / %d: %s%s	首领连战：开打第几关（%s = 首领名、恐怖地带后缀）
-dmBrTerror	（恐怖地带）	 (Terror Zone)	首领连战第 6–10 关后缀
-dmBrAndariel	安达莉尔	Andariel	首领连战首领名
-dmBrDuriel	督瑞尔	Duriel	首领连战首领名
-dmBrMephisto	墨菲斯托	Mephisto	首领连战首领名
-dmBrDiablo	迪亚波罗	Diablo	首领连战首领名
-dmBrBaal	巴尔	Baal	首领连战首领名
-dmBrDiabloClone	暗黑迪亚波罗	Diablo Clone	首领连战第 11 关（怪物 333）
-dmBrUbers	超级墨菲斯托、超级迪亚波罗、超级巴尔	Uber Mephisto, Uber Diablo, Uber Baal	首领连战第 12 关
 dmRwHint	先移到个人仓库或背包	Move out of shared stash first	符文之语清单：底材在共享仓库时的灰字
 dmRwGo	一键合成	Craft	符文之语清单每行 / 详情页的合成按钮
 dmPauseShareLog	分享诊断日志	Share Diagnostics	暂停菜单按钮
@@ -145,7 +116,6 @@ dmDlNetRetry	网络中断，%d 秒后自动重试	Network lost. Retrying in %d s
 dmDlReconnect	连接不稳，已重新连接（第 %d 次）	Unstable connection. Reconnected (attempt %d)	资源下载进度第三行：这一片掉速后换了新连接（asset_dl.m）
 dmShareLogFile	D2R Mobile Diagnostics_%@_%@.txt	D2RMobile_diagnostics_%@_%@.txt	分享诊断日志时系统分享面板上的文件名（dm_sharelog.m；文件内容给我们看，搜行用的中文键不翻）
 dmTroveTab	珍宝匣	Trove	储藏箱第三个页签：宝石 / 符文 / 材料三页合成的一页（wide_stash.py；材料、符文两个页签挪出屏）
-dmPadLegDiff	难度	Difficulty	积分牌手柄提示条 X（dm_kills.c）；英文 = 原版 ui[automapdif]「Difficulty: %s」里的词
 dmPadLegSort	排序	Sort	积分牌手柄提示条 Y；英文 = 原版 ui[strSort]「Sort」
 dmPadHintDeposit	存入	Deposit	编年史页「按住 Y」那半句（dm_padmode.c）；英文 = 原版 ui[strGoldDeposit]
 dmPadLegIdentify	捡起（按住鉴定）	Pick Up (Hold to Identify)	手柄模式光标在未鉴定物品上时，原版提示条 A 那条的「捡起」换成这句（dm_padmode.c 换串小表）；写法照原版「捡起(按住使用)」；英文：拟

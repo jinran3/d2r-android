@@ -2,12 +2,12 @@
 # 我们自己的功能不许写原版储藏箱控件（丢装备事故：编年史页把原版 grid 设成不可见、游戏从不重设，个人 / 共享页看起来全空）。
 # 编年史仓库与个人仓库多页随裁剪批 7k 摘掉后，原先那道「静态扫编年史页 / 个人仓库页码」的检查已经没有对象，
 # 剩下的是覆盖整个宿主的第二道（不写原版控件）：不许直接写控件的可见位 +0x50 / +0x51，只许在带守卫的函数里写——
-# dm_cursor.c ui_show_ours、dm_kills.c kb_show（名字不是 Touch 开头就报红不写）。别处要改可见，调它们
+# dm_cursor.c ui_show_ours（名字不是 Touch 开头就报红不写）。别处要改可见，调它
 # 用法：native_write_scan.py <dm/host 目录>；--selftest 先拿一段故意违规的文本验这个扫描本身会报红
 # Our own features must not write the original game's stash widgets (lost-equipment incident: the chronicle page set the original grid invisible and the game never resets it, so the personal / shared pages looked completely empty).
 # After the chronicle vault and the multi-page personal stash were removed in trim batch 7k, the static scan of "the chronicle page / the personal stash page numbers" has no target left;
 # what remains is the second check covering the whole host (do not write original-game widgets): a widget's visible flag +0x50 / +0x51 must not be written directly, only inside guarded functions --
-# dm_cursor.c ui_show_ours, dm_kills.c kb_show (a name not starting with Touch is reported as a failure and not written). To change visibility elsewhere, call them
+# dm_cursor.c ui_show_ours (a name not starting with Touch is reported as a failure and not written). To change visibility elsewhere, call it
 # Usage: native_write_scan.py <dm/host directory>; --selftest first verifies with a deliberately violating piece of text that the scan itself reports a failure
 import os, re, sys
 
@@ -23,7 +23,7 @@ def scan(text, where):
     return bad
 
 VIS = re.compile(r'\+\s*0x5[01]\)\s*=(?!=)')
-GUARDED = ('ui_show_ours', 'kb_show')
+GUARDED = ('ui_show_ours',)
 def vis_scan(text, where):   # 直接写可见位的行；在带守卫的函数里（定义那一行或其函数体内）的不算 | lines that write the visible flag directly; those inside a guarded function (its definition line or its body) do not count
     bad, inside = [], None
     for no, line in enumerate(text.split('\n'), 1):

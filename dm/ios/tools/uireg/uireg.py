@@ -1084,44 +1084,6 @@ def groups():
     # rf2：88 级法师（带佣兵 → 经典版暂停页 PauseLayout），普通
     # rf2: level 88 sorceress (with a mercenary → classic pause page PauseLayout), Normal
     g=G("rf2","DM_TEST_POS_LOG=1"); g.sect("rf2",0); g.enter(4); g.wait(2.0); rs3(g,"PauseLayout",0); gs.append(g)
-    # ---- 刷怪积分牌：kba 编年史「首领」页逐控件，kbb 击杀局（BASE 钉时间：首杀显示钉住的那个时刻）----
-    # 编年史页签（iPhone 档 667 基准）：页签加宽 266 → 320 单位后，四个页签中心按「整排居中于 334、间距 (320+2)×0.2015 ≈ 64.9」算：237 / 302 / 366 / 431，y 55.5
-    # （加宽前是 253 / 307 / 361 / 415，kbp 截图量）
-    # ---- Kill board: kba checks the Chronicle "Bosses" page widget by widget, kbb is the kill run (BASE pins the time: the first kill shows the pinned
-    # moment) ----
-    # Chronicle tabs (iPhone profile, 667 baseline): after the tabs were widened 266 → 320 units, the four tab centers are computed as "row centered at 334,
-    # pitch (320+2)×0.2015 ≈ 64.9": 237 / 302 / 366 / 431, y 55.5
-    # (before widening they were 253 / 307 / 361 / 415, measured from regression-case screenshots)
-    TABS={"暗金":237,"套装":302,"符文之语":366,"首领":431}
-    def chron(g):
-        g.tap("@menu"); g.tap(P(551,17),1.5)
-        g.item("暂停 → 编年史","编年史开，四个页签（看截图）",r"OpenPanel ChroniclePanel"); g.at("tap_ui Chronicle@PauseLayoutGarden 3",2.0); g.shot()
-    # kba：积分牌各控件逐个点（刷怪前的空牌）
-    # kba: tap each kill board widget one by one (the empty board before any monster farming)
-    g=G("kba"); g.sect("kba",0); g.enter(); chron(g)
-    g.item("点第四页签「首领」","切到积分牌：左列五幕、三个勾选、排序下拉、左下总击杀（看截图）",r"界面页签：切"); g.tap(P(TABS["首领"],55.5),2.0); g.shot()
-    for k in range(5):
-        g.item(f"点第{'一二三四五'[k]}幕","切幕（看截图：右列换成这一幕的首领）",r"TouchKB_Act%d"%k); g.at(f"tap_ui TouchKB_Act{k} 3",1.5); g.shot()
-    g.item("第五幕列表往上滑","长列表能滚（看截图）",None); g.at("tap_ui TouchKB_Act4 3",1.0); g.drag(P(460,250),P(460,110),.4); g.wait(1.0); g.shot()
-    for k,nm in enumerate(("普通","噩梦","地狱")):
-        g.item(f"勾「{nm}」","勾上（看截图）",r"TouchKB_D%d"%k); g.at(f"tap_ui TouchKB_D{k} 3",1.5); g.shot()
-        g.item(f"再点「{nm}」","取消勾选",r"TouchKB_D%d"%k); g.at(f"tap_ui TouchKB_D{k} 3",1.5)
-    for k,nm in enumerate(("按幕顺序","按次数","按最快")):
-        g.item(f"排序下拉选「{nm}」","选中这项、不崩（看截图）",r"DropdownListWidgetMessage",r"CRASH|【红】"); g.at("tap_ui TouchKB_Sort 3",1.2); g.at(f"shot {g.name}_dd{k}.png",.3); g.tap(P(468,(86,95.5,105.5)[k]),1.5); g.shot()
-    for nm in ("暗金","套装","符文之语"):
-        g.item(f"切回「{nm}」页","原版页完好、积分牌不残留（看截图）",r"界面页签：切"); g.tap(P(TABS[nm],55.5),2.0); g.shot()
-    g.item("关编年史再开","头一帧不闪积分牌（看截图：停在原版页）",r"OpenPanel ChroniclePanel"); g.tap(P(615,17),1.5); g.at("tap_ui Chronicle@PauseLayoutGarden 3",0.1); g.at(f"shot {g.name}_f1.png",1.5); g.shot()
-    gs.append(g)
-    # kbb：击杀局：冰冷之原刷安达莉尔、160 拍压成 1 点，测试开关带人走到怪旁，主钮连点；然后开积分牌看第一幕
-    # kbb: kill run: spawn Andariel in the Cold Plains, at tick 160 pressed down to 1 point, the test switch walks the player next to the monster, tap the main button repeatedly; then open the kill board and look at Act 1
-    g=G("kbb","DM_TEST_GOTO_LEVEL=60:2 DM_TEST_SPAWN=150:156:5,5 DM_TEST_SLAY=160 DM_TEST_WORLD_GO=near:monster@200 DM_TEST_STAT=7=2560000,6=2560000 DM_TEST_KILL_DROP=cap:7,lgl:5 DM_TEST_POS_LOG=1"); g.sect("kbb",0); g.enter(); g.t=max(g.t,16.0)
-    g.item("首领出现","系统提示「安达莉尔已累计击杀 0 次」类（看截图）",r"刷怪积分牌：拍 \d+ 提示出现"); g.wait(2.0); g.shot()
-    for k in range(16): g.at("down 1 @main",.12); g.at("up 1",.38)
-    g.item("主钮连点 8 秒","击杀：日志「第 1 次」与「暗金 1、套装 1」，提示「第 1 次成功击杀」（看截图）",lambda s,b: ("通：" if re.search(r"刷怪积分牌：拍 \d+ \S+ 难度 0 第 1 次",b+s) and re.search(r"死后那一批掉落：暗金 1、套装 1",b+s) else "不通：")+"击杀与掉落两行（整局）"); g.wait(2.0); g.shot()
-    g.wait(4.0); chron(g)
-    g.item("点「首领」页签、第一幕","安达莉尔「击杀 1」「暗金 1 · 套装 1」、首杀时刻（看截图）",r"界面页签：切"); g.tap(P(TABS["首领"],55.5),2.0); g.at("tap_ui TouchKB_Act0 3",1.5); g.shot()
-    g.item("宿主时区","日志「ToCalendarTime：首次换算」的偏移",lambda s,b: (lambda m: ("通：" if m else "未判：")+(m.group(0) if m else "没有这行"))(re.search(r"ToCalendarTime：首次换算[^\n]*",b+s)))
-    gs.append(g)
     # ---- 看门狗：wd1 局后回前端发呆不误报判死；wd2 启动后不动仍判死。都带 DM_WATCH_STALL=15 ----
     # ---- Watchdog: wd1 idling at the front end after a run is not falsely declared dead; wd2 not moving after launch is still declared dead. Both use DM_WATCH_STALL=15 ----
     WD="DM_WATCH_STALL=15"

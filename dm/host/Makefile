@@ -7,7 +7,7 @@ MACOS_MIN ?= 26.0
 CFLAGS=-O1 -g -Wall -Wno-unused-function -mmacosx-version-min=$(MACOS_MIN)
 # 服务层接管 hle_*.c 按通配纳入：新增文件不改这一行（免合并冲突）
 # Service-layer takeover hle_*.c files are included by wildcard: adding a file does not touch this line (avoids merge conflicts)
-SRC=main.c loader.c hle.c crash.c diag.c thread.c memstat.m dm_cursor.c dm_cursor_item.c dm_world.c dm_textinput.c dm_update.c dm_actions.c dm_custom.c dm_bossrush.c dm_kills.c dm_padmode.c dm_freetp.c dm_runeword.c dm_uiscreen.c dm_hud.c touch_mac.c romfs_validate.c ../ios/Sources/dm_touch_controls.c $(sort $(wildcard hle_*.c)) front_mac.m app_mac.m ../ios/Sources/dm_gamepad.m entry.S dm_i18n.c
+SRC=main.c loader.c hle.c crash.c diag.c thread.c memstat.m dm_cursor.c dm_cursor_item.c dm_world.c dm_textinput.c dm_update.c dm_actions.c dm_custom.c dm_padmode.c dm_freetp.c dm_runeword.c dm_uiscreen.c dm_hud.c touch_mac.c romfs_validate.c ../ios/Sources/dm_touch_controls.c $(sort $(wildcard hle_*.c)) front_mac.m app_mac.m ../ios/Sources/dm_gamepad.m entry.S dm_i18n.c
 # NVN 空设备 + nn::vi（dm/gfx/）
 # 按通配纳入 dm/gfx 与 dm/gfx/nvn 下的源（tests/ metal/ 不进宿主）：新增文件不改这一行
 # NVN null device + nn::vi (dm/gfx/)
