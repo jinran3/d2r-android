@@ -3,6 +3,45 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+[END] na-022-freetp-trim
+
+- 退出码：`build.py --game-run --version trim-b21` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，17,955,279 字节（2026-10-20 01:57:54；比 trim-b20 小 32,768 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除三个文件：`dm/host/dm_freetp.c`（99 行：进局给玩家挂上原版回城技能 411、无视回城书 / 卷轴直接开门、手柄 ZR 空键免费施放）、`dm/ios/tests/t_portal_sequence.c`（回城手势序列的 C 单测）、`dm/ios/tests/test_portal_receipt.py`（回城收据的 Python 单测）。
+- 宿主侧：`dm/host/diag.c` 的每拍 `dm_freetp_server_step`、`dm/host/dm_actions.c` 的 `dm_freetp_client_step`、`dm/host/Makefile` 的 `SRC` 一项、两个 README 的表行。
+- 触控层（`dm/ios/Sources/dm_touch_controls.c` / `.h`，这一层 Android 构建也编，编译期能兜住）：枚举里去掉 `DM_TC_PORTAL`、`DM_TC_COUNT` 12 → 11（后面的目标编号顺移，代码里全是按名字引的，只有枚举本身要改）；状态里去掉 `portal_pending` / `portal_phase` / `gesture_epoch` / `portal_binding_identity` / `portal_scene_epoch`；去掉 `dm_tc_set_portal_button` / `dm_tc_set_portal_binding` / `dm_tc_portal_ack` / `dm_tc_cancel_portal` 四个函数与它们的声明；布局里那个钮（技能弧上方）、按键映射里那一支、`dm_tc_cancel_finger` / `dm_tc_cancel_all` / `dm_tc_resize` / 按下 / 抬起几处里的回城分支与相关注释。
+- iOS 应用侧：`DmTouchOverlay.m` 去掉那个钮（绘制、标签、图标、`visual_owner`）、两张按枚举序排的字面量数组（`labels` 12 → 11、`names` 12 → 11）、诊断 JSON 里的回城请求字段；`front_ios.m` 去掉点钮发请求那一行、那套「修饰键发布」状态（`_modifierPublishEpoch` / `_modifierPublishEndNS`）、收据里的回城字段、弱符号兜底 `dm_tg_portal_mask` 与 `dm_front_navigation`（连 `g_nav_pub`）；`dm_gamepad.m` 去掉 ZR 空键接管那一段；`dm/host/app_mac.m` 去掉 Mac 宿主那侧的 `dm_front_navigation` 与它的说明。
+- **收据协议**：回城钮原来有一套「请求 → 修饰键发布 → 原生绑定确认（ACK）」的两阶段协议（`dm/ios/tools/input_pair_check.py` 的 `validate_portal` 与分析器里的组合配对、`dm/ios/tests/test_input_pair_check.py` 的 35 条用例）。协议没了，校验器里那一整套连同 `PORTAL_FIELDS` 一起去掉（`SOURCES` 去掉 `portal_sequence`），用例从 67 条减到 32 条，本机复跑 `test_input_pair_check.py` **32/32 通过**。
+- **顺带恢复的一处**：手柄的「重新绑定技能」框原本只留 1–5 列（第 6 列 ZR 被定成回城快捷键），`touch_layout.py` 里那段 `_bind_modal_5col` 的改写一起去掉 → 恢复原版六列。
+- UI 回归台：`tp` 局（回城门）删掉 —— 它开门那一步点的是我们自己的回城钮；原版的回城门要用回城书 / 卷轴（需要专用存档，仓库里没有）。`usage.md` 里那几处 `tp` 的说明同步。`uireg/affected.tsv` 里 `dm/host/dm_freetp*` 那一行删掉。
+- 白名单：`ios/Sources/DmTouchOverlay.m` 的「=回城」那一行删掉（那个标签没了），「主技能」那行的理由同步收口。
+- 底栏布局的两句说明（`gen_hud_v4.py` / `hud_v4_design.py`）：「回城不在底栏（改为右侧技能钮上方的圆钮）」→「回城格已去掉」。
+- **本批踩了两个坑，靠 iOS 触控层单测的 `-Werror` 编译检查抓出来**（Android 构建不带 `-Werror`，只当警告放过）：
+  1. 删「回城钮不在底栏」那行注释时，把**底栏那段注释的收尾 `*/` 一起删掉了** → 后面整段被当成注释吞掉。改回：把收尾 `*/` 补回那行。
+  2. 删 `dm_tc_resize` 里那四行时，**把函数体里的 `dm_tc_cancel_all(s)` 与 `dm_tc_layout_make(...)` 一起删掉了** → 改尺寸时不再重排布局。改回：函数体保留那两行。
+  3. （同类的还有一处）删 `t_skill_aim.c` 里那段回城用例时，把后面的 `dm_tc_resize(&s,667,375)` 一起删掉了 → 主钮拖动那条断言红。改回：补上那行 resize。
+  教训：**Android 构建不带 `-Werror`，被改坏的头文件 / 注释 / 未用参数它只当警告**；iOS 触控层那套 C 单测带 `-std=c11 -Wall -Wextra -Werror`，本机用 MinGW 的 `cc` 就能编 → 改触控层之后一定要用 `-Werror` 编一遍 `dm/ios/tests/t_*.c`。
+- **iOS 触控层单测本机复跑**（MinGW `cc -std=c11 -Wall -Wextra -Werror`，产物在临时目录、不进仓库）：`t_touch_controls` 编译并通过；`t_skill_aim` 76/76 通过（原先 82 项，少掉的是回城那几条）；`t_binding_freshness` 8/8 通过；`t_joy_travel` 48 项通过；`t_native_binding` 编译通过、运行需要两份夹具（公开仓库不带）故只验编译。
+- 宽口径复核 `git grep -n -i -e DM_TC_PORTAL -e dm_tc_portal -e dm_tc_set_portal -e dm_tc_cancel_portal -e dm_tp_request -e dm_freetp -e portal_pending -e portal_phase -e portal_binding -e portal_scene -e gesture_epoch -e portal_sequence -e dm_front_navigation -- dm/`：`dm/` 下 0 命中。
+- `dm\android\tools\build.py --game-run --version trim-b21`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：写本条目之前 9 项通过 / 1 项失败（失败的是「Agent 交接控制面」，因为 `[END]` 还没成对、HANDOFF 还没更新），收尾复跑 10 项通过 / 0 项失败。
+- **本机 NOT RUN 的部分**：`dm/ios` 侧的编译与打包（Objective-C 的三个 `.m` 与布局的改动未经 Xcode 构建验证 —— 但触控层的 `.c` 与五个 C 单测本机用 MinGW `-Werror` 编过并跑过，见上）；`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）跑不了。
+
+## 2026-10-20 02:00 Asia/Shanghai — [TOTK] NA-022 裁剪批 7p（免费回城）进行中
+
+[BEGIN] na-022-freetp-trim
+
+- 命令：`git rm dm/host/dm_freetp.c dm/ios/tests/t_portal_sequence.c dm/ios/tests/test_portal_receipt.py`，并连带清掉宿主侧（`diag.c` 的每拍、`dm_actions.c` 的客户端步、`Makefile` 的 `SRC`、两个 README）、触控层（`dm_touch_controls.h` 的 `DM_TC_PORTAL` 枚举项与 `DM_TC_COUNT` 12 → 11、四个 `portal_*` 状态字段、四个 `dm_tc_*_portal*` 函数、`dm_touch_controls.c` 里布局摆放 / 按键映射 / 取消手指 / resize / 按下抬起那几处）、iOS 应用侧（`DmTouchOverlay.m` 的那个钮与两张按枚举序排的数组、`front_ios.m` 的回城请求与那套「修饰键发布」状态、`dm_gamepad.m` 的 ZR 空键接管、`app_mac.m` 的 `dm_front_navigation`）、收据协议（`dm/ios/tools/input_pair_check.py` 的 `validate_portal` 与分析器里的组合配对、`dm/ios/tests/test_input_pair_check.py` 的 35 条回城用例、`dm/ios/tests/test_touch_receipt.py` 的 `portal_sequence` 源）、单测（`t_touch_controls.c` / `t_skill_aim.c` / `t_binding_freshness.c` / `t_native_binding.c` 里的回城段）、UI 回归台（`tp` 局）、白名单两行、`uireg/affected.tsv`，然后 `ci_checks.py` + `build.py --game-run --version trim-b21` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉免费回城后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`54dd9ea16e8ff78d70346eed60e5d7b20c49cc6b`
+
 ## 2026-10-20 01:05 Asia/Shanghai — [TOTK] NA-021 裁剪批 7o（首领连战 + 刷怪积分牌）进行中
 
 [BEGIN] na-021-bossrush-killboard-trim
