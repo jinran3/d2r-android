@@ -2,6 +2,32 @@
 
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+## 2026-10-19 23:20 Asia/Shanghai — [TOTK] NA-015 裁剪批 7i（起名页随机取名）进行中
+
+[BEGIN] na-015-namegen-trim
+
+- 命令：`git rm dm/host/dm_namegen.c dm/host/tests/t_namegen.c`、清掉 `dm_actions.h` 的 `dm_name_gen` 声明、`front_ios.m` 起名页自动填名那段与相关注释、`dm_cursor.c` 里随之失效的 `g_fe_name_no_accept` 机制、`dm/host/tests/Makefile` 的 `t_namegen` 目标与 `run:` 列表、`dm/host/Makefile` 的 `SRC`、两个 README 表行、`uireg/affected.tsv` 行，然后 `ci_checks.py` + `build.py --game-run --version trim-b14` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉起名页随机取名后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`d8e66a50d51288796f6d547bef4c736ae584f32b`
+[END] na-015-namegen-trim
+
+- 退出码：`build.py --game-run --version trim-b14` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，18,987,471 字节（2026-10-19 22:49:28；比 trim-b13 小 16,384 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除：`dm/host/dm_namegen.c`（起名页留空时按音节拼随机名、避开重名）与单测 `dm/host/tests/t_namegen.c`。
+- 调用点：`dm/host/dm_actions.h` 的 `dm_name_gen` 声明；`dm/ios/Sources/front_ios.m` 起名页那段「名字留空点确定 = 随机取名」（含四行注释与那行调用）—— 摘掉后原版自带的「随机名字」键仍是玩家的实际入口，所以这是 D2R iOS 产品的一个**增强功能下线**，不是功能坏掉。
+- 随之失效的机制：`dm/host/dm_cursor.c` 的 `g_fe_name_no_accept`（前端抽到随机名时用来抑制自动「接受」）—— 它只由上面那段前端代码置位，前端那段摘掉后它永远是 0，机制与那个标志一起摘掉，`dm_ui_text_entered` 回到「输入即接受」的常态。
+- 其余：`dm/host/tests/Makefile` 的 `t_namegen` 编译规则与 `run:` 列表引用、`dm/host/Makefile` 的 `SRC` 一项、两个 `dm/host/README*.md` 的表行、`dm/ios/tools/uireg/affected.tsv` 的一行；`dm/i18n/literal_whitelist.tsv` 无相关行。
+- 宽口径复核 `git grep -n -e dm_namegen -e dm_name_gen -e name_gen -e g_fe_name_no_accept -- .`：除 `docs/HANDOFF*` 外 0 命中（文件名与符号名的下划线写法不同，两种形态都查了）。
+- `dm\android\tools\build.py --game-run --version trim-b14`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：提交后在干净树上复跑 exit 0，10 项通过 / 0 项失败。
+
 ## 2026-10-19 23:10 Asia/Shanghai — [TOTK] NA-014 裁剪批 7h（极乐世界模式）进行中
 
 [BEGIN] na-014-elysium-trim
