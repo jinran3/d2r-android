@@ -181,11 +181,11 @@ Usage is `dmhost <build output directory> [module…] [-- game arguments…]`. `
 
 **In-game features**
 
-The `dm_*.c` files are features and touch adaptations added on top of the original game; the comment at the top of each file explains what it does and which addresses in the game it relies on. For example `dm_cursor.c`, `dm_world.c`, `dm_actions.c` (touch selection, interacting with the world, buying/selling and spending points), `dm_hud.c` (the numbers on the bottom interface), `dm_pouch.c` (the pouch), `dm_rift.c` (the rift), `dm_cloudsync.c` (iCloud save sync), `dm_custom.c` (the switches for these features). The addresses in the files are all offsets into the original 3.3.94012 image.
+The `dm_*.c` files are features and touch adaptations added on top of the original game; the comment at the top of each file explains what it does and which addresses in the game it relies on. For example `dm_cursor.c`, `dm_world.c`, `dm_actions.c` (touch selection, interacting with the world, buying/selling and spending points), `dm_hud.c` (the numbers on the bottom interface), `dm_rift.c` (the rift), `dm_cloudsync.c` (iCloud save sync), `dm_custom.c` (the switches for these features). The addresses in the files are all offsets into the original 3.3.94012 image.
 
 ## Generating assets from your game files
 
-The repository contains no images, tables or text derived from the original game files (the widened stash, the pouch frame, the right-hand panel of character select, the minimap goal, the skill atlas, the bottom UI, the Chronicle vault table, the experience table and so on). They are made on the spot at build time from **your own game files**, and the outputs do not go into git.
+The repository contains no images, tables or text derived from the original game files (the widened stash, the right-hand panel of character select, the minimap goal, the skill atlas, the bottom UI, the Chronicle vault table, the experience table and so on). They are made on the spot at build time from **your own game files**, and the outputs do not go into git.
 
 **Which files are needed**
 
@@ -211,7 +211,6 @@ When game files are missing, a one-sentence message says directly which director
 | Output | Location (not in git) | Generation script (under `dm/ios/tools/`) |
 |---|---|---|
 | Widened stash background, Chronicle page cover | `dm/ios/Gen/assets/NativeHUD/widestash/` | `gen_widestash_art.py`, `gen_vault_cover.py` |
-| Pouch frame | `dm/ios/Gen/assets/NativeHUD/pouch/` | `gen_pouch_art.py` |
 | Right-hand panel of character select | `dm/ios/Gen/assets/NativeHUD/touch/` | `gen_fe_rightpanel.py` |
 | Minimap goal marker | `dm/ios/Gen/assets/NativeHUD/mapgoal/` | `gen_map_goal_art.py` |
 | Bottom UI (background and layout) | `dm/ios/Gen/assets/NativeHUD/v4/` | `gen_hud_v4.py` (geometry in `hud_v4_design.py`; layout = original layout + `touchrectv1_patch.json`) |

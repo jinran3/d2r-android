@@ -8,15 +8,6 @@ dmUpdFailSite	检查更新失败 · 可在浏览器打开 %s 手动更新	Update
 dmUpdNewUrgent	新版本 %d · %s	New version %d · %s	建议立即更新档的说明行
 dmUpdUrgentTitle	建议立即更新	Update Recommended	建议立即更新档的红字标题
 dmUpdButton	更新	Update	选角页两个「更新」按钮（touch_layout.py）
-dmStoreHead	存放：	Deposited: 	「存放」按钮完成后的系统提示开头（dm_pouch.c）；英文用原版词 ui[strGoldDeposit]「Deposit」
-dmStoreStash	%s储藏箱 %d 件	%sStash %d	存放提示：进了储藏箱几件（%s = 分隔符）
-dmStorePouch	%s百宝囊 %d 件	%sPouch %d	存放提示：进了百宝囊几件（%s = 分隔符）
-dmStoreSep	，	, 	存放提示里的分隔符
-dmStoreNone	没有可以存放的物品	No items to deposit	存放提示：一件没存；同上
-dmStoreLeft	，%d 件留在背包	, %d left in inventory	存放提示：没存进去的件数
-dmStoreFull	这一格已放满，物品留在原处	That stack is full. Item left where it is.	存放提示：高级仓库那一格叠满 99，物品留在背包 / 仓库页
-dmPouchTitle	百宝囊	Pouch	百宝囊清单标题
-dmPouchEmpty	（空）	(empty)	百宝囊清单：空
 dmRwTitle	%s · %d 孔 · 可做的符文之语	%s · Socketed (%d) · Runewords	符文之语清单标题（dm_runeword.c；%s = 底材名）；英文用原版词：item-modifiers[Socketable]「Socketed (%i)」、ui[Runewords]
 dmRwLevel	需要等级 %d	Required Level: %d	符文之语清单每行的需要等级；英文 = 原版 item-modifiers[ItemStats1p]「Required Level: %d」
 dmKbJoin3	%s、%s、%s	%s, %s, %s	积分牌：三位先祖名字拼接（dm_kills.c）
@@ -60,8 +51,6 @@ dmCustomItemNotes	物品注释与旧译名（重启后生效）	Item notes (Chin
 dmCustomIcloud	iCloud 同步存档（重启后生效）	iCloud save sync (after restart)	自定义页开关
 dmCustomPotPick	腰带有空位时自动拾取能放进去的药水	Auto-pick potions into belt	自定义页开关
 dmCustomDropHaptic	高价值物品掉落时震动	Vibrate on valuable drops	自定义页开关
-dmCustomGemPick	符文与宝石自动拾取（直接进高级仓库）	Auto-stash runes & gems	自定义页开关
-dmCustomStoreBtn	背包「存放」按钮	Inventory Deposit button	自定义页开关
 dmCustomEcoFps	省电模式（30 帧）	Power saver (30 fps)	自定义页开关
 dmCustomLootFilter	掉落过滤（噩梦起自动隐藏杂物）	Loot Filter (auto, Nightmare+)	自定义页开关；Loot Filter 是原版过滤器的英文名
 dmCustomAutoBuff	自动补上增益技能（站着不动时）	Auto-recast buffs when idle	自定义页开关

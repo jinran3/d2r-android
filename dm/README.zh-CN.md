@@ -181,11 +181,11 @@ DM_ROMFS=<Update/RomFS 目录> DM_SAVE=<存档目录> DM_TEMP=<临时目录> DM_
 
 **游戏内功能**
 
-`dm_*.c` 是在原版之上加的功能和触摸适配，每个文件开头的注释说明它做什么、依据游戏里的哪些地址。例如 `dm_cursor.c`、`dm_world.c`、`dm_actions.c`（触摸点选、与世界交互、买卖与加点）、`dm_hud.c`（底部界面上的数字）、`dm_pouch.c`（百宝囊）、`dm_rift.c`（秘境）、`dm_cloudsync.c`（iCloud 存档同步）、`dm_custom.c`（这些功能的开关）。文件里的地址都是 3.3.94012 原映像的偏移。
+`dm_*.c` 是在原版之上加的功能和触摸适配，每个文件开头的注释说明它做什么、依据游戏里的哪些地址。例如 `dm_cursor.c`、`dm_world.c`、`dm_actions.c`（触摸点选、与世界交互、买卖与加点）、`dm_hud.c`（底部界面上的数字）、`dm_rift.c`（秘境）、`dm_cloudsync.c`（iCloud 存档同步）、`dm_custom.c`（这些功能的开关）。文件里的地址都是 3.3.94012 原映像的偏移。
 
 ## 从你的游戏文件生成资源
 
-仓库里不放任何从原版游戏文件衍生出来的图片、表格和文字（加宽储藏箱、百宝囊框、选角右侧面板、小地图终点、技能图集、底部 UI、编年史仓库表、经验表等）。它们在构建时从**你自己的游戏文件**现做出来，产物不进 git。
+仓库里不放任何从原版游戏文件衍生出来的图片、表格和文字（加宽储藏箱、选角右侧面板、小地图终点、技能图集、底部 UI、编年史仓库表、经验表等）。它们在构建时从**你自己的游戏文件**现做出来，产物不进 git。
 
 **要哪些文件**
 
@@ -211,7 +211,6 @@ DM_ROMFS=<Update/RomFS 目录> DM_SAVE=<存档目录> DM_TEMP=<临时目录> DM_
 | 产物 | 位置（不进 git） | 生成脚本（`dm/ios/tools/` 下） |
 |---|---|---|
 | 加宽储藏箱底图、编年史页盖板 | `dm/ios/Gen/assets/NativeHUD/widestash/` | `gen_widestash_art.py`、`gen_vault_cover.py` |
-| 百宝囊框 | `dm/ios/Gen/assets/NativeHUD/pouch/` | `gen_pouch_art.py` |
 | 选角右侧面板 | `dm/ios/Gen/assets/NativeHUD/touch/` | `gen_fe_rightpanel.py` |
 | 小地图终点标记 | `dm/ios/Gen/assets/NativeHUD/mapgoal/` | `gen_map_goal_art.py` |
 | 底部 UI（底图与布局） | `dm/ios/Gen/assets/NativeHUD/v4/` | `gen_hud_v4.py`（几何在 `hud_v4_design.py`，布局 = 原版布局 + `touchrectv1_patch.json`） |

@@ -12,19 +12,18 @@ dm/ios/tools/gen_romfs_overlay.py	*
 dm/i18n/*	*
 dm/ios/tools/dm_i18n.py	*
 dm/host/dm_i18n*	*
-dm/ios/tools/annot_strings.py	k j rw1 rw2 kbb vt1
+dm/ios/tools/annot_strings.py	k j rw1 rw2 kbb
 dm/host/dm_runeword*	k j rw1 rw2 rwp rwd d
-dm/ios/tools/wide_stash.py	vf1 vf2 vt1 pg1 pg2 c s sb t u d cb
+dm/ios/tools/wide_stash.py	c s sb t u d cb
 dm/ios/tools/gen_trove_art.py	s sb t u d cb
-dm/ios/tools/gen_widestash_art.py	vf1 vf2 vt1 pg1 pg2 c s sb t u d cb
-dm/ios/tools/gen_vault_table.py	vt1
+dm/ios/tools/gen_widestash_art.py	c s sb t u d cb
+dm/ios/tools/gen_vault_table.py	-
 dm/host/dm_kills*	kba kbb
 dm/host/dm_bossrush*	kbb bd
 dm/host/dm_rift*	kba kbb dc wp tp
 dm/host/dm_unit.h	kbb dc wp tp
-dm/host/dm_pouch*	t u s sb vt1 c sa
 dm/host/dm_padmode*	a f rf2 pk od pvb psel0 psel1 psel2 psel3
-dm/host/hle_fs.c	rf1 rf2 rf3 e pg2 vt1 od
+dm/host/hle_fs.c	rf1 rf2 rf3 e od
 dm/host/hle_tact*	a e od
 dm/host/hle_hid*	a f rf2 pk sl1
 dm/ios/Sources/dm_gamepad.m	a f rf2 pk
@@ -32,24 +31,24 @@ dm/host/romfs_validate*	e pk rf2
 dm/ios/Sources/asset_dl.m	e pk rf2
 dm/ios/Sources/main.m	a e pk rf2 top od
 dm/ios/run.sh	e pk
-dm/i18n/*	a e k kba vt1 rf2
+dm/i18n/*	a e k kba rf2
 dm/host/dm_bright*	a top
 dm/host/dm_freetp*	tp a p q f g
 dm/host/dm_world*	ex tb tp dz top i b
 dm/host/dm_actions*	a g n
 dm/host/dm_hud*	a f pk bd bdm q g
 dm/host/dm_uiscreen*	a f pk bd q sb
-dm/host/dm_cloudsync*	rf3 e pg2 vt1
+dm/host/dm_cloudsync*	rf3 e
 dm/host/dm_update*	e
 dm/host/dm_custom*	e kbb
 dm/host/hle_charname*	e
-dm/host/dm_textinput*	e vt1
-dm/host/dm_cursor*	a c f g h j m n p q s t u sb cb sl1 sl2 me1 me2 pg2 vt1 rw1 bd
-dm/host/hle_touch*	a c f g h j m n p q s t u sb cb sl1 sl2 me1 me2 pg2 vt1 rw1 bd
-dm/host/touch_mac.c	a c j s sb pg2 vt1 rw1
-dm/ios/tools/touch_layout.py	a c f g h j k m n p q s t u sb cb sl1 me1 me2 pg2 vt1 vf1 vf2 rw1 rw2 kba bd pk pvb
+dm/host/dm_textinput*	e
+dm/host/dm_cursor*	a c f g h j m n p q s t u sb cb sl1 sl2 me1 me2 rw1 bd
+dm/host/hle_touch*	a c f g h j m n p q s t u sb cb sl1 sl2 me1 me2 rw1 bd
+dm/host/touch_mac.c	a c j s sb rw1
+dm/ios/tools/touch_layout.py	a c f g h j k m n p q s t u sb cb sl1 me1 me2 rw1 rw2 kba bd pk pvb
 dm/ios/Sources/dm_sharelog.m	shl
-dm/ios/Sources/front_ios.m	a c f g h j m n p q s t u sb cb sl1 sl2 me1 me2 pg2 vt1 rw1 bd pk
+dm/ios/Sources/front_ios.m	a c f g h j m n p q s t u sb cb sl1 sl2 me1 me2 rw1 bd pk
 dm/ios/Sources/*	a e pk rf2
 dm/ios/NativeHUD/*	a f pk bd g q
 dm/host/diag.c	-

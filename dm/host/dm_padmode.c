@@ -356,7 +356,7 @@ static void legend_pump(uint8_t *b, uint64_t frame) {   // 游戏主线程每帧
         for (uint64_t i = 0; arr && i < n && i < 10; i++) L += (size_t)snprintf(o + L, L < sizeof o ? sizeof o - L : 0, " %x", *(uint32_t *)(uintptr_t)(arr + 0x40 * i));
         LOG("手柄提示条：帧 %llu，近 120 帧声明 %d 次、补加 %d 次；提示条现有 %llu 条，字形%s", (unsigned long long)frame, tot, miss, (unsigned long long)n, o); tot = miss = 0; }
 }
-static void diff_text(uint8_t *b, uint64_t frame) {   // 游戏主线程：菜单开着时每 6 帧核一次这行的字（只写我们自己的 TouchPadDiffTxt，文字控件虚表 main+0x20ba4c8，同 dm_pouch.c w_text） | Game main thread: while the menu is open, check this row's text every 6 frames (only writes our own TouchPadDiffTxt; text widget vtable main+0x20ba4c8, same as w_text in dm_pouch.c)
+static void diff_text(uint8_t *b, uint64_t frame) {   // 游戏主线程：菜单开着时每 6 帧核一次这行的字（只写我们自己的 TouchPadDiffTxt，文字控件虚表 main+0x20ba4c8，） | Game main thread: while the menu is open, check this row's text every 6 frames (only writes our own TouchPadDiffTxt; text widget vtable main+0x20ba4c8)
     if (!g_cur || !atomic_load(&g_pause_open) || frame % 6) return;
     uint64_t w = pm_find(rd8((uint64_t)(uintptr_t)(b + 0x2f05458)), "TouchPadDiffTxt", 0); if (!w || rd8(w) - (uint64_t)(uintptr_t)b != 0x20ba4c8) return;
     dm_hud_info h; dm_hud_get(&h); int n = atomic_load(&g_diff_pend); if (!n) n = h.players; if (!n) return;

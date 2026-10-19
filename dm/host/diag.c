@@ -787,7 +787,7 @@ static void hud_tick(uint64_t G) {        // 每拍：受控玩家等级 / 本�
     // 认出了单位号就只认它：它正在死的那几拍这一拍没有受控玩家（和没有尸体时第一次死一样），绝不退到别的玩家类单位。读不到单位号（还没进局）才照旧扫
     // Controlled player = the unit whose unit id is the local player unit id the client itself records (main+0x2d20e4c local player slot number → main+0x2d60380[slot number] unit id, same convention as the original game's 0x45f9d0),
     // with mode ≠ 0 and coordinates ≠ (0,0). Previously it was taken only as "the first unit in the player table with mode ≠ 0 and with coordinates": after the character has died once a corpse stays on the ground (also a player-class unit, mode 17, with coordinates),
-    // and during the few ticks of dying again the real player's mode is 0 (dying), so what got taken was the corpse -- boss rush / rift / free town portal / personal stash / Chronicle / pouch all treated the corpse as "the player changed" and re-initialized once,
+    // and during the few ticks of dying again the real player's mode is 0 (dying), so what got taken was the corpse -- boss rush / rift / free town portal all treated the corpse as "the player changed" and re-initialized once,
     // and when the real player became mode 17 it switched back and they initialized once more (measured on the host: at the moment of the second death in a boss rush the log showed two rounds in a row of every module's run-entry lines, and the boss rush progress was reset to zero).
     // Once the unit id is known, only that unit is accepted: during the few ticks it is dying there is no controlled player this tick (the same as a first death with no corpse), and it never falls back to another player-class unit. Only when the unit id cannot be read (not in a run yet) does it scan as before
     uint32_t lid = local_player_id();
@@ -978,7 +978,6 @@ static void hud_tick(uint64_t G) {        // 每拍：受控玩家等级 / 本�
       if (main && player && !shown && dm_cloud_conflict_take()) { shown = 1; dm_game_notice((uint8_t *)main->base, dm_str((uint8_t *)main->base, "dmCloudConflict")); LOG("iCloud 同步：弹了共享仓库不一致的提示"); } }
     if (main && player) dm_bossrush_tick(G, player, (uint8_t *)main->base);   // 首领连战（dm_bossrush.c） | Boss rush (dm_bossrush.c)
     if (main && player) { void dm_rift_tick(uint64_t, uint64_t, uint8_t *); dm_rift_tick(G, player, (uint8_t *)main->base); }   // 秘境爬塔（dm_rift.c） | Rift tower climb (dm_rift.c)
-    { void dm_pouch_srv_tick(uint8_t *, uint64_t, uint64_t); if (main) dm_pouch_srv_tick((uint8_t *)main->base, G, player); }   // 百宝囊收 / 放、存放的系统提示（dm_pouch.c）；不在局内 player 为 0 | System prompts for pouch take / put and deposit (dm_pouch.c); player is 0 when not in a run
     if (main && player) dm_kills_tick(G, player, (uint8_t *)main->base);   // 刷怪积分牌（dm_kills.c）：在首领连战之后，连战本关的首领它已记好 id | Kill board (dm_kills.c): runs after boss rush, which has already recorded the id of the boss of the current boss rush stage
     cube_diag_tick(G, player);   // 合成读数 | Transmute readout
     if (main && player) seek_tp_step(G, player, main);
@@ -1149,7 +1148,6 @@ static void c2s_obs(const uint64_t *regs) {
     if (n >= 1 && b[0] == 0x20) cube_diag_req(regs[0], regs[1], b, n);   // 合成读数 | Transmute readout
     dm_bossrush_c2s(regs[0], regs[1], b, n);   // 首领连战：玩家点了连战的门（门只是外观，换关由 dm_bossrush.c 做） | Boss rush: the player tapped the boss rush door (the door is appearance only; the level change is done by dm_bossrush.c)
     { void dm_rift_c2s(uint64_t, const uint8_t *, uint32_t); dm_rift_c2s(regs[0], b, n); }
-    { void dm_pouch_c2s(uint64_t *); dm_pouch_c2s((uint64_t *)(uintptr_t)regs); }   // 珍宝匣：符文 / 宝石 / 材料拖进共享页时改道进高级仓库（dm_pouch.c；会换掉 x2 / x3 指向的包） | Trove: runes / gems / materials dragged into the shared tab are rerouted into the advanced stash tabs (dm_pouch.c; replaces the packet x2 / x3 point to)
     if (!g_c2sfp) return;                       // 门在产品里常挂（首领连战要看），没开 DM_C2S_LOG 时不记 | The gate is usually installed in the product (boss rush needs it); nothing is logged when DM_C2S_LOG is not on
     // 诊断开关 DM_TEST_WARP_DIAG=1（只读）：收到「与出口砖交互」包（0x40 [砖 id]）这一刻，把服务端处理函数 main+0x6dbea0 的判定逐项读出来记一行——点了出口不进时看是哪一项拒的（全部拒绝都不回包）。
     // 判定顺序：当前动作能否被打断 main+0x6c5730(游戏, 玩家, 2, 0, 0)（0 = 放行）→ 砖对应的出口可用 main+0x5592f0(砖)（非 0 = 放行）→ 距离 main+0x5c7050(玩家, 砖)（查表距离，≤4 才当场换，>4 什么都不做）。
@@ -1738,7 +1736,6 @@ static void loadscreen_on_uimsg(const char *cat, const char *act, const char *ar
     { void dm_update_on_uimsg(const char *, const char *, const char *); dm_update_on_uimsg(cat, act, arg); }
     { void dm_kills_on_uimsg(const char *, const char *, const char *); dm_kills_on_uimsg(cat, act, arg); } { void dm_rift_ui_on_uimsg(const char *, const char *, const char *); dm_rift_ui_on_uimsg(cat, act, arg); }   // 编年史「首领」页签（dm_kills.c） | The chronicle's 「首领」(Bosses) tab (dm_kills.c)
     { void dm_padmode_on_uimsg(const char *, const char *, const char *); dm_padmode_on_uimsg(cat, act, arg); }   // 手柄版暂停菜单「游戏难度」行（dm_padmode.c） | "Game Difficulty" row of the controller pause menu (dm_padmode.c)
-    { void dm_pouch_on_uimsg(const char *, const char *, const char *); dm_pouch_on_uimsg(cat, act, arg); }   // 百宝囊框 / 存放按钮（dm_pouch.c） | Pouch frame / deposit button (dm_pouch.c)
     { void dm_runeword_on_uimsg(const char *, const char *, const char *); dm_runeword_on_uimsg(cat, act, arg); }   // 符文之语助手（dm_runeword.c） | Runeword helper (dm_runeword.c)
     { extern void (*g_dm_charsel_hook)(void); if (g_dm_charsel_hook && !strcmp(cat, "FrontEndNavigation") && !strcmp(act, "ToFrontEnd")) g_dm_charsel_hook(); }   // 退出这一局、回到前端（主菜单 / 选角页）：iOS 把这一局攒下的存档传 iCloud（cloud_ios.m）   // 构建号 + 新版本提示（dm_update.c） | Exiting this run and returning to the front end (main menu / character select page): iOS uploads the saves accumulated during this run to iCloud (cloud_ios.m)   // build number + new version notice (dm_update.c)
     if (!strcmp(cat, "PanelManager") && !strcmp(act, "ClosePanel") && !strcmp(arg, "TouchShareLog")) {   // 暂停菜单「分享诊断日志」（按钮发这条空操作，布局见 touch_layout.py _pause_no_help） | Pause menu 「分享诊断日志」(Share Diagnostics) (the button sends this no-op; for the layout see touch_layout.py _pause_no_help)

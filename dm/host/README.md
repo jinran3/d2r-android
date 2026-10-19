@@ -75,7 +75,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 
 | File | What it does |
 |---|---|
-| `dm_pouch.c` | The pouch and "Deposit": runes and gems picked up in the field go into the pouch without taking inventory cells, and are stored away when you open the stash back in town |
 | `dm_runeword.c` | The runeword helper: long-press a socketed base to list the runewords it can make, and socket them in one tap once you have the runes |
 
 ### Convenience features

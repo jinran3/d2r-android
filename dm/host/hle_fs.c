@@ -61,7 +61,7 @@ static _Atomic uint64_t g_txn_first_ns;     // 本事务第一次存档写的时
 // and the front end is notified (front_save_failed); the next transaction (the game's next full save rewrite) is attempted as usual and committed if it succeeds. g_save_poison = errno of the first failure in this transaction (0 = none).
 static _Atomic int g_save_poison;
 static void save_poison(int e) { int z = 0; atomic_compare_exchange_strong(&g_save_poison, &z, e ? e : EIO); }
-void dm_fs_save_poison(int e) { save_poison(e); }   // 提交前钩子用：旁路文件（编年史 / 百宝囊）没写成也算本事务写失败——照常提交的话，物品已不在角色档里、旁路文件里又没有 | for the pre-commit hook: a side file (Chronicle / pouch) that failed to write also counts as a write failure of this transaction -- if the commit went ahead as usual, the items would no longer be in the character save and would not be in the side file either
+void dm_fs_save_poison(int e) { save_poison(e); }   // 提交前钩子用：旁路文件（秘境进度）没写成也算本事务写失败——照常提交的话，进度已不在角色档里、旁路文件里又没有 | for the pre-commit hook: a side file (the rift progress) that failed to write also counts as a write failure of this transaction -- if the commit went ahead as usual, the progress would no longer be in the character save and would not be in the side file either
 // 缺省弱实现只记日志（Mac）；iOS 前端写同名强实现弹原生提示。在游戏线程调，前端自己切主线程
 // The default weak implementation only logs (Mac); the iOS front end provides a strong implementation of the same name that shows a native alert. Called on the game thread, the front end switches to the main thread itself
 __attribute__((weak)) void front_save_failed(int err) { LOG("front_save_failed(errno=%d)：前端未接（缺省弱实现）", err); }
@@ -385,7 +385,7 @@ HLE_FORCE("_ZN2nn2fs13MountSaveDataEPKcRKNS_7account3UidE", "fsp-srv；存档 �
     settings_seed(dd); settings_lang_apply(dd);
     return mount_ex(name, dd, 0, 1);
 }
-void (*g_dm_pre_commit_hook[2])(const char *workdir);   // 提交前调（工作目录）：宿主旁路文件按工作目录里的存档内容核对后再写（[0] 百宝囊 dm_pouch.c、[1] 秘境进度 dm_rift.c） | called before commit (working directory): host side files are checked against the save contents in the working directory before being written ([0] pouch dm_pouch.c, [1] rift progress dm_rift.c)
+void (*g_dm_pre_commit_hook[1])(const char *workdir);   // 提交前调（工作目录）：宿主旁路文件按工作目录里的存档内容核对后再写（[0] 秘境进度 dm_rift.c） | called before commit (working directory): host side files are checked against the save contents in the working directory before being written ([0] rift progress dm_rift.c)
 void (*g_dm_save_commit_hook)(const char *commit_dir);   // 存档提交成功后调（已提交目录）；iOS 的 iCloud 同步设它，宿主为空 | called after a save commit succeeds (committed directory); the iOS iCloud sync sets it, NULL on the host
 static _Atomic uint64_t g_save_commits;   // 成功提交过几次（前端进后台时等「游戏这次存盘已提交」用） | number of successful commits (used by the front end when going to background to wait for "the game's current save has been committed")
 uint64_t dm_fs_commit_count(void) { return atomic_load(&g_save_commits); }
@@ -394,7 +394,7 @@ HLE_FORCE("_ZN2nn2fs6CommitEPKc", "fsp-srv；事务式存档：工作目录整�
     int i = 0; while (i < g_nmnt && strcmp(g_mnt[i].name, name)) i++;
     if (i == g_nmnt || !g_mnt[i].commit[0]) { pthread_mutex_unlock(&g_lock); return RES_OK; }   // 非事务挂载：无可提交 | non-transactional mount: nothing to commit
     uint64_t tc0 = clock_gettime_nsec_np(CLOCK_MONOTONIC), tw0 = atomic_exchange(&g_txn_first_ns, 0);
-    for (int k = 0; k < 2; k++) if (g_dm_pre_commit_hook[k]) g_dm_pre_commit_hook[k](g_mnt[i].dir);
+    for (int k = 0; k < 1; k++) if (g_dm_pre_commit_hook[k]) g_dm_pre_commit_hook[k](g_mnt[i].dir);
     uint64_t tc1 = clock_gettime_nsec_np(CLOCK_MONOTONIC);   // 写进工作目录的旁路文件随这次提交一起原子换入 | side files written into the working directory are swapped in atomically together with this commit
     int perr = atomic_exchange(&g_save_poison, 0);
     if (perr) {                                                         // 本事务有写失败：拒绝提交、丢弃工作目录 | a write failed in this transaction: refuse the commit, discard the working directory

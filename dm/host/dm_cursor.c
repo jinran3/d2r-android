@@ -1080,7 +1080,6 @@ static int imbue_locked(module_t *m, uint64_t root) {
 int dm_ui_item_at_now(float nx, float ny) {   // 只许游戏主线程调（Mac 宿主触点脚本在取手柄处跑） | Callable only from the game main thread (the Mac host touch point script runs where the controller is polled)
     module_t *m = main_module(); if (!m) return 0; uint64_t root = 0; memcpy(&root, m->base + 0x2f05458, 8);
     int32_t w = *(int32_t *)(m->base + 0x211da38), h = *(int32_t *)(m->base + 0x211da3c); if (!root || w <= 0 || h <= 0) return 0;
-    { int dm_pouch_tip_gate(int, int); if (dm_pouch_tip_gate((int)(nx * w), (int)(ny * h))) return 6; }   // 百宝囊清单开着：点框外只收清单（dm_pouch.c）   // 同 ui_item_pump：编年史说明框外只收框 | Pouch list open: a tap outside the box only dismisses the list (dm_pouch.c)   // same as ui_item_pump: outside the chronicle tooltip only dismisses the box
     char hit[40]; g_cls_out = UI_OUT(nx, ny); int r = ui_classify(m, root, (int)(nx * w), (int)(ny * h), hit, sizeof hit);
     if (r == 9) return 6;
     if (r == 1 && imbue_locked(m, root)) return 10;
@@ -1382,7 +1381,6 @@ static void ui_item_pump(uint64_t root, int width, int height) {
         if (r == 5 && g_press_stack && g_slot_w && *(uint64_t *)(g_slot_w + 8) && !strcmp((const char *)*(uint64_t *)(g_slot_w + 8), "horadriccube_grid")) r = 11;   // 11 = 从成叠格拖出、物品图落在这一页下方的魔盒格上（前端：1 件进魔盒，不是取到背包）。g_slot_w = 刚才落点分类命中的物品区控件 | 11 = dragged out of a stack cell and the item image lands on a cube cell at the bottom of this page (front end: 1 item goes into the cube, not taken into the inventory). g_slot_w = the item-area widget hit by the drop-point classification just now
         snprintf(hit, sizeof hit, "拖放落点类 %d", r); atomic_store(&g_iq_res, r); atomic_store(&g_drop_last, r); atomic_store(&g_iq_done, seq);
         if (hit_log_ok(hit)) LOG("界面命中：(%d,%d) → %s", x, y, hit); return; }
-    { int dm_pouch_tip_gate(int, int); if (dm_pouch_tip_gate(x, y)) { r = 6; atomic_store(&g_iq_res, r); atomic_store(&g_iq_done, seq); return; } }   // 百宝囊清单开着：点框外只收清单（dm_pouch.c） | Pouch list open: a tap outside the box only dismisses the list (dm_pouch.c)
     r = ui_classify(main_module(), root, x, y, hit, sizeof hit);
     if (r == 9) {   // 点模态框外 = 只取消这一层。数量框（提取 / 存入 / 丢金币）按返回就是「取消」；确认框的返回键是「放弃改动」，不替玩家选，只挡住这一下 | A tap outside a modal = cancel only this layer. For quantity boxes (withdraw / deposit / drop gold) pressing back is simply 「取消」(Cancel); for a confirmation box the back key is 「放弃改动」(Discard Changes), so no choice is made for the player and this tap is just blocked
         if (!strcmp(g_modal_name, "DropGoldModal")) { atomic_store(&g_set_back_at, dm_guest_frame() + 2); LOG("界面命中：(%d,%d) → 模态框外，按返回取消 %s", x, y, g_modal_name); }

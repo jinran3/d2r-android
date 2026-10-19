@@ -535,7 +535,6 @@ void dm_world_pump(void) {   // 取手柄处每帧调 | Called every frame at th
     uint8_t *b = wb(); if (!b) return;
     w_watch_step(b);
     { void dm_padmode_step(uint8_t *, uint64_t); dm_padmode_step(b, dm_guest_frame()); }   // 手柄 / 触屏布局切换（dm_padmode.c） | Controller / touch layout switching (dm_padmode.c)
-    { void dm_pouch_step(uint8_t *); dm_pouch_step(b); }   // 百宝囊 / 存放（dm_pouch.c） | pouch / deposit (dm_pouch.c)
     if (g_release_at && dm_guest_frame() >= g_release_at) { g_release_at = 0; uint64_t pl = w_player(); if (pl) { atomic_store(&g_dm_move_allow_until_ns, w_now_ns() + 500000000ull); ((int (*)(uint64_t, int, int, int, uint64_t))(b + 0x4ace20))(pl, 2, g_rel_x, g_rel_y, 0); } }
     w_go_step();
     w_tile_retry_step();

@@ -52,17 +52,15 @@ with tempfile.TemporaryDirectory() as t:
     TS=touch_strings.build_sidecar(romfs)
     import dm_i18n; si,nsi=dm_i18n.build(romfs,t,REPL); REPL.update(si)   # 我们自己的界面文字（中英表 dm/i18n/ui_text.tsv）追加进原版 ui.json，布局写 @键、宿主按键取串 | our own UI text (Chinese-English string table dm/i18n/ui_text.tsv) is appended to the original ui.json; layouts write @key and the host looks strings up by key
     import drop_light; dl,dls=drop_light.build(romfs,t,REPL); REPL.update(dl)   # 掉落光的带光模型变体（新增路径，常驻；宿主运行时按规则 / 开关改指，宿主侧改指规则已随裁剪批 7f 摘除） | Lit model variants for drop lights (new paths, always present; the host repoints at runtime by rule / switch, the host-side repoint rule was removed in trim batch 7f)
-    import pouch_layout; pl,pls=pouch_layout.build(romfs,t,REPL); REPL.update(pl)   # 百宝囊框与「存放」按钮（物品栏，叠在触摸布局之后） | Pouch box and 「存放」(Deposit) button (inventory, stacked after the touch layout)
     import wide_stash; ws,wss=wide_stash.build(romfs,t,REPL); REPL.update(ws)
     # 手柄版布局：手柄模式读原版路径上的布局（触屏版挪进了触屏目录，见下面 TDIR）。我们的功能改动两种模式都要——符文之语清单、百宝囊框与「存放」、
     # 储藏箱 14 列（数据表已是 14 列，布局只有 10 列时第 11–14 列的物品看不到）与宽外框、编年史仓库页签——所以按同一套功能模块在原版布局上再出一份，放在原版路径；触屏改动不带
     # Controller layouts: controller mode reads the layouts at the original paths (the touch version was moved into the touch directories, see TDIR below). Our
-    # feature changes are needed in both modes: the runeword list, the pouch frame and "Deposit",
+    # feature changes are needed in both modes: the runeword list,
     # the 14-column stash (the data table already has 14 columns; with a 10-column layout the items in columns 11 to 14 are invisible) with its wide frame,
     # and the Chronicle vault tab. So another copy is generated on top of the original layouts with the same set of feature modules and placed at the
     # original paths; touch changes are not included
     tpad=os.path.join(t,'pad'); os.makedirs(tpad); PR={}
-    lp,lt=touch_layout.read_layout(romfs,pouch_layout.INV); o=os.path.join(tpad,'pad_inv.json'); open(o,'w',encoding='utf-8').write(touch_layout.pad_inv_rw(lt)); PR[lp.lower()]=o
     for rel,gd in (('controller/pauselayoutgardenhd.json',1),('controller/pauselayouthd.json',0)):   # 手柄版暂停菜单：一键重开 / 切换难度 / 存放 / 分享诊断日志 | Controller pause menu: one-tap restart / change difficulty / Deposit / Share Diagnostics
         lp,lt=touch_layout.read_layout(romfs,rel); o=os.path.join(tpad,'pad_pause%d.json'%gd); open(o,'w',encoding='utf-8').write(touch_layout.pad_pause(lt,gd,share=not os.environ.get('DM_OVERLAY_MAC'))); PR[lp.lower()]=o
     # 大秘境面板（借「消息记录」面板外壳，touch_layout._rift_panel）：手柄版同一份。少了它手柄模式点秘境门开出来的是空的原版消息记录面板、进不了秘境；手柄键在 dm_rift_ui.c
@@ -78,7 +76,7 @@ with tempfile.TemporaryDirectory() as t:
     lp,lt=touch_layout.read_layout(romfs,'controller/console/characteroptionspanelhd.json'); o=os.path.join(tpad,'pad_charopt.json'); open(o,'w',encoding='utf-8').write(touch_layout.pad_charopt(lt)); PR[lp.lower()]=o   # 手柄版建角模式页 | Controller-version character-creation mode page
     for rel,fn in (('controller/console/settingspanelhd.json',touch_layout.pad_settings),('controller/console/videooptionspanelhd.json',touch_layout.pad_custom_page)):   # 手柄版选项页：「视频」页签换成「自定义」页 | Controller options page: the "Video" tab is replaced by the "Custom" page
         lp,lt=touch_layout.read_layout(romfs,rel); o=os.path.join(tpad,'pad_'+rel.replace('/','_')); open(o,'w',encoding='utf-8').write(fn(lt)); PR[lp.lower()]=o
-    PR.update(pouch_layout.build(romfs,tpad,PR)[0]); PR.update(wide_stash.build(romfs,tpad,PR)[0])   # 储藏箱 10 → 14 列（编年史仓库第 1 步）：表、底图、宽外框、布局；要在触摸布局之后（储藏箱 / 外框布局叠在那份上） | Stash 10 → 14 columns (chronicle vault step 1): table, base image, wide outer frame, layout; must come after the touch layout (the stash / outer frame layout stacks on that copy)
+    PR.update(wide_stash.build(romfs,tpad,PR)[0])   # 储藏箱 10 → 14 列（编年史仓库第 1 步）：表、底图、宽外框、布局；要在触摸布局之后（储藏箱 / 外框布局叠在那份上） | Stash 10 → 14 columns (chronicle vault step 1): table, base image, wide outer frame, layout; must come after the touch layout (the stash / outer frame layout stacks on that copy)
     cb=Image.open(os.path.join(HERE,'..','NativeHUD','touch','close.png')).convert('RGBA')
     open(os.path.join(t,'close.sprite'),'wb').write(b'SpA1'+struct.pack('<HHIIIIII',31,cb.width,cb.width,cb.height,0,1,0,0)+struct.pack('<II',cb.width*cb.height*4,4)+cb.tobytes())
     # 选角页右侧面板底图：去掉「转换角色」的槽与十字花、只留居中一个槽（原图解出后改的，同尺寸）
