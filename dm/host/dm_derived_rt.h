@@ -1,11 +1,11 @@
 // 三张从游戏文件生成的表（编年史仓库 / 经验 / 关卡亮度）的内容**不编进程序**：仓库里提交的是运行时替身
-// （dm/tools/shell_stubs.py 写出的 dm_hud_exp.h、dm_vault_tab.h，以及 dm_bright.c 里的亮度表），
+// （dm/tools/shell_stubs.py 写出的 dm_hud_exp.h、dm_vault_tab.h，以及关卡亮度表 dm_bright_levels.inc —— 亮度表的宿主消费方已随裁剪批 7j 摘除），
 // 启动时从数据包的 derived.tsv 读。derived.tsv 由使用者自己的游戏文件生成（dm/tools/d2rm_pack.py、
 // dm/android/tools/make_package.py）：每行「标签<TAB>字段<TAB>…」，UTF-8，字段里没有制表符与换行。
 // 位置：Android 由前端设 DM_DERIVED 指到导入的数据包；Mac / iOS 缺省读可执行文件旁的 dm/derived.tsv。
 // The three tables generated from the game files (chronicle vault / XP / level brightness) are **not compiled in**:
 // the repository holds runtime stubs (dm_hud_exp.h and dm_vault_tab.h written by dm/tools/shell_stubs.py, plus the
-// brightness table inside dm_bright.c) and they are filled from the package's derived.tsv at startup.
+// level brightness table dm_bright_levels.inc -- the host-side consumer of the brightness table was removed in trim batch 7j) and they are filled from the package's derived.tsv at startup.
 // derived.tsv is generated from the user's own game files (dm/tools/d2rm_pack.py, dm/android/tools/make_package.py):
 // each line is "tag<TAB>field<TAB>...", UTF-8, with no tabs or newlines inside fields.
 // Location: Android gets DM_DERIVED pointing into the imported package; Mac / iOS default to dm/derived.tsv next to

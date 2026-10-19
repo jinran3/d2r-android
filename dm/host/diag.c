@@ -1670,7 +1670,6 @@ static void tick_gate(const uint64_t *regs) {         // 拍入口：先注入�
     if (g_rp) c2s_inject(regs[0]);
     if (g_spfp) state_dump(regs);
     if (g_tkfp) ticks_hash(regs);
-    { void dm_bright_server_tick(uint64_t G); dm_bright_server_tick(regs[0]); }   // 3D 画面加亮的测试开关 DM_TEST_DAYTIME（dm_bright.c） | The test switch DM_TEST_DAYTIME for 3D picture brightening (dm_bright.c)
     freeze_tick(regs[0]);   // 面板冻结：放在最后，前面各段读到的还是没减过的拍号 | Panel freeze: placed last, so the sections before it still read the tick number before the decrement
 }
 // ---------- DM_SOAK=<路径>[,间隔秒（缺省 60）]：浸泡读数，宿主线程定时写一行 TSV ----------

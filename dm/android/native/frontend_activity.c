@@ -282,8 +282,8 @@ static void *boot(void *argument) {
     // The three derived tables (vault / XP / brightness) are filled from derived.tsv at run time: the path is only
     // known above, later than the load-time constructors, so fill explicitly here. When the file is missing the
     // tables stay empty and a red line says so (nothing is invented).
-    { void dm_hud_exp_load(void); void dm_vault_load(void); void dm_bright_load(void);
-      dm_hud_exp_load(); dm_vault_load(); dm_bright_load(); }
+    { void dm_hud_exp_load(void); void dm_vault_load(void);
+      dm_hud_exp_load(); dm_vault_load(); }
     char *args[]={"dmhost-android",metadata,"main","sdk","subsdk0",NULL};int dm_main(int,char**);dm_main(5,args);ANativeActivity_finish(s->activity);return NULL;
 }
 void front_run(void (*guest)(void)) {void mtl_init(void);mtl_init();game_app *s=application;if(!pthread_create(&s->debug_thread,NULL,progress_watch,s))s->debug_started=1;guest();}
