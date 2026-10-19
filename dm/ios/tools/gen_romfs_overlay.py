@@ -53,7 +53,7 @@ with tempfile.TemporaryDirectory() as t:
     import dm_i18n; si,nsi=dm_i18n.build(romfs,t,REPL); REPL.update(si)   # 我们自己的界面文字（中英表 dm/i18n/ui_text.tsv）追加进原版 ui.json，布局写 @键、宿主按键取串 | our own UI text (Chinese-English string table dm/i18n/ui_text.tsv) is appended to the original ui.json; layouts write @key and the host looks strings up by key
     import drop_light; dl,dls=drop_light.build(romfs,t,REPL); REPL.update(dl)   # 掉落光的带光模型变体（新增路径，常驻；宿主运行时按规则 / 开关改指，宿主侧改指规则已随裁剪批 7f 摘除） | Lit model variants for drop lights (new paths, always present; the host repoints at runtime by rule / switch, the host-side repoint rule was removed in trim batch 7f)
     import wide_stash; ws,wss=wide_stash.build(romfs,t,REPL); REPL.update(ws)
-    # 手柄版布局：手柄模式读原版路径上的布局（触屏版挪进了触屏目录，见下面 TDIR）。我们的功能改动两种模式都要——符文之语清单、百宝囊框与「存放」、
+    # 手柄版布局：手柄模式读原版路径上的布局（触屏版挪进了触屏目录，见下面 TDIR）。我们的功能改动两种模式都要——
     # 储藏箱 14 列（数据表已是 14 列，布局只有 10 列时第 11–14 列的物品看不到）与宽外框、编年史仓库页签——所以按同一套功能模块在原版布局上再出一份，放在原版路径；触屏改动不带
     # Controller layouts: controller mode reads the layouts at the original paths (the touch version was moved into the touch directories, see TDIR below). Our
     # feature changes are needed in both modes: the runeword list,

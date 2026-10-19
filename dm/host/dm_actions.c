@@ -430,7 +430,6 @@ uint64_t dm_swapskill_filter(uint64_t raw) {
 void dm_actions_pump(void) {
     uint8_t *b = ab(); if (!b) return; uint64_t root = *(uint64_t *)(b + 0x2f05458); if (!root) return;
     uint64_t pl = ((uint64_t (*)(uint32_t))(b + 0x45f9d0))(*(uint32_t *)(b + 0x2d20e4c));
-    { void dm_runeword_pump(void); dm_runeword_pump(); }   // 符文之语助手（dm_runeword.c） | Runeword helper (dm_runeword.c)
     dm_uiscreen_pump();
     // 随机名：给 CharacterCreateNamePanel 发它自己认的那条消息——InputMessage:ControllerActionBegin，载荷 +0x10 键序号 2（布局图例 option2「随机名字」；面板消息处理 main+0xc33378 的 0xc33594 分支：
     // 按当前职业从建角面板的名字表里随机取一条，main+0xac2058 写进名字框）。界面根 +0xb8（本帧已处理标志）非 0 时面板会忽略，下一帧再发

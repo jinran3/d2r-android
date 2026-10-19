@@ -16,7 +16,7 @@ enum {
     DM_VT_TOGGLE = 0x20bc110,    // 勾选框 / 子页签（ToggleButtonWidget）：勾上 +0xa88，四个帧号 +0x6e8.. ，此刻的帧 +0x610 | checkbox / sub-tab (ToggleButtonWidget): checked +0xa88, four frame ids at +0x6e8.., current frame +0x610
     DM_VT_TABBAR = 0x20ba3a8,    // 页签条（TabBarWidget） | tab bar (TabBarWidget)
     DM_VT_SLOT = 0x2089fa0,      // 物品格：部位号 +0x5d8、属主 +0x5c8 | item slot: body location +0x5d8, owner +0x5c8
-    DM_VT_SLOT_B = 0x2089ab8,    // 物品格（另一种，dm_actions.c / dm_runeword.c 认的） | item slot (another kind, recognized by dm_actions.c / dm_runeword.c)
+    DM_VT_SLOT_B = 0x2089ab8,    // 物品格（另一种，dm_actions.c 认的） | item slot (another kind, recognized by dm_actions.c)
     DM_VT_SLOT_C = 0x2088fc8,    // 物品格（dm_cursor_item.c 认的第三种） | item slot (the third kind, recognized by dm_cursor_item.c)
     DM_VT_IMAGE = 0x20b8650,     // 图片控件：此刻的帧 +0x90（宿主实读：编年史页的 Img） | image widget: current frame +0x90 (read on the host: Img on the Chronicle page)
     DM_VT_BUTTON = 0x20b7b00,    // 按钮：四个帧号 +0x6e8..，此刻的帧 +0x610（宿主实读：按钮类控件） | button: four frame ids at +0x6e8.., current frame +0x610 (read on the host: button widgets)

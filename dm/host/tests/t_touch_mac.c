@@ -93,7 +93,3 @@ int dm_held_stow_result(void) { return -1; }
 int dm_held_pending(void) { return 0; }
 void uimsg_emit(const char *cat, const char *act, const char *arg) { (void)cat; (void)act; (void)arg; }
 void dm_item_identify_free(unsigned id) { (void)id; }   // 免费鉴定（dm_actions.c）的桩 | stub for free identify (dm_actions.c)
-int dm_runeword_long_press(const void *ci) { (void)ci; return 0; }   // 符文之语助手（dm_runeword.c）的桩 | stub for the runeword helper (dm_runeword.c)
-int dm_runeword_list_open(void) { return 0; }
-void dm_runeword_button(const char *name) { (void)name; }
-void dm_runeword_list_close(void) {}
