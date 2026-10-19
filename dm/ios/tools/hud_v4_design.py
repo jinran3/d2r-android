@@ -61,7 +61,7 @@ def load(src, VAR='C'):
     SH = round(DM * (TILE[3] - TILE[1]) / (TILE[2] - TILE[0]))
     B = 12; EXT = 60; BH = 156       # 条边 4pt、两端伸进球下 20pt、条高 = 球径 | Strip border 4pt, both ends extend 20pt under the orbs, strip height = orb diameter
     XC = 1390                        # 两球中线 | Centerline between the two orbs
-    N = 6; SLOTS_W = N * DM + (N - 1) * (P - DM)   # 六格（回城挪到右侧技能钮上方的圆钮，底栏去掉回城格；原七格 834） | Six slots (town portal moved to the round button above the right-side skill buttons, the town portal slot removed from the bottom bar; originally seven slots, 834)
+    N = 6; SLOTS_W = N * DM + (N - 1) * (P - DM)   # 六格（底栏去掉回城格；原七格 834） | Six slots (the town portal slot removed from the bottom bar; originally seven slots, 834)
     SX0 = XC - SLOTS_W // 2; SY0 = H - BH + (BH - SH) // 2
     BAR_X0 = SX0 - B; BAR_X1 = SX0 + SLOTS_W + B
     SAFE = 0.09                      # 图标安全边距（内框每边 9%） | Icon safe margin (9% of the inner frame on each side)

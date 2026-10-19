@@ -30,7 +30,6 @@ dm/ios/Sources/main.m	a e pk rf2 top od
 dm/ios/run.sh	e pk
 dm/i18n/*	a e k kba rf2
 dm/host/dm_bright*	a top
-dm/host/dm_freetp*	tp a p q f g
 dm/host/dm_world*	ex tb tp dz top i b
 dm/host/dm_actions*	a g n
 dm/host/dm_hud*	a f pk bd bdm q g

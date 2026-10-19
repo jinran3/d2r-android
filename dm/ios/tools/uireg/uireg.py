@@ -831,13 +831,6 @@ def groups():
     g.item("探路把人带到古墓入口旁（逐间房传送，实测跳 59 次、约 14 秒）","还在法师峡谷（看截图）",r"pos 区域 46 "); g.wait(34.0); g.at("pos",.3); g.shot()
     g.item("手指点出口砖","进古墓（区域 68）；日志没有「把守它的物件」",r"pos 区域 68 ",r"把守它的物件"); g.at("tap_unit 5 40 3",8.0); g.at("pos",.3); g.shot()
     gs.append(g)
-    # tp 局：回城门（物件 59）点门的中段。88 级法师：营地小站去冰冷之原 → 底栏回城卷轴钮开门 → 点门脚底往上 30 点 → 回营地
-    # tp run: town portal (object 59), tap the middle section of the portal. Level 88 sorceress: camp waypoint to the Cold Plains → open the portal with the bottom bar town portal scroll button → tap 30 points above the foot of the portal → back to the camp
-    g=G("tp","DM_TEST_WORLD_GO=2:c119@250 DM_TEST_POS_LOG=1"); g.sect("portal",0); g.enter(4); g.wait(10.0)
-    g.item("营地小站页点第 2 行冰冷之原","到冰冷之原（区域 3）",r"pos 区域 3 "); g.tap(P(333,112),8.0); g.at("pos",.3); g.shot()
-    g.item("点底栏回城卷轴钮","开出回城门（看截图）",None); g.tap("@portal",4.0); g.shot()
-    g.item("点回城门中段（脚底往上 30 点）","回到营地（区域 1）",r"pos 区域 1 "); g.at(f"tap_unit 2 59 3 +{O(0,-30)}",7.0); g.at("pos",.3); g.shot()
-    gs.append(g)
     if MODE=="ipadfull":   # 真全屏补测（贴顶信息层回屏幕真顶部）：小地图 / 地名在真顶部、点得中；各面板标题栏连在面板上 | true fullscreen extra tests (the top-anchored info layer goes back to the true top of the screen): the minimap / area name are at the true top and can be hit; each panel's title bar stays attached to its panel
         TOP=256   # 游戏视图上方那截的高（窗口点）；真顶部的东西在脚本坐标里 y 是负数 | height of the strip above the game view (window points); things at the true top have a negative y in script coordinates
         g=G("top","DM_TEST_GOLD=1300 DM_TEST_WORLD_GO=near2:1:c148@700 DM_TEST_WORLD_GO2=near2:2:c267@1900"); g.sect("top",0); g.enter()

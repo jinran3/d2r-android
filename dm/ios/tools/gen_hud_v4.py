@@ -49,7 +49,7 @@ def dflt(im):
     hh,ww=red.shape; inner=np.zeros_like(red); inner[round(hh*0.12):round(hh*0.88),round(ww*0.12):round(ww*0.88)]=True; red&=inner   # 只换金边以内的红底（金边暗部也偏红，不能动） | Only replace the red background inside the gold border (the dark parts of the gold border are also reddish and must not be touched)
     for ch,k in ((0,0.42),(1,0.40),(2,0.38)): a_[...,ch]=np.where(red,l*k+6,a_[...,ch])
     return Image.fromarray(a_.round().clip(0,255).astype('uint8'),'RGBA')
-g['layer']=Image.new('RGBA',(W,H)); g['fit'](dflt(g['lvl']),5,'十字（默认态）'); cv.alpha_composite(g['layer'])   # 六格：回城不在底栏（改为右侧技能钮上方的圆钮，前端画），十字在第 5 格 | Six slots: town portal is not in the bottom bar (now a round button above the right-side skill buttons, drawn by the front end), the cross is in slot 5
+g['layer']=Image.new('RGBA',(W,H)); g['fit'](dflt(g['lvl']),5,'十字（默认态）'); cv.alpha_composite(g['layer'])   # 六格：回城格已去掉，十字在第 5 格 | Six slots: the town portal slot is gone, the cross is in slot 5
 yy,xx=np.mgrid[0:H,0:W]; ball=np.zeros((H,W),bool)
 for c in (g['LBC'],g['RBC']): ball|=(xx-c[0])**2+(yy-c[1])**2<(g['BR']-2)**2
 # UIKit 原生分辨率版分层合成：石条 / 格子在球位挖空（石条两端伸进球下，不挖会盖黑半个球），再叠雕像——雕像带 PC 前面板在球上的半透明玻璃层（高光、边缘压暗、划痕）

@@ -77,7 +77,6 @@ Also, besides diagnostics, `diag.c` holds the entry hook of every server tick: w
 
 | File | What it does |
 |---|---|
-| `dm_freetp.c` | Free town portal: reuses the original town portal skill directly |
 
 ### Settings, saves and small shared pieces
 

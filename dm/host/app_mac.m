@@ -111,8 +111,3 @@ int dm_app_bootstrap(int *argc, char ***argv) {
     }
 }
 
-// 手柄代码（ios/Sources/dm_gamepad.m，两边共用）问「现在是不是面板 / 读取画面开着」：只用来决定空着的 ZR 格要不要当免费回城。
-// 宿主没有 iOS 壳那套面板栈；一律答「是」= ZR 整颗交给原版（面板里它是翻页签键），手柄上的免费回城这一版没有（记在已知不足里）
-// The gamepad code (ios/Sources/dm_gamepad.m, shared by both sides) asks "is a panel / loading screen open right now": used only to decide whether the empty ZR slot should act as the free town portal.
-// The host has no panel stack like the iOS shell; it always answers "yes" = ZR is handed entirely to the original game (in panels it is the tab-switch key), so the free town portal on the gamepad is absent in this version (listed under known gaps)
-int dm_front_navigation(void) { return 1; }

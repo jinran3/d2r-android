@@ -9,11 +9,8 @@ static int checks;
 #ifdef RED_BASELINE
 /* 测试专用缺失功能基线，不进入Sources。 | Test-only missing-feature baseline, does not go into Sources. */
 int dm_tg_parse(dm_tg_snapshot *o,const void *m,size_t ml,const void *b,size_t bl,int k,int input,int i,uint32_t id,uint64_t n) {(void)m;(void)ml;(void)b;(void)bl;(void)k;(void)input;(void)i;(void)id;(void)n;memset(o,0,sizeof(*o));return 0;}
-void dm_tc_set_portal_button(dm_tc_state *s,uint64_t b) {(void)s;(void)b;}
 #endif
-void dm_tc_set_portal_button(dm_tc_state *,uint64_t);
 static void put(unsigned char *p,uint32_t v) { for(int i=0;i<4;i++)p[i]=(unsigned char)(v>>(i*8)); }
-static void press(dm_tc_state *s,int n,int t) { dm_tc_begin(s,n,s->layout.target[t].x,s->layout.target[t].y); }
 int main(int argc,char **argv) {
     CHECK(argc==3); unsigned char map[114],table[896];
     FILE *f=fopen(argv[1],"rb"); CHECK(f!=NULL);CHECK(fread(map,1,sizeof map,f)==sizeof map);fclose(f);
@@ -51,15 +48,5 @@ int main(int argc,char **argv) {
     CHECK(dm_tg_parse(&s,map,72,changed,336,0,(0-0),0,219,105));CHECK(s.portal.slot==7);
     put(changed+7*28,360);put(changed,UINT32_MAX);
     CHECK(dm_tg_parse(&s,map,72,changed,336,0,(7-0),7,360,106));CHECK(!s.portal.valid && !s.portal.buttons);
-    dm_tc_state c;dm_tc_init(&c,667,375);dm_tc_set_portal_button(&c,DM_BTN_ZL|DM_BTN_B);
-    press(&c,0,DM_TC_PORTAL);press(&c,1,DM_TC_MAIN);dm_tc_begin(&c,2,100,200);dm_tc_move(&c,2,150,200);
-    CHECK(c.buttons==(DM_BTN_ZL|DM_BTN_A) && c.portal_pending);
-    CHECK(dm_tc_portal_ack(&c,c.gesture_epoch,0,0));
-    CHECK(c.buttons==(DM_BTN_ZL|DM_BTN_B|DM_BTN_A));int32_t lx=c.lx;
-    dm_tc_set_portal_button(&c,DM_BTN_ZL|DM_BTN_B);CHECK(c.finger[0].active);
-    dm_tc_set_portal_button(&c,DM_BTN_ZL|DM_BTN_A);
-    CHECK(!c.finger[0].active && c.finger[1].active && c.finger[2].active && c.lx==lx && c.buttons==DM_BTN_A);
-    dm_tc_resize(&c,812,375);CHECK(c.layout.target[DM_TC_PORTAL].button==(DM_BTN_ZL|DM_BTN_A));
-    dm_tc_set_portal_button(&c,0);press(&c,0,DM_TC_PORTAL);CHECK(c.buttons==0 && c.joy_slot==-1);
     printf("PASS native binding fixture+negative+ownership %d/%d checks\n",checks,checks);return 0;
 }

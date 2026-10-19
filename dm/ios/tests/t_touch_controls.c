@@ -10,7 +10,7 @@ static int checks, cases;
 #define RUN(f) do { int before = checks; f(); ++cases; printf("PASS %s (%d checks)\n", #f, checks-before); } while (0)
 
 static const uint64_t keys[DM_TC_COUNT] = {
-    DM_BTN_A, DM_BTN_B, DM_BTN_X, DM_BTN_Y, DM_BTN_R, 0,   /* 回城钮不出按键：点下由宿主施放回城 | The town portal button emits no key: on tap the host casts town portal */
+    DM_BTN_A, DM_BTN_B, DM_BTN_X, DM_BTN_Y, DM_BTN_R,
     DM_BTN_LEFT, DM_BTN_UP, DM_BTN_DOWN, DM_BTN_RIGHT, DM_BTN_PLUS, DM_BTN_MINUS
 };
 static void press(dm_tc_state *s, int slot, int target) {
@@ -52,9 +52,6 @@ static void layout_at(float w, float h) {
         NEAR(t.y,1241.5*u,0.001);
         NEAR(t.x,w/2+(1090+120*(c+1)-1434)*u,0.01);
     }
-    /* 回城钮（不在底栏）：技能弧最上面那颗（技能四）正上方的圆钮，同半径、间距 12 | Town portal button (not in the bottom bar): the round button directly above the topmost one on the skill arc (skill four), same radius, gap 12 */
-    { dm_tc_target p=l.target[DM_TC_PORTAL], s4=l.target[DM_TC_SKILL4];
-      NEAR(p.r,26*k,0.001); NEAR(p.x,s4.x,0.001); NEAR(p.y,s4.y-s4.r-12*k-p.r,0.001); }
 }
 /* 难度格：第 0 格 = 腰带第 1 格左邻一个格距；点开选择条，选第 8 格 → diff_request=8 并收起；选择期间不发任何按键 | Difficulty cell: cell 0 = one cell pitch to the left of belt cell 1; tap to open the selector strip, select cell 8 → diff_request=8 and collapse; no key is sent during selection */
 static void difficulty_picker(void) {
@@ -175,8 +172,8 @@ static void background_no_key(void) {
     dm_tc_begin(&s,3,100,375*0.25f); CHECK(s.joy_slot==-1);
 }
 static void circles_before_joystick(void) {
-    dm_tc_state s; dm_tc_init(&s,667,375); press(&s,0,DM_TC_PORTAL);
-    CHECK(s.buttons==0 && s.joy_slot==-1); CHECK(s.finger[0].target==DM_TC_PORTAL);   /* 圆钮先于摇杆认领这根手指；回城钮自己不出按键 | Round buttons claim this finger before the stick does; the town portal button itself emits no key */
+    dm_tc_state s; dm_tc_init(&s,667,375); press(&s,0,DM_TC_MAIN);
+    CHECK(s.buttons==0 && s.joy_slot==-1); CHECK(s.finger[0].target==DM_TC_MAIN);   /* 圆钮先于摇杆认领这根手指 | Round buttons claim this finger before the stick does */
 }
 static void cancel_and_resize(void) {
     dm_tc_state s; dm_tc_init(&s,667,375); dm_tc_begin(&s,0,100,200); dm_tc_move(&s,0,160,200); press(&s,1,DM_TC_MAIN);

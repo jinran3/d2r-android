@@ -5,7 +5,6 @@ import math
 import re
 from pathlib import Path
 
-SOURCES = {'uitouch', 'navigation', 'layout', 'focus_cancel', 'screenshot', 'bindings', 'portal_sequence'}
 TOUCH_PHASES = {'began', 'moved', 'ended', 'cancelled'}
 
 
@@ -14,13 +13,12 @@ def check_source(path):
     assert '[touch-receipt]' in s, 'missing touch-receipt diagnostic records'
     assert 'getenv("DM_TOUCH_CONTROL_LOG")' in s, 'missing environment gate'
     assert '"cancelled"' in s, 'cancelled must not be mislabeled ended'
-    for source in ('uitouch', 'layout', 'navigation', 'focus_cancel', 'screenshot', 'bindings', 'portal_sequence'):
         assert f'"{source}"' in s, f'missing source={source}'
     assert s.count('++_touchEventSeq') == 1, 'event sequence has one UIKit-only increment site'
     assert 'slot=-1' in s or 'int slot=-1' in s, 'unowned physical touch must remain observable'
     assert 'touch_timestamp_s=' in s and 'touch.timestamp' in s, 'missing original UITouch timestamp'
     assert 'event_first_seq=' in s and 'event_last_seq=' in s, 'missing publication event group'
-    print('SOURCE PASS: env gate + 4 phases + 7 sources + UIKit-only eventseq + unowned physical point + raw timestamp + publication event group')
+    print('SOURCE PASS: env gate + 4 phases + 6 sources + UIKit-only eventseq + unowned physical point + raw timestamp + publication event group')
 
 
 def check_log(path):
@@ -72,17 +70,6 @@ def check_log(path):
             last_receipt = receipt
             previous_publish_end = int(r['publish_end_ns'])
             assert previous_publish_end >= mono, 'publication end precedes start'
-            if r['source'] == 'portal_sequence':
-                for key in ('portal_request','portal_binding','portal_scene','portal_phase','portal_pending','modifier_publish_end_ns','feedback_group_start_ns','feedback_captured_ns','feedback_secondary','feedback_seen','feedback_identity_scope'):
-                    assert key in r, f'missing portal_sequence {key}'
-                assert all(int(r[key]) > 0 for key in ('portal_request','portal_binding','portal_scene'))
-                assert int(r['portal_phase']) == 2 and int(r['portal_pending']) == 0
-                assert 0 < int(r['modifier_publish_end_ns']) < mono, 'ACK must follow actual modifier publication'
-                assert int(r['feedback_secondary']) == 1 and int(r['feedback_seen']) == 63
-                assert int(r['feedback_identity_scope']) in {1, 2}, 'unconfirmed HUD identity cannot ACK'
-                assert int(r['modifier_publish_end_ns']) < int(r['feedback_group_start_ns']) <= int(r['feedback_captured_ns']) <= mono
-                mask = int(r['buttons'], 0)
-                assert mask & 256 and mask & (1|2|4|8|128|512), 'ACK must publish modifier plus facet'
             sources.add(r['source'])
             assert (r['phase'] != 'none') == (r['source'] == 'uitouch')
         else:

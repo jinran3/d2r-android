@@ -789,13 +789,6 @@ def pad_boss_pct(text):   # 手柄版怪物血条 = 原版布局原样（条挂�
 PRESENT['controller/console/switch/npcdialogpanelhd.json'] = _npc_dialog_touch
 
 
-# 「重新绑定技能」框只留 1–5 列：第 6 列（ZR）已定成回城快捷键放在底部 UI，不再是技能位。两排各挪走一格。
-# The 「重新绑定技能」(Press button to rebind skill) box keeps only columns 1–5: column 6 (ZR) has been fixed as the town portal shortcut placed in the bottom UI and is no longer a skill slot. One cell is moved away from each of the two rows.
-def _bind_modal_5col(s):
-    s, n = offscreen(s, types=(), names=('SkillButton6', 'AltSkillButtonRT'))
-    if n != 2: raise SystemExit('touch_layout：绑定框第 6 列应为 2 格，找到 %d 格（原版布局变了？）' % n)
-    return s, n
-PRESENT['controller/buttonbindingmodalhd.json'] = _bind_modal_5col
 def build_present(romfs, outdir):
     """局内呈现改动。返回 ({包内逻辑路径(小写): 本地文件}, 改了几处)；某文件一处没改到即报错。 | In-game presentation changes. Returns ({logical path in package (lowercase): local file}, number of places changed); it is an error if any file has no place changed."""
     repl = {}; total = 0

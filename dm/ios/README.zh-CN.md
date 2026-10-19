@@ -261,7 +261,7 @@ make -C dm/ios/tests test
 
 不需要设备，也不启动 App。内容：
 
-- 触摸判定状态机 `dm_touch_controls.c` 的各项行为（`t_touch_controls.c`、`t_skill_aim.c`、`t_joy_travel.c`、`t_portal_sequence.c`）。
+- 触摸判定状态机 `dm_touch_controls.c` 的各项行为（`t_touch_controls.c`、`t_skill_aim.c`、`t_joy_travel.c`）。
 - 技能绑定的解析与读取（`t_native_binding.c`、`t_game_bridge.c`、`t_binding_*.c`、`t_native_hud_*.c`），用到 [tests/fixtures/native_binding/](tests/fixtures/native_binding/README.zh-CN.md) 里的两份夹具。公开仓库不带这两份夹具：缺了的话，读它们的三个测试自动跳过，其余照常。
 - 技能图集索引（`t_native_art.c`、`test_native_art_capture.py`）。这一项需要本机有游戏文件：技能索引 `Sources/dm_touch_native_art.c` 不进仓库，缺了会从 `DM_ROMFS_SRC`（缺省 `$DM_ROOT/data/switch/3.3.94012/Update/RomFS`）现生成。
 - 几份 Python 脚本，核对 `front_ios.m` 里触摸通路的接线和诊断日志格式。

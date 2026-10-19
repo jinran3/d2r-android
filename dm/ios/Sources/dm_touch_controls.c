@@ -52,17 +52,14 @@ void dm_tc_layout_make(dm_tc_layout *l, float width, float height) {
         l->target[DM_TC_SKILL1+i] = (dm_tc_target){main_x+112*k*dx[i], main_y+112*k*dy[i], 26*k, skill[i]};
     /* 底栏 = 底部 UI v4 六格（NativeHUD/v4，游戏 HUD 按屏高缩放、以屏幕中线居中，所以按屏高换算）：
        效果图 2868×1320 里格心 x = 1090 + 120×格号、y = 1241.5、格宽 114；第 0 格难度，1–4 腰带四列，5 功能入口（PLUS）。
-       回城不在底栏（离药水太近易误触）：改为技能弧最上面那颗（技能四）正上方的圆钮，同半径、间距 12，点下由宿主施放原版回城技能（dm_freetp.c），不出按键。
        Bottom bar = the six cells of bottom UI v4 (NativeHUD/v4; the game HUD scales by screen height and is centered on the screen centerline, so convert by screen height):
-              in the 2868×1320 mock, cell center x = 1090 + 120×cell index, y = 1241.5, cell width 114; cell 0 difficulty, 1–4 the four belt columns, 5 the function entry (PLUS).
-              Town portal is not in the bottom bar (too close to the potions, easy to hit by mistake): it is instead a round button directly above the topmost one on the skill arc (skill four), same radius, gap 12; on tap the host casts the original game's town portal skill (dm_freetp.c), with no key press. */
+              in the 2868×1320 mock, cell center x = 1090 + 120×cell index, y = 1241.5, cell width 114; cell 0 difficulty, 1–4 the four belt columns, 5 the function entry (PLUS). */
     /* 腰带四列对十字键：左 = 第 1 列、上 = 第 2 列、下 = 第 3 列、右 = 第 4 列（原版实测：按「右」第 4 列减、按「下」第 3 列减；首版把后两个写反了，真机才撞到） | The four belt columns map to the D-pad: left = column 1, up = column 2, down = column 3, right = column 4 (measured in the original game: pressing "right" decrements column 4, pressing "down" decrements column 3; the first version had the last two swapped, which was only hit on a real device) */
     const uint64_t bottom[5] = {DM_BTN_LEFT, DM_BTN_UP, DM_BTN_DOWN, DM_BTN_RIGHT, DM_BTN_PLUS};
     const int cell[5] = {1, 2, 3, 4, 5};
     float u = l->height / 1320.0f;
     for (int i = 0; i < 5; ++i)
         l->target[DM_TC_BELT1+i] = (dm_tc_target){l->width/2+(1090+120*cell[i]-1434)*u, 1241.5f*u, 57*u, bottom[i]};
-    { const dm_tc_target *s4 = &l->target[DM_TC_SKILL4]; l->target[DM_TC_PORTAL] = (dm_tc_target){s4->x, s4->y-s4->r-12*k-26*k, 26*k, 0}; }
     /* 第 0 格难度与选择条：选择条 8 格同格宽、格距 120，中线对齐两球中线（效果图 1390），格心 y = 1051.5（七格之上、避开数值文字） | Cell 0 difficulty and the selector bar: the selector bar has 8 cells of the same cell width, cell pitch 120, centerline aligned with the centerline between the two orbs (mock 1390), cell center y = 1051.5 (above the seven cells, clear of the value text) */
     l->diff = (dm_tc_target){l->width/2+(1090-1434)*u, 1241.5f*u, 57*u, 0};
     for (int i = 0; i < 8; ++i) l->pick[i] = (dm_tc_target){l->width/2+(1390+(i-3.5f)*120-1434)*u, 1051.5f*u, 57*u, 0};
@@ -143,7 +140,7 @@ static void update(dm_tc_state *s) {
     for (int i = 0; i < DM_TC_MAX_TOUCH; ++i) {
         dm_tc_finger *f = &s->finger[i];
         if (f->active && !f->aim_cancelled && f->target >= 0 && f->target < DM_TC_COUNT) {
-            uint64_t b = f->target==DM_TC_PORTAL && s->portal_pending ? DM_BTN_ZL : s->layout.target[f->target].button;
+            uint64_t b = s->layout.target[f->target].button;
             /* 拖动定方向（核心手势）。技能钮：按下后先等 DM_TC_AIM_SETTLE_S 看是点按还是拖动——拖过死区就带着右轴方向立刻键下，
                没拖到点也键下（点按 = 原版自动选目标 / 朝向）；否则键先下、右轴后偏，按下那一发朝的是旧朝向。
                主钮：按下即键下，不等（它是最高频的键，点按不该多等；按下就拖的第一发是原生朝向，第二发起跟手）。
@@ -168,10 +165,10 @@ static void update(dm_tc_state *s) {
     }
     s->buttons |= s->pulse_button;
     /* 第二套技能：ZL 是原版的换组修饰键。只在用技能的那一刻带上——手指按着主钮 / 技能钮、或技能脉冲在发（含等着发）时；
-       其余时候不按：一直按着会让十字（+）、腰带、回城都变成「ZL + 键」的组合（Ⅱ 态下十字开不了面板）。
+       其余时候不按：一直按着会让十字（+）、腰带都变成「ZL + 键」的组合（Ⅱ 态下十字开不了面板）。
        ZL 先下、主钮的键晚 DM_TC_ZL_LEAD_S 再下（同一帧按下游戏只认主键 = 放成第一组的技能）。
        Second skill set: ZL is the original game's set-switch modifier. It is added only at the moment a skill is used -- while a finger is on the main button / a skill button, or a skill pulse is being sent (including waiting to be sent);
-              it is not pressed the rest of the time: holding it all the time would turn the cross (+), the belt and town portal all into "ZL + key" combos (in state Ⅱ the cross could not open the panel).
+              it is not pressed the rest of the time: holding it all the time would turn the cross (+) and the belt all into "ZL + key" combos (in state Ⅱ the cross could not open the panel).
               ZL goes down first, and the main button's key goes down DM_TC_ZL_LEAD_S later (pressed in the same frame, the game only recognizes the main key = casts the first set's skill). */
     if (s->skill_set && !s->navigation_mode) {
         /* 在发的脉冲只有是技能键（主钮 / 技能钮补的那一下）才带 ZL：多排腰带松手补的喝药脉冲带上 ZL 就成了原版「ZL + 腰带键 = 喂佣兵」
@@ -297,7 +294,7 @@ static void pointer_drag_begin(dm_tc_state *s, dm_tc_finger *f) {
 }
 
 void dm_tc_cancel_all(dm_tc_state *s) {
-    ++s->gesture_epoch; s->portal_pending=s->portal_phase=0; s->diff_open=0;
+    s->diff_open=0;
     memset(s->finger, 0, sizeof(s->finger));
     for (int i = 0; i < DM_TC_MAX_TOUCH; ++i) s->finger[i].target = DM_TC_NONE;
     s->joy_slot = DM_TC_NONE;
@@ -352,10 +349,8 @@ void dm_tc_init(dm_tc_state *s, float width, float height) {
 }
 
 void dm_tc_resize(dm_tc_state *s, float width, float height) {
-    uint64_t portal = s->layout.target[DM_TC_PORTAL].button;
     dm_tc_cancel_all(s);
     dm_tc_layout_make(&s->layout, width, height);
-    s->layout.target[DM_TC_PORTAL].button = portal;
 }
 
 void dm_tc_enable_targets(dm_tc_state *s, uint32_t mask) {
@@ -376,36 +371,12 @@ void dm_tc_set_navigation_mode(dm_tc_state *s, int navigation_mode) {
 /* 系统取消了这根手指（通知横幅、系统手势）：不当松手——不补脉冲、不点世界、不点界面；只把它按着的键、摇杆、光标放掉 | The system cancelled this finger (notification banner, system gesture): do not treat it as a release -- no make-up pulse, no world tap, no UI click; only let go of the keys, stick and cursor it was holding */
 void dm_tc_cancel_finger(dm_tc_state *s, int slot) {
     if (slot < 0 || slot >= DM_TC_MAX_TOUCH) return;
-    ++s->gesture_epoch;
-    if (s->finger[slot].active && s->finger[slot].target == DM_TC_PORTAL) { dm_tc_cancel_portal(s); }
     if (slot == s->joy_slot && s->finger[slot].active) { s->joy_lost_s = s->last_time_s; s->joy_lost_x = s->finger[slot].x; s->joy_lost_y = s->finger[slot].y; }   /* 系统取消了摇杆那根手指：记下，紧接着在附近重新落下的接着当摇杆 | the system cancelled the joystick finger: record it, and a finger landing again nearby right afterwards continues as the joystick */
     s->finger[slot] = (dm_tc_finger){.target=DM_TC_NONE};
     if (slot == s->joy_slot) { s->joy_slot = DM_TC_NONE; s->joy_origin_x = s->joy_origin_y = 0; }
     if (slot == s->aim_slot) s->aim_slot = DM_TC_NONE;
     if (slot == s->pointer_slot) { s->pointer_item = 0; s->pointer_shop = 0; s->pointer_stack = 0; s->pointer_lock = 0; s->pointer_slot = DM_TC_NONE; s->pointer_valid = 0; }
     update(s);
-}
-void dm_tc_cancel_portal(dm_tc_state *s) {
-    ++s->gesture_epoch; s->portal_pending=s->portal_phase=0;
-    for (int i=0;i<DM_TC_MAX_TOUCH;++i)
-        if(s->finger[i].active && s->finger[i].target==DM_TC_PORTAL)
-            s->finger[i]=(dm_tc_finger){.target=DM_TC_NONE};
-    update(s);
-}
-void dm_tc_set_portal_binding(dm_tc_state *s,uint64_t mask,uint64_t identity,uint64_t scene) {
-    if(s->layout.target[DM_TC_PORTAL].button==mask && s->portal_binding_identity==identity && s->portal_scene_epoch==scene)return;
-    dm_tc_cancel_portal(s);
-    s->portal_binding_identity=identity;s->portal_scene_epoch=scene;
-    s->layout.target[DM_TC_PORTAL].button=mask;update(s);
-}
-void dm_tc_set_portal_button(dm_tc_state *s,uint64_t mask) {
-    dm_tc_set_portal_binding(s,mask,s->portal_binding_identity,s->portal_scene_epoch);
-}
-int dm_tc_portal_ack(dm_tc_state *s,uint64_t epoch,uint64_t identity,uint64_t scene) {
-    if(!s->portal_pending || s->gesture_epoch!=epoch || s->portal_binding_identity!=identity || s->portal_scene_epoch!=scene)return 0;
-    int active=0;for(int i=0;i<DM_TC_MAX_TOUCH;i++)active|=s->finger[i].active && s->finger[i].target==DM_TC_PORTAL;
-    if(!active)return 0;
-    s->portal_pending=0;s->portal_phase=2;update(s);return 1;
 }
 
 /* 腰带展开着、这一点不在腰带上（底排四格与展开的几排之外）：前端据此在自己的手势（小地图块、空位十字）之前先收腰带并吃掉这一下 | Belt expanded and this point is not on the belt (outside the four bottom-row cells and the expanded rows): based on this the front end collapses the belt and consumes this tap before its own gestures (minimap block, empty-slot cross) */
@@ -467,21 +438,15 @@ void dm_tc_begin_at(dm_tc_state *s, int slot, float x, float y, double now_s) {
         else { s->skill_set = !s->skill_set; *f = (dm_tc_finger){.active=1, .target=DM_TC_SWAP, .x=x, .y=y}; update(s); return; }
     }
     int enabled = hit >= 0 && (s->enabled_targets & (1u << hit));
-    /* 面板态：被禁用的目标（底栏腰带 / 功能键 / 回城、圆钮收起后的技能钮位置）不占手指——它们压着的地方可能正是面板的按钮
-       （设置页「应用」在屏幕底部，落在禁用的底栏目标上，既不判类也不点击）。游戏态仍占着（防隐藏的回城触点变成摇杆）
-       Panel state: disabled targets (bottom-bar belt / function key / town portal, and the skill button positions after the round buttons are hidden) do not capture fingers -- the place they cover may be exactly a panel button
-              (「应用」(Apply) on the settings page is at the bottom of the screen and landed on a disabled bottom-bar target, getting neither classified nor clicked). In game state they still capture (preventing a hidden town-portal touch point from turning into the stick) */
+    /* 面板态：被禁用的目标（底栏腰带 / 功能键、圆钮收起后的技能钮位置）不占手指——它们压着的地方可能正是面板的按钮
+       （设置页「应用」在屏幕底部，落在禁用的底栏目标上，既不判类也不点击）。游戏态仍占着（防隐藏的触点变成摇杆）
+       Panel state: disabled targets (bottom-bar belt / function key, and the skill button positions after the round buttons are hidden) do not capture fingers -- the place they cover may be exactly a panel button
+              (「应用」(Apply) on the settings page is at the bottom of the screen and landed on a disabled bottom-bar target, getting neither classified nor clicked). In game state they still capture (preventing a hidden touch point from turning into the stick) */
     if (s->navigation_mode && hit >= 0 && !enabled) hit = DM_TC_NONE;
-    if(enabled && hit==DM_TC_PORTAL && s->layout.target[hit].button && s->portal_phase==0) {
-        ++s->gesture_epoch;
-        uint64_t mask=s->layout.target[hit].button;
-        s->portal_pending=(mask&DM_BTN_ZL) && (mask&~DM_BTN_ZL);
-        s->portal_phase=s->portal_pending?1:2;
-    }
     *f = (dm_tc_finger){.active=1, .target=enabled ? hit : DM_TC_NONE, .x=x, .y=y,
                            .aim_origin_x=x, .aim_origin_y=y,
                            .start_time_s=now_s};
-    /* 禁用圆仍阻止落入左摇杆区，防止隐藏回城触点变成移动。 | A disabled circle still blocks falling through into the left stick area, preventing a hidden town-portal touch point from turning into movement. */
+    /* 禁用圆仍阻止落入左摇杆区，防止隐藏触点变成移动。 | A disabled circle still blocks falling through into the left stick area, preventing a hidden touch point from turning into movement. */
     if (s->navigation_mode && hit == DM_TC_NONE && s->pointer_slot == DM_TC_NONE) {
         s->pointer_slot = slot;
         s->pointer_item = 0;
@@ -537,11 +502,6 @@ void dm_tc_move_at(dm_tc_state *s, int slot, float x, float y, double now_s) {
 void dm_tc_end_at(dm_tc_state *s, int slot, double now_s) {
     if (slot < 0 || slot >= DM_TC_MAX_TOUCH) return;
     s->last_time_s = now_s;
-    if(s->finger[slot].active && s->finger[slot].target==DM_TC_PORTAL) {
-        s->finger[slot]=(dm_tc_finger){.target=DM_TC_NONE};
-        for(int i=0;i<DM_TC_MAX_TOUCH;i++)if(s->finger[i].active && s->finger[i].target==DM_TC_PORTAL) {update(s);return;}
-        dm_tc_cancel_portal(s);return;
-    }
     dm_tc_finger done = s->finger[slot];
     if (s->navigation_mode && slot == s->pointer_slot) {
         float distance = hypotf(done.x-done.aim_origin_x, done.y-done.aim_origin_y);

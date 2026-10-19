@@ -50,15 +50,11 @@ int main(void) {
     begin(&s,0,DM_TC_MAIN); drag(&s,0,DM_TC_MAIN,15,-15); CHECK(s.rx==16384 && s.ry==16384);
     dm_tc_enable_targets(&s,0); CHECK(s.rx==0 && s.ry==0 && s.buttons==0);
     dm_tc_enable_targets(&s,(1u<<DM_TC_COUNT)-1);
-    const int non_skill[]={DM_TC_PORTAL,DM_TC_BELT1,DM_TC_MENU,DM_TC_MAP};
+    const int non_skill[]={DM_TC_BELT1,DM_TC_MENU,DM_TC_MAP};
     for(unsigned i=0;i<sizeof(non_skill)/sizeof(*non_skill);i++) {
         begin(&s,0,non_skill[i]); drag(&s,0,non_skill[i],30,-30); CHECK(s.rx==0 && s.ry==0 && s.aim_slot==DM_TC_NONE); dm_tc_end(&s,0);
     }
-    dm_tc_resize(&s,667,375); dm_tc_set_portal_binding(&s,DM_BTN_ZL|DM_BTN_B,77,3); begin(&s,3,DM_TC_PORTAL);
-    begin(&s,0,DM_TC_MAIN); drag(&s,0,DM_TC_MAIN,60,0);
-    CHECK(s.buttons==(DM_BTN_ZL|DM_BTN_A) && s.rx==32767);
-    CHECK(dm_tc_portal_ack(&s,s.gesture_epoch,77,3)); CHECK(s.buttons==(DM_BTN_ZL|DM_BTN_B|DM_BTN_A) && s.rx==32767);
-    dm_tc_end(&s,0); CHECK(s.buttons==(DM_BTN_ZL|DM_BTN_B) && s.rx==0); dm_tc_end(&s,3); CHECK(s.buttons==0);
+    dm_tc_resize(&s,667,375);
     dm_tc_target main=s.layout.target[DM_TC_MAIN];
     dm_tc_begin(&s,0,main.x+10,main.y+10);
     dm_tc_move(&s,0,main.x+40,main.y-20); CHECK(s.rx==16384 && s.ry==16384);

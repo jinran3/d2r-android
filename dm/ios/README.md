@@ -261,7 +261,7 @@ make -C dm/ios/tests test
 
 No device is needed, and the app is not launched. Contents:
 
-- The behaviours of the touch classification state machine `dm_touch_controls.c` (`t_touch_controls.c`, `t_skill_aim.c`, `t_joy_travel.c`, `t_portal_sequence.c`).
+- The behaviours of the touch classification state machine `dm_touch_controls.c` (`t_touch_controls.c`, `t_skill_aim.c`, `t_joy_travel.c`).
 - Parsing and reading of the skill bindings (`t_native_binding.c`, `t_game_bridge.c`, `t_binding_*.c`, `t_native_hud_*.c`), using the two fixtures in [tests/fixtures/native_binding/](tests/fixtures/native_binding/README.md). The public repository does not ship these two fixtures: without them, the three tests that read them are skipped automatically and the rest run as usual.
 - The skill atlas index (`t_native_art.c`, `test_native_art_capture.py`). This item needs the game files on your machine: the skill index `Sources/dm_touch_native_art.c` is not kept in the repository, and when it is missing it is generated on the spot from `DM_ROMFS_SRC` (default `$DM_ROOT/data/switch/3.3.94012/Update/RomFS`).
 - A few Python scripts that check the wiring of the touch path in `front_ios.m` and the format of the diagnostic log.

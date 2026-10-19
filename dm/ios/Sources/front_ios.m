@@ -40,9 +40,6 @@ __attribute__((weak)) int dm_touch_game_snapshot(dm_tg_snapshot *out) {
 }
 
 __attribute__((weak)) void dm_touch_game_set_scene(int game,uint64_t epoch,uint64_t world) { (void)game; (void)epoch; (void)world; }
-__attribute__((weak)) uint64_t dm_tg_portal_mask(const dm_tg_snapshot *s,uint64_t n) {
-    (void)s; (void)n; return 0; // 旧lab的snapshot.supported=0；生产由纯C强实现覆盖。 | The old lab's snapshot.supported=0; in production the pure-C strong implementation overrides it.
-}
 
 static CAMetalLayer *g_layer;
 
@@ -72,7 +69,7 @@ static BOOL touch_control_log_enabled(void) {
 - (void)padMode:(BOOL)pad;
 - (void)restartCover:(int)mode;
 - (void)captureTouchLayer:(NSString *)path;
-- (void)refreshPortalBinding;
+- (void)refreshTouchMapping;
 @end
 static __weak DmMetalView *g_touch_view;
 // 真全屏（屏幕比 16:9 窄，iPad 4:3）：3D 铺满整窗，游戏视图（界面、自绘控件、界面触点）是贴底的一块 16:9，见 front_ios_view。
@@ -98,7 +95,6 @@ static void world_norm(UIView *v, CGFloat x, CGFloat y, float *nx, float *ny) { 
 static void touch_script_start(void);
 static _Atomic int g_touch_navigation = 1;
 
-static _Atomic int g_nav_pub; int dm_front_navigation(void) { return atomic_load(&g_nav_pub); }   // 面板 / 读取画面 / 过场开着（非零）：dm_gamepad.m 据此只在游戏态接管 ZR | A panel / loading screen / cutscene is open (non-zero): dm_gamepad.m uses this to take over ZR only in the gameplay state
 static void pad_mode_changed(int pad) { dispatch_async(dispatch_get_main_queue(),^{ [g_touch_view padMode:pad]; }); }   // dm_gamepad.m 在主队列回调，照样切一次主线程（与上面同法） | dm_gamepad.m calls back on the main queue; still hop to the main thread once (same approach as above)
 static void restart_cover_hook(int on) { dispatch_async(dispatch_get_main_queue(),^{ [g_touch_view restartCover:on]; }); }   // 0 撤 / 1 黑屏 / 2 透明（读取画面露出来，照样吞触点）   // 宿主在游戏主线程调，切到界面主线程开关 | 0 remove / 1 black screen / 2 transparent (the loading screen shows through, touch points still swallowed)   // Called by the host on the game main thread; switches to the UI main thread to toggle
 // 一键重开遮罩：吞掉落在它上面的所有触点（不调 super，不沿响应链交给下面的游戏视图——诊断日志里见过：遮罩是游戏视图的子视图时，
@@ -124,7 +120,6 @@ static void restart_cover_hook(int on) { dispatch_async(dispatch_get_main_queue(
     int _navigation;
     CALayer *_mgLabel[12], *_mgMark[12];   // 小地图任务终点：每个终点一个名牌 / 符号层 + 一个灰十字层（mapGoalSync） | Minimap quest goals: one nameplate / symbol layer + one grey cross layer per goal (mapGoalSync)
     NSMutableDictionary<NSString *,UIImage *> *_mgImg;
-    uint64_t _modifierPublishEndNS,_modifierPublishEpoch;
     uint64_t _touchEventSeq,_touchReceiptSeq,_touchPublishedEventSeq; // 仅 DM_TOUCH_CONTROL_LOG 开启时推进 | Advanced only when DM_TOUCH_CONTROL_LOG is on
     UITouch *_pendEnd; double _pendEndTime,_pendWall; BOOL _pendFire,_finalAsked;   // 松手了但宿主的答案还没回：这根手指的「抬起」先挂着（见 finishTouches） | Released but the host's answer is not back yet: this finger's "lift" is held pending (see finishTouches)
     int32_t _minLeft,_maxLeft; uint64_t _lastButtons; unsigned _touchAPresses,_touchShots; UITouch *_uiFinger; CGPoint _uiFeO; BOOL _uiFeDrag; BOOL _uiDragOn; UITouch *_mapTouch, *_mapBackTouch, *_bindTouch; UIView *_ghostDim; BOOL _ghostOn; uint64_t _bindKey; uint32_t _selId; double _statNext; double _tipUntil, _addAt; unsigned _mapWorldSeq; BOOL _mapWorldAsked; CGPoint _mapWorldPt; CGPoint _mapP0, _bindP0; double _mapT0; BOOL _pulseTicking; uint64_t _pulseEpoch,_pulseS0; double _pulseT0,_pulseSeen,_pulseFree; unsigned _itemSeq,_relSeq; BOOL _relAsked,_itemAsked; int _itemKind;
@@ -171,7 +166,7 @@ static void restart_cover_hook(int on) { dispatch_async(dispatch_get_main_queue(
 - (void)frontendMode:(BOOL)fe { _feMode=fe; _overlay.hidden=fe || _padMode; _info.hidden=fe; if(fe) { _pendEnd=nil; _finalAsked=NO; for(int i_=0;i_<16;i_++) _slot[i_]=nil; dm_tc_cancel_all(&_controls); [self pushFrom:"frontend" phase:"none"]; } }
 - (void)navigationMode:(int)n {
     if (_navigation==n) return;
-    dm_tc_set_navigation_mode(&_controls,n); _navigation=n; atomic_store(&g_nav_pub,n);   // 内部按非零归一 | Internally normalized to non-zero
+    dm_tc_set_navigation_mode(&_controls,n); _navigation=n;
     static int pad=-1; if(pad<0) { const char *e=getenv("DM_TOUCH_NAV_PAD"); pad=e && e[0]=='1'; }   // 面板态的五个虚拟手柄圆钮：缺省不给（点按 / 双击 / 拖放 / 点页签 / 面板外点按已全部替代，圆钮还压着背包格右半边）；DM_TOUCH_NAV_PAD=1 调试时叫回来 | The five round virtual controller buttons of panel mode: not shown by default (tap / double tap / drag and drop / tab tap / tap outside the panel have replaced them all, and the round buttons also sat over the right half of the inventory cells); DM_TOUCH_NAV_PAD=1 brings them back for debugging
     uint32_t mask=n ? (dm_tc_nav_mask(pad && n!=2) | (n==3 ? 1u<<DM_TC_MENU : 0)) :   // 3 = 只开着 NPC 对话菜单：底栏十字可点（原版 ＋ 键此时 = 关对话并开功能页） | 3 = only the NPC dialog menu is open: the bottom bar cross is tappable (the original game's + key at this time = close the dialog and open the function page)
         (((1u<<DM_TC_COUNT)-1) & ~(1u<<DM_TC_MAP));   // 游戏态不要右上地图键（不要顶部图标） | No top-right map button in game mode (no top icon wanted)
@@ -228,22 +223,16 @@ static void restart_cover_hook(int on) { dispatch_async(dispatch_get_main_queue(
     if (_controls.belt_request) { int br=_controls.belt_request; _controls.belt_request=0;   // 腰带展开 / 收起 / 喝上面几排的药（dm_actions.c） | Belt expand / collapse / drink a potion from the upper rows (dm_actions.c)
         if (br==1 || br==2) dm_belt_expand(br==1); else dm_belt_use(br&0xf, br>>4&0xf); }   // 腰带点按一律给玩家喝 | belt taps always go to the player
     if (_controls.diff_request) { dm_hud_request_players(_controls.diff_request); _controls.diff_request=0; }   // 难度选择条选中档位：宿主下一拍走原版 /players 路径 | Difficulty selector strip picked a level: the host takes the original game's /players path on the next tick
-    uint64_t publishEnd=(diagnostic || _controls.portal_pending)?now_ns():0;
-    if(_controls.portal_pending && _modifierPublishEpoch!=_controls.gesture_epoch) {
-        _modifierPublishEpoch=_controls.gesture_epoch;_modifierPublishEndNS=publishEnd;
-    }
-    if(!_controls.portal_phase) {_modifierPublishEpoch=0;_modifierPublishEndNS=0;}
+    uint64_t publishEnd=diagnostic?now_ns():0;
     _minLeft=MIN(_minLeft,_controls.lx); _maxLeft=MAX(_maxLeft,_controls.lx);
     if((_controls.buttons & DM_BTN_A) && !(_lastButtons & DM_BTN_A))_touchAPresses++;
     _lastButtons=_controls.buttons;
     self.accessibilityValue=[NSString stringWithFormat:@"%@|buttons=%llu|lx=%d|ly=%d|min=%d|max=%d|a=%u|shot=%u",_navigation?@"navigation":@"game",_controls.buttons,_controls.lx,_controls.ly,_minLeft,_maxLeft,_touchAPresses,_touchShots];
     if(diagnostic) {
         uint64_t first=_touchEventSeq>_touchPublishedEventSeq?_touchPublishedEventSeq+1:0;
-        fprintf(stderr,"[touch-receipt] stage=output receiptseq=%llu eventseq=%llu event_first_seq=%llu event_last_seq=%llu mono_ns=%llu publish_end_ns=%llu source=%s phase=%s buttons=%#llx lx=%d ly=%d rx=%d ry=%d mode=%s portal_request=%llu portal_binding=%llu portal_scene=%llu portal_phase=%d portal_pending=%d modifier_publish_end_ns=%llu feedback_group_start_ns=%llu feedback_captured_ns=%llu feedback_secondary=%d feedback_seen=%u feedback_identity_scope=%d\n",
+        fprintf(stderr,"[touch-receipt] stage=output receiptseq=%llu eventseq=%llu event_first_seq=%llu event_last_seq=%llu mono_ns=%llu publish_end_ns=%llu source=%s phase=%s buttons=%#llx lx=%d ly=%d rx=%d ry=%d mode=%s feedback_group_start_ns=%llu feedback_captured_ns=%llu feedback_secondary=%d feedback_seen=%u feedback_identity_scope=%d\n",
         (unsigned long long)++_touchReceiptSeq,(unsigned long long)_touchEventSeq,(unsigned long long)first,(unsigned long long)_touchEventSeq,(unsigned long long)publishStart,
         (unsigned long long)publishEnd,source,phase,(unsigned long long)_controls.buttons,_controls.lx,_controls.ly,_controls.rx,_controls.ry,_navigation?"navigation":"game",
-        (unsigned long long)_controls.gesture_epoch,(unsigned long long)_controls.portal_binding_identity,(unsigned long long)_controls.portal_scene_epoch,
-        _controls.portal_phase,_controls.portal_pending,(unsigned long long)_modifierPublishEndNS,
         (unsigned long long)_overlay.nativeMapping.group_started_ns,(unsigned long long)_overlay.nativeMapping.captured_ns,
         _overlay.nativeMapping.secondary_group,_overlay.nativeMapping.group_seen,_overlay.nativeMapping.identity_scope);
         _touchPublishedEventSeq=_touchEventSeq;
@@ -291,32 +280,16 @@ static void restart_cover_hook(int on) { dispatch_async(dispatch_get_main_queue(
 }
 - (BOOL)inMinimap:(CGPoint)p {
     CGRect tap; if(_navigation || ![self minimapRect:NULL tap:&tap]) return NO;
-    if(dm_tc_hit(&_controls.layout,(float)p.x,(float)p.y)>=0) return NO;   // 落在控件命中圆上的点归控件（回城钮挪到技能弧上方后在营地里被小地图矩形盖住） | Points landing on a widget's hit circle belong to the widget (after the town portal button moved above the skill arc it is covered by the minimap rectangle in camp)
+    if(dm_tc_hit(&_controls.layout,(float)p.x,(float)p.y)>=0) return NO;   //     // 落在控件命中圆上的点归控件 | Points landing on a widget's hit circle belong to the widget
     return CGRectContainsPoint(tap,p);
 }
 - (void)cancelControls { [self cancelControlsFrom:"focus_cancel"]; }
-- (void)refreshPortalBinding {
+- (void)refreshTouchMapping {
     hud_stack_watch();
     { dm_hud_info h, o=_overlay.hud; dm_hud_get(&h); h.x=h.y=0; if (memcmp(&h,&o,sizeof h)) { _overlay.hud=h; [_overlay setNeedsDisplay]; } }   // 覆盖层不画玩家坐标：不清掉的话走路时每个逻辑拍都判「变了」、整层全屏重画一遍 | The overlay does not draw player coordinates: without clearing them, every logic tick while walking would be judged "changed" and redraw the whole layer fullscreen
     dm_tg_snapshot snapshot={0};
     dm_touch_game_snapshot(&snapshot);
     _overlay.nativeMapping=snapshot;
-    if(_navigation) return; // 导航态Portal禁用，不发布旧玩法bank。 | Portal is disabled in navigation mode; the old gameplay bank is not published.
-    if(!snapshot.supported) return; // 旧包无OBS6，仅保留旧ZR已验域。 | Old builds have no OBS6; keep only the old verified ZR domain.
-    uint64_t mask=0; (void)dm_tg_portal_mask;   // 免费回城：回城钮不再按原版手柄的回城书 / 卷轴键，点下去由宿主直接开门（dm_freetp.c，见 touchesBegan） | Free town portal: the town portal button no longer presses the original controller's Tome of Town Portal / scroll key; tapping it has the host open the portal directly (dm_freetp.c, see touchesBegan)
-    if(_controls.layout.target[DM_TC_PORTAL].button!=mask || _controls.portal_binding_identity!=snapshot.binding_identity || _controls.portal_scene_epoch!=snapshot.scene_epoch) {
-        dm_tc_set_portal_binding(&_controls,mask,snapshot.binding_identity,snapshot.scene_epoch);
-        _modifierPublishEpoch=0;_modifierPublishEndNS=0;
-        // 身份/scene变化即使mask不变也撤请求；物理_slot/其它held/joy保留。
-        // On identity/scene change, withdraw the request even if mask is unchanged; physical _slot / other held / joy are kept.
-        [self pushFrom:"bindings" phase:"none"];
-    }
-    if(_controls.portal_pending && mask && snapshot.ready && snapshot.secondary_group && snapshot.group_seen==63 &&
-       _modifierPublishEpoch==_controls.gesture_epoch && _modifierPublishEndNS &&
-       snapshot.group_started_ns>_modifierPublishEndNS && snapshot.captured_ns>_modifierPublishEndNS &&
-       dm_tc_portal_ack(&_controls,_modifierPublishEpoch,snapshot.binding_identity,snapshot.scene_epoch))
-        [self pushFrom:"portal_sequence" phase:"none"];
-
 }
 // 技能绑定：等玩家点技能期间，点按落在技能图标上（宿主命中，含吸附）= 光标到图标 + 按 Y；落在别处照常（页签、关闭钮走原来的点击）
 // Skill binding: while waiting for the player to tap a skill, a tap landing on a skill icon (host hit test, snapping included) = cursor to the icon + press Y; landing elsewhere behaves as usual (tabs and the close button use the original click)
@@ -477,16 +450,16 @@ static BOOL touch_done(UITouch *t) { UITouchPhase ph=t.phase; return ph==UITouch
     (void)e;
     [self sweepEndedSlots];
     // 手柄模式下碰屏幕 = 回触屏模式（dm_gamepad.m），这一下只做这一件事：此刻屏上是手柄版界面，触屏控件还没显示出来（布局重载要几十帧），
-    // 照常往下走的话，落点正好在看不见的回城钮 / 技能钮位置就会直接回城、放技能，面板态还会对手柄版面板发点击。
+    // 照常往下走的话，落点正好在看不见的技能钮位置就会直接放技能，面板态还会对手柄版面板发点击。
     // Touching the screen in controller mode = back to touch mode (dm_gamepad.m), and this touch does that one thing only: at this moment the
     // controller UI is on screen and the touch widgets are not shown yet (the layout reload takes a few dozen frames),
-    // so if it went on as usual, a touch landing right on the invisible town portal button / skill button would directly cast town portal or a
+    // so if it went on as usual, a touch landing right on the invisible skill button would directly cast a
     // skill, and in panel state a click would also be sent to the controller-layout panel.
     { BOOL wasPad=_padMode; dm_gamepad_touched();
       int dm_padmode_busy(void);
       if(wasPad || dm_padmode_busy()) { if(!_swallow) _swallow=[NSHashTable weakObjectsHashTable]; for(UITouch *t in ts) [_swallow addObject:t]; if(wasPad) LOG("前端：手柄模式下碰屏 → 只切回触屏模式，这一下不执行"); return; } }   // 切换事务进行中落下的手指同样整根不执行（控件层还没露出来） | Fingers that land while a switch transaction is in progress are likewise ignored for their whole lifetime (the control layer has not been revealed yet)
     if(atomic_load(&g_touch_frontend)) { [self uiTouch:ts phase:0]; return; }
-    [self refreshPortalBinding];
+    [self refreshTouchMapping];
     if(_pendEnd) { UITouch *pt=_pendEnd; _pendFire=YES; [self finishTouches:[NSSet setWithObject:pt] phase:"ended"]; _pendFire=NO; _pendEnd=nil; _finalAsked=NO; }   // 新手指落下前先把挂着的抬起放行 | Before a new finger lands, let the pending lift through first
     for(UITouch *t in ts) {
         int slot=-1;
@@ -496,7 +469,6 @@ static BOOL touch_done(UITouch *t) { UITouchPhase ph=t.phase; return ph==UITouch
         if(!_mapTouch && [self inMinimap:[t locationInView:self]]) { _mapTouch=t; _mapP0=[t locationInView:self]; _mapT0=CACurrentMediaTime(); continue; }
         for(int i=0;i<16;i++) if(!_slot[i]) {
             _slot[i]=t; CGPoint p=[t locationInView:self]; { int ex=0; _controls.belt_rows=dm_belt_rows(&ex); _controls.belt_open=ex; } dm_tc_begin_at(&_controls,i,p.x,p.y,CACurrentMediaTime()); slot=i;
-            if(!_navigation && _controls.finger[i].target==DM_TC_PORTAL) { void dm_tp_request(void); dm_tp_request(); LOG("前端：点回城钮 → 免费回城"); }   // 不要回城书 / 卷轴（宿主 dm_freetp.c） | No Tome of Town Portal / scroll needed (host dm_freetp.c)
             if(!_navigation && !_mapBackTouch && _controls.finger[i].target==DM_TC_NONE && dm_ui_map_is_full()) { _mapBackTouch=t; _mapP0=p; _mapT0=CACurrentMediaTime(); }   // 全屏地图开着、这根手指没落在任何键和摇杆区上：松手时若是点按就回小地图 | Fullscreen map open and this finger landed on no button and no stick area: if it turns out to be a tap on release, return to the minimap
             // 功能页里的指针手指：问宿主这点是不是物品区（游戏主线程下一帧作答，松手时取）
             // Pointer finger in a function page: ask the host whether this point is an item area (the game main thread answers on the next frame; fetched on release)
@@ -665,14 +637,14 @@ static BOOL touch_done(UITouch *t) { UITouchPhase ph=t.phase; return ph==UITouch
 - (void)touchesEnded:(NSSet<UITouch *> *)ts withEvent:(UIEvent *)e { (void)e; [self finishTouches:ts phase:"ended"]; }
 - (void)touchesCancelled:(NSSet<UITouch *> *)ts withEvent:(UIEvent *)e { (void)e; [self finishTouches:ts phase:"cancelled"]; }
 - (CGPoint)scriptPoint:(NSString *)spec move:(BOOL)move {
-    // 数字对 "x,y"（点）或 "@目标[+dx,dy]"：目标 = joy/swap/main/skill1-4/portal/belt1-4/menu/map/mmname（小地图点击区中心）/mmbody（小地图矩形中心）
-    // Number pair "x,y" (points) or "@target[+dx,dy]": target = joy/swap/main/skill1-4/portal/belt1-4/menu/map/mmname (center of the minimap tap area)/mmbody (center of the minimap rectangle)
+    // 数字对 "x,y"（点）或 "@目标[+dx,dy]"：目标 = joy/swap/main/skill1-4/belt1-4/menu/map/mmname（小地图点击区中心）/mmbody（小地图矩形中心）
+    // Number pair "x,y" (points) or "@target[+dx,dy]": target = joy/swap/main/skill1-4/belt1-4/menu/map/mmname (center of the minimap tap area)/mmbody (center of the minimap rectangle)
     CGPoint base=CGPointZero; NSString *rest=spec; BOOL absPt=[spec hasPrefix:@"="]; if(absPt) rest=[spec substringFromIndex:1];   // 「=x,y」：已是本视图里的点（tap_unit / tap_ui 自己算出来的落点），不做 DM_TOUCH_REF 换算 | "=x,y": already a point in this view (a landing point computed by tap_unit / tap_ui itself), no DM_TOUCH_REF conversion
     if([spec hasPrefix:@"@"]) {
         NSRange r=[spec rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"+"]];
         NSString *name=[spec substringWithRange:NSMakeRange(1,(r.location==NSNotFound?spec.length:r.location)-1)];
         rest=r.location==NSNotFound?@"0,0":[spec substringFromIndex:r.location+1];
-        NSArray *names=@[@"main",@"skill1",@"skill2",@"skill3",@"skill4",@"portal",@"belt1",@"belt2",@"belt3",@"belt4",@"menu",@"map"];
+        NSArray *names=@[@"main",@"skill1",@"skill2",@"skill3",@"skill4",@"belt1",@"belt2",@"belt3",@"belt4",@"menu",@"map"];
         NSUInteger i=[names indexOfObject:name];
         if([name isEqualToString:@"joy"]) base=CGPointMake(_controls.layout.joy_x,_controls.layout.joy_y);
         else if([name isEqualToString:@"swap"]) base=CGPointMake(_controls.layout.swap.x,_controls.layout.swap.y);
@@ -724,7 +696,7 @@ static BOOL touch_done(UITouch *t) { UITouchPhase ph=t.phase; return ph==UITouch
         (unsigned long long)_controls.buttons,_controls.lx,_controls.ly,_controls.rx,_controls.ry);
 }
 - (void)captureTouchLayer:(NSString *)path {
-    [self refreshPortalBinding];
+    [self refreshTouchMapping];
     UIGraphicsImageRendererFormat *f=[UIGraphicsImageRendererFormat preferredFormat]; f.opaque=NO; f.scale=self.window.screen.scale;
     UIImage *im=[[[UIGraphicsImageRenderer alloc] initWithBounds:_overlay.bounds format:f] imageWithActions:^(UIGraphicsImageRendererContext *ctx){ [self->_overlay.layer renderInContext:ctx.CGContext]; if(!self->_info.hidden) [self->_info.layer renderInContext:ctx.CGContext]; }];   // 信息层（任务条 / 任务终点）原先是控件层的子层，照旧一并截进来 | the info layer (objective bar / quest goal) used to be a sublayer of the controls layer, so it is still captured together with it
     NSData *png=UIImagePNGRepresentation(im); BOOL imageOK=[png writeToFile:path atomically:YES];
@@ -867,7 +839,7 @@ static void touch_ui_message(const char *cat,const char *act,const char *arg) {
         if (g_full) { static int lx = -1, ly, lw, lh, lrh, lrw; int x, y, w, h, rw = 0, rh = 0; dm_ui_rect(&x, &y, &w, &h);   // 界面矩形由宿主定（开机后才有、切档会变）：变了就让容器重摆游戏视图 | The UI rectangle is decided by the host (available only after boot, changes when the profile switches): on change, have the container re-lay out the game view
             if (dm_screen_real(&rw, &rh) && (x != lx || y != ly || w != lw || h != lh || rh != lrh || rw != lrw)) { lx = x; ly = y; lw = w; lh = h; lrh = rh; lrw = rw; [v.superview setNeedsLayout]; [v.superview layoutIfNeeded]; } }   // 当拍摆到位：自绘控件不比游戏画的界面晚一拍 | Laid out within the same tick: custom-drawn widgets are not one tick later than the UI drawn by the game
         [v tickTouchControls:CACurrentMediaTime()];
-        [g_touch_view refreshPortalBinding];
+        [g_touch_view refreshTouchMapping];
     }
 }
 @end
