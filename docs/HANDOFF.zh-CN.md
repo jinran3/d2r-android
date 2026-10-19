@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-19T20:54:54+08:00
+updated_at: 2026-10-19T21:01:12+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 62139f0820b0bb41165f0a97344aff9f47858251
+observed_head: bf7b33f9b9469e05303133c83d6e784cc8462ed4
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 62139f0820b0bb41165f0a97344aff9f47858251
+origin_head_at_checkpoint: bf7b33f9b9469e05303133c83d6e784cc8462ed4
 code_worktree: CLEAN
-next_action_id: NA-005
+next_action_id: NA-006
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,24 +140,24 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-19 20:54（Asia/Shanghai）
+- 快照时间：2026-10-19 21:01（Asia/Shanghai）
 - 当前阶段：M0 准备 / 脚手架
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：`62139f0820b0bb41165f0a97344aff9f47858251`（快照基线；允许是当前 HEAD 的祖先）
-- origin 对应分支：`origin/totk/scaffold`，检查点为 `62139f0820b0bb41165f0a97344aff9f47858251`（与观测 HEAD 相同）
+- 观测 HEAD：`bf7b33f9b9469e05303133c83d6e784cc8462ed4`（快照基线；允许是当前 HEAD 的祖先）
+- origin 对应分支：`origin/totk/scaffold`，检查点为 `bf7b33f9b9469e05303133c83d6e784cc8462ed4`（与观测 HEAD 相同）
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
-- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b3`，19,315,151 字节）
-- 本次会话目标：执行 NA-004 —— 拆除 D2R 专属的 Granny（BitKnit2）动画数据段解码。
+- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b4`，19,315,151 字节）
+- 本次会话目标：执行 NA-005 —— 移除 vendored 的 `dm/third_party/libdeflate`，把 TACT/CASC 依赖清零。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：裁剪批 4（vendored `dm/third_party/libdeflate` 与文档行，见 NA-005）；过场 movie 空播（带 macOS 测试面，且 TotK 过场策略待定，另立批次）；`casc_overlay.py` 与 iOS 资产管线（被 `dm/android/tools/build_shaders.py` 依赖，需先改造，并与 §4.4 的着色器来源策略合并考虑）；36 个 `dm_*.c` 与派生表；TotK 文件准备；M0 实测；着色器事实表来源。
-- 最近一次成功命令：`dm\android\tools\ci_checks.py` exit 0（10 项通过 / 0 项失败）；`dm\android\tools\build.py --game-run --version trim-b3` exit 0；`tools\agent_handoff_check.py --verify` exit 0。
+- 未完成：裁剪批 5（过场 movie 空播，见 NA-006）；TotK 的过场策略（摘掉 D2R 的空播实现后 TotK 会走游戏自己的 movie 路径，宿主侧 movie 支持待定）；`casc_overlay.py` 与 iOS 资产管线（被 `dm/android/tools/build_shaders.py` 依赖，需先改造，并与 §4.4 的着色器来源策略合并考虑）；36 个 `dm_*.c` 与派生表；TotK 文件准备；M0 实测；着色器事实表来源。
+- 最近一次成功命令：`dm\android\tools\ci_checks.py` exit 0（10 项通过 / 0 项失败）；`dm\android\tools\build.py --game-run --version trim-b4` exit 0；`tools\agent_handoff_check.py --verify` exit 0。
 - 最近一次失败命令及原因：本轮无仓库命令失败；`dm\verify\test_accept.py` 与 `dm/host/tests/Makefile` 的 macOS 测试面在本机跑不了（NOT RUN，同上一轮的 WSL `bash` 限制），已在对应动作的判据里写明。
-- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（19,315,151 字节，2026-10-19 20:52:32，`trim-b3`）
+- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（19,315,151 字节，2026-10-19 20:58:26，`trim-b4`）
 - 当前阻塞：缺少用户合法导出的 TotK 文件、`prod.keys`、`hactool`；`adb devices` 无设备。
 - 需要用户提供的材料：自己的 TotK 本体 + 更新、`prod.keys`、可用 `hactool`、一加 12（开启 USB 调试）。
-- 回滚点：`62139f0820b0bb41165f0a97344aff9f47858251` / `totk/scaffold`。
+- 回滚点：`bf7b33f9b9469e05303133c83d6e784cc8462ed4` / `totk/scaffold`。
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据。
 
 ### 已完成清单
@@ -173,6 +173,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-002 裁剪批 1（`b54f782`）：删除 `dm/host/hle_tact.c`，把宿主调用分派器（0x85–0x8e）拆到新文件 `dm/host/hle_hostcall.c`；摘掉 `PROF_TACT`、`SVC_HOST_TACT_ZLIB`、0x80 剪口登记、`libdeflate` 构建接线与两处白名单行。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b1` exit 0，APK 19,364,303 字节。
 - NA-003 裁剪批 2（`1a2f535`）：删 `dm/tools/tact_bootlist.py`、`dm/verify/bootchk.sh`、`dm/verify/bootlist_static.py`，并清掉 `patch_nso.py` 的清单出包块、`accept.sh` 的 ⓪ 验收项与 `ITEMS` 表、`test_accept.py` 的替身桩、四个 README 行、`dm/ios/run.sh`、`shell_build.sh`、`d2rm_pack.py` 的搬运点。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b2` exit 0，APK 19,364,303 字节；`git grep -e bootlist -- dm tools` 0 命中。
 - NA-004 裁剪批 3（`62139f0`）：删 `dm/host/hle_granny.c`（332 行）与宿主调用 0x83/0x84 的登记表、枚举、分派器 case、生命周期调用、生命周期单测桩与标记序号、字面量白名单行、改写器里的 0x83/0x84 剪口条目、两个 README 行。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b3` exit 0，APK 19,315,151 字节；`git grep -i granny -- dm` 只剩 4 行举例注释。
+- NA-005 裁剪批 4（`bf7b33f`）：删 vendored `dm/third_party/libdeflate`（43 个跟踪文件、14,851 行，含 MIT `COPYING`），并清掉 `dm/third_party/README*.md` 与 `docs/DEPENDENCIES*.md` 的 libdeflate 行。TACT/CASC 依赖至此清零。证据：`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b4` exit 0，APK 19,315,151 字节（与 trim-b3 同大小——该库自 NA-002 起已不参与构建）；`git grep -i libdeflate` 除控制面历史外 0 命中。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
@@ -182,16 +183,17 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-005
+- ID：NA-006
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：`totk/scaffold` 的 HEAD 与 `origin/totk/scaffold` 同为 `62139f0820b0bb41165f0a97344aff9f47858251`；代码工作区干净；`HANDOFF_LOG` 无未闭合 `[BEGIN]`。
-- 动作：裁剪批 4 —— 移除 vendored 的 `dm/third_party/libdeflate`，把「暴雪 TACT/CASC 数据访问」这条线的依赖清零。该库当初只为 `hle_tact.c`（BLTE 块 zlib 解码）vendored，NA-002 已断掉它的构建接线（`dm/host/Makefile` 的 `LIBDEFLATE` 与 `dm/android/tools/host_link.py` 的 third_party 源），NA-003／NA-004 又删掉了两个使用者；TotK 走标准 RomFS + SARC/Yaz0，用不到它。同批清掉 `dm/third_party/README.md` 与 `README.zh-CN.md` 的表行与那句来源列表，以及 `docs/DEPENDENCIES.md` 与 `docs/DEPENDENCIES.zh-CN.md` 的 libdeflate 行。**不在本批**：`dm/third_party/` 的其余 vendored 库、`casc_overlay.py`、过场 movie、36 个 `dm_*.c`。
-- 命令或编辑目标：先 `git grep -n -i libdeflate -- .` 全量复核，并 `git grep -n -e DEPENDENCIES -- .` 确认没有脚本按目录交叉核对依赖表；再 `git rm -r dm/third_party/libdeflate`；同一提交内修正 `dm/third_party/README.md`、`dm/third_party/README.zh-CN.md`（libdeflate 表行 + 「bcdec/README.md、libdeflate/VERSION.md 和 ryujinx/README.md 记着各自的来源与用途」那句）、`docs/DEPENDENCIES.md`、`docs/DEPENDENCIES.zh-CN.md`；然后按「标准验证命令」跑 `dm\android\tools\ci_checks.py`（带 `DM_ANDROID_TOOLS=D:\Switch\.tools\android`）、`dm\android\tools\build.py --game-run --version trim-b4`、`tools\agent_handoff_check.py --verify`；最后 `git add -A`、`git commit -m "totk: drop vendored libdeflate"`、`git push`。
-- 成功判据：`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run` exit 0 且产出 APK；`git grep -i libdeflate -- .` 只剩 `docs/HANDOFF*.md`（控制面与历史记载）与 `docs/TOTK_PORT_SCAFFOLD.zh-CN.md`；`dm/third_party/` 下只剩非 libdeflate 的 vendored 库；提交只含本批文件；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold` 相同。
-- 失败判据：任一验证命令非零退出，或 `ci_checks.py` 出现失败项；APK 未产出；提交混入 `dm/third_party/` 的其余 vendored 库、`casc_overlay.py`、`dm/host/hle_movie.c`、36 个 `dm_*.c` 或交接控制面文件。
-- 回滚点：`62139f0820b0bb41165f0a97344aff9f47858251` / `totk/scaffold`（单次提交，必要时 `git revert`）。
+- 前置条件：`totk/scaffold` 的 HEAD 与 `origin/totk/scaffold` 同为 `bf7b33f9b9469e05303133c83d6e784cc8462ed4`；代码工作区干净；`HANDOFF_LOG` 无未闭合 `[BEGIN]`。
+- 动作：裁剪批 5 —— 拆掉 D2R 专属的过场 / 背景视频「按真实时长空播」剪口。`dm/host/hle_movie.c` 的宿主实现按 D2R main 3.3.94012 原映像偏移写死游戏侧协议（该文件头注释自陈），TotK 用不了；本批删宿主实现与它的两条核对面（单测 + 对原版映像的静态核对），并清掉全部引用。**不在本批**：`casc_overlay.py`、36 个 `dm_*.c` 与派生表。
+- 命令或编辑目标：先 `git grep -n -e hle_movie -e movie_cut -e t_movie -e mv_webm_duration_ns -- dm` 全量复核；再 `git rm dm/host/hle_movie.c dm/host/tests/t_movie.c dm/host/tests/movie_cut.py`；同一提交内修正 `dm/host/tests/Makefile`（第 7 行 `run:` 依赖表里的 `$(B)/t_movie`、第 27 行的 `$(B)/t_movie`、第 40 行的 `$(PY) movie_cut.py …`、第 74–75 行的 `t_movie` 编译规则）、`dm/i18n/literal_whitelist.tsv`（`host/hle_movie.c` 行）、`dm/README.md` 与 `README.zh-CN.md`（`hle_movie.c` 行）、`dm/host/README.md` 与 `README.zh-CN.md`（第 116 行「两条对着原版程序映像的核对（`movie_cut.py`、`oe_notify.py`）」改成只剩 `oe_notify.py`）；然后按「标准验证命令」跑 `dm\android\tools\ci_checks.py`（带 `DM_ANDROID_TOOLS=D:\Switch\.tools\android`）、`dm\android\tools\build.py --game-run --version trim-b5`、`tools\agent_handoff_check.py --verify`；最后 `git add -A`、`git commit -m "totk: drop D2R cutscene no-op playback"`、`git push`。
+- 成功判据：`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run` exit 0 且产出 APK；`git grep -n -e hle_movie -e movie_cut -e t_movie -- dm` 0 命中；`dm/host/tests/Makefile` 里不再有 `t_movie`／`movie_cut.py`；提交只含本批文件；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold` 相同。**本机 NOT RUN 的部分**：`dm/host/tests/Makefile` 的 `run:` 目标（macOS clang + Cocoa）在本机跑不了，被删的 `t_movie` 与 `movie_cut.py` 因此未经本机执行验证；`ci_checks.py` 不覆盖该目录，这点须在日志里写明。
+- 失败判据：任一验证命令非零退出，或 `ci_checks.py` 出现失败项；APK 未产出；提交混入 `casc_overlay.py`、`dm/data/**`、36 个 `dm_*.c` 或交接控制面文件。
+- 回滚点：`bf7b33f9b9469e05303133c83d6e784cc8462ed4` / `totk/scaffold`（单次提交，必要时 `git revert`）。
 - 需要写入的证据：`git grep` 原始输出；`ci_checks.py` 计分行与退出码；`build.py --game-run` 退出码与 APK 路径、大小；`git status --short`；commit hash；`git rev-parse HEAD` 与 `git rev-parse origin/totk/scaffold`。
+
 ## 长操作两阶段日志
 
 对超过 5 分钟或高风险的构建、下载、解包、真机测试，必须先在日志写 `[BEGIN]`，完成后写 `[END]`。
@@ -262,6 +264,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - `b54f782`：裁剪批 1 —— 删除 `dm/host/hle_tact.c`，宿主调用分派器拆到 `dm/host/hle_hostcall.c`。
 - `1a2f535`：裁剪批 2 —— 删除 bootlist 清单工具与其验收项。
 - `62139f0`：裁剪批 3 —— 删除 D2R 专属的 Granny 段解码。
+- `bf7b33f`：裁剪批 4 —— 删除 vendored `dm/third_party/libdeflate`。
 
 ## 本机环境
 
@@ -289,7 +292,7 @@ $env:PYTHONUTF8 = '1'
 
 1. ~~提交交接控制面~~ —— 完成（`c405782`、`8965544`）。
 2. ~~提交两处 TotK 适配代码~~ —— 完成（`1d915ab`）。
-3. 小步裁剪 D2R 专属资产，每批后跑 `ci_checks` 与完整 `build.py --game-run`：批 1 = 宿主侧 TACT/CASC —— 完成（`b54f782`）；批 2 = bootlist 清单工具与验证面 —— 完成（`1a2f535`）；批 3 = Granny 段解码 —— 完成（`62139f0`）；批 4 = vendored `dm/third_party/libdeflate` 与文档行（NA-005）；批 5 = 过场 movie 空播（带 macOS 测试面，且 TotK 过场策略待定）；批 6 = `casc_overlay.py` + iOS 资产管线（须先改造 `dm/android/tools/build_shaders.py`，它 `import casc_overlay`）；批 6 = `dm/third_party/libdeflate` 与 `docs/DEPENDENCIES` 等文档；批 7 = 36 个 `dm_*.c` 与派生表（最危险，须同时核对 `dm/host/Makefile` 的显式 `SRC` 与 `dm/android/tools/host_link.py` 的 glob）。
+3. 小步裁剪 D2R 专属资产，每批后跑 `ci_checks` 与完整 `build.py --game-run`：批 1 = 宿主侧 TACT/CASC —— 完成（`b54f782`）；批 2 = bootlist 清单工具与验证面 —— 完成（`1a2f535`）；批 3 = Granny 段解码 —— 完成（`62139f0`）；批 4 = vendored `dm/third_party/libdeflate` 与文档行 —— 完成（`bf7b33f`）；批 5 = 过场 movie 空播（NA-006；带 macOS 测试面，且 TotK 过场策略待定）；批 6 = `casc_overlay.py` + iOS 资产管线（须先改造 `dm/android/tools/build_shaders.py`，它 `import casc_overlay`）；批 7 = 36 个 `dm_*.c` 与派生表（最危险，须同时核对 `dm/host/Makefile` 的显式 `SRC` 与 `dm/android/tools/host_link.py` 的 glob）。
 4. 准备 TotK 本体、更新、`prod.keys`、`hactool`，完成 M0 实测表。
 5. 解决着色器事实表来源，给出 M2 前 go/no-go 结论。
 6. 按 M1–M6 验收门推进。
