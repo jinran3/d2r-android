@@ -2,6 +2,32 @@
 
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+## 2026-10-19 23:10 Asia/Shanghai — [TOTK] NA-014 裁剪批 7h（极乐世界模式）进行中
+
+[BEGIN] na-014-elysium-trim
+
+- 命令：`git rm dm/host/dm_elysium.c dm/host/dm_elysium.h`、清掉 `diag.c`／`dm_actions.c` 的两处调用与两处 include、`dm_cursor.c` 的建角页勾选框（触屏路径的 TouchBliss 读取与那一行的命中挪动、手柄路径的读取与 Y 键翻勾、「返回」判定里排除那一行的条件）、`dm_cursor.h` 的 `dm_fe_bliss` 声明、`touch_layout.py` 的 `_BLISS` 布局块与 `pad_bliss` 里的插入、单测替身里的两个桩、README／白名单／uireg 行，然后 `ci_checks.py` + `build.py --game-run --version trim-b13` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉极乐世界模式后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`90e63b14da709505ce319a7f318c00adb349cb33`
+[END] na-014-elysium-trim
+
+- 退出码：`build.py --game-run --version trim-b13` exit 0（**中间失败过两次，见下**）
+- 产物：`dm/android/build/D2R-Android-port.apk`，19,003,855 字节（2026-10-19 22:41:10；比 trim-b12 小 81,920 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除：`dm/host/dm_elysium.c` 与 `dm_host/dm_elysium.h`（「极乐世界」模式：D2R 特有的按角色开关，建角时勾选，该角色局内暗金掉率 ×5、套装 ×3）。
+- 调用点：`dm/host/diag.c` 的 `#include` 与服务端 `dm_elysium_stash_step`、`dm/host/dm_actions.c` 的 `#include` 与每帧 `dm_elysium_pump`、`dm/host/dm_cursor.c` 的 `#include` 与建角页勾选框（触屏路径的 TouchBliss 读取与那一行的命中挪动、手柄路径的读取与 Y 键翻勾、「返回」判定里排除那一行的条件、`g_fe_bliss` 与 `dm_fe_bliss`）、`dm/host/dm_cursor.h` 的 `dm_fe_bliss` 声明。
+- 布局与文案：`dm/ios/tools/touch_layout.py` 的 `_BLISS` 块与 `pad_bliss` 里的插入（函数随之改名 `pad_charopt`，它现在只做「去掉天梯行与提示条里的 X 经典版」，与极乐世界已无关）、`dm/ios/tools/gen_romfs_overlay.py` 的注释；`dm/i18n/ui_text.tsv` 的三行（`dmBlissTitle`／`dmBlissDesc`／`dmElyToaGround`）删掉后**重出** `dm/host/dm_i18n_tab.h`（`dm_i18n.py --header`），`dm_i18n.py --check` 复跑 exit 0（397 条）。
+- 回归面：`dm/ios/tools/uireg/uireg.py` 的「e」局里两行勾选框断言与整个 v / v2 两局（都是为这个模式写的）删掉，`dm/ios/tools/uireg/affected.tsv` 五行的 `v` 标记去掉；`dm/host/tests/t_touch_mac.c` 与 `t_touch_tick_stub.c` 里的两个桩删掉；两个 `dm/host/README*.md` 的表行、`dm/i18n/literal_whitelist.tsv` 的行、`dm/host/Makefile` 的 `SRC` 一项；`dm_bossrush.c`／`dm_rift.c` 里提到这个模式的注释收口。
+- **两次构建失败（都是我的编辑失误，已修）**：① 第一次把 `dm_cursor.c` 里那行「`uint64_t pl = …, pd = …` 声明 + 注释」整行替换成了注释，删掉了 `pl`／`pd` 的声明 → 编译报 `use of undeclared identifier 'pd'`；② 摘掉手柄路径的 Y 键翻勾时少留了一个右括号（那个 `}` 原本同时闭着「建角模式页」与外层两个块）→ 报 `function definition is not allowed here` / `expected '}'`。两次都按编译器的定位逐处修回（声明行从 HEAD 逐字取回，只去掉注释里对已删模块的指称；括号补回），第三次构建 exit 0。
+- 宽口径复核 `git grep -n -i -e dm_elysium -e dm_fe_bliss -e bliss -e elysium -e '极乐世界' -- .`：除 `docs/HANDOFF*`、`docs/UPSTREAM_README*`（上游 D2R 产品说明，历史文档）与 `docs/TOTK_PORT_SCAFFOLD*`（计划表里「秘境/仓库/符文之语/极乐世界…与 TotK 无关，删除」那一行）外 0 命中。三个 Python 脚本用 `ast.parse` 验过语法。
+- `dm\android\tools\ci_checks.py`：提交后在干净树上复跑 exit 0，10 项通过 / 0 项失败。
+
 ## 2026-10-19 23:40 Asia/Shanghai — [TOTK] NA-013 裁剪批 7g（文字框注释颜色码）进行中
 
 [BEGIN] na-013-textbox-trim
