@@ -114,9 +114,9 @@ def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False)
     game_files = collect_game(game)
     romfs_files = collect_romfs(romfs)
     subgroup, shader_files = collect_shaders(shaders)
-    # derived.tsv：三张游戏派生表（编年史仓库 / 经验 / 关卡亮度）的内容。壳模式的 APK 里只有空表与条数，
+    # derived.tsv：游戏派生表（现在只剩经验表与技能图标索引）的内容。壳模式的 APK 里只有空表与条数，
     # 内容全从这份文件读 —— 没有它，那三块功能会是空的（运行时打红字）。
-    # derived.tsv: the content of the three game-derived tables (chronicle vault / XP / level brightness). A shell
+    # derived.tsv: the content of the game-derived tables (only the XP table and the skill icon index are left). A shell
     # APK carries only empty tables and their counts and reads the content from this file; without it those three
     # features stay empty (a red line is printed at run time).
     if derived is not None:

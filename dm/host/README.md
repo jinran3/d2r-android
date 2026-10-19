@@ -15,7 +15,7 @@ Every file opens with a comment saying what it does and what that is based on. A
 
 | File | What it does |
 |---|---|
-| `Makefile` | Builds the Mac host `dmhost`. `hle_*.c` and the graphics-layer sources are picked up by wildcard, so adding a file needs no change here; the three missing tables (`dm_vault_tab.h`, `dm_hud_exp.h`, `dm_bright_levels.inc`) are generated from your game files and are not in the repository |
+| `Makefile` | Builds the Mac host `dmhost`. `hle_*.c` and the graphics-layer sources are picked up by wildcard, so adding a file needs no change here; the missing table (`dm_hud_exp.h`) is generated from your game files and is not in the repository |
 | `hle_target.c` | Auto-target priority for touch taps: bosses, then elites, then normal monsters. Hooks the comparison function of the original controller targeting; the original eligibility, range and line-of-sight checks still apply |
 | `hle_private_aim.c` | Aiming by dragging a skill button: converts the right stick's on-screen direction into a direction in the game world |
 | `touch_mac.c`, `touch_mac.h` | The touch front end of the Mac host: feeds touch points tick by tick from a touch script (`DM_TOUCH_SCRIPT`); the touch cases in [dm/verify](../verify/README.md) run on it |

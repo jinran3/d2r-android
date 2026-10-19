@@ -78,19 +78,14 @@ def capture(command, label, timeout=None):
 
 
 def derived_tables(romfs, workspace):
-    """从 RomFS 生成三张真实表（放进工作目录，**不写源码树**），再拆成运行时的 derived.tsv。
-    壳模式的 APK 里只有空表与条数，这三张表的**内容**随数据包走（标签 EXP / VTPART / VTROW / VTSET / BRT）。
-    Generate the three real tables from the RomFS into the workspace (never the source tree), then split them into
+    """从 RomFS 生成真实表（放进工作目录，**不写源码树**），再拆成运行时的 derived.tsv。
+    壳模式的 APK 里只有空表与条数，这些表的**内容**随数据包走（标签 EXP / TAROW）。
+    Generate the real tables from the RomFS into the workspace (never the source tree), then split them into
     the runtime derived.tsv. A shell APK only carries empty tables and their counts; the *content* travels with the
-    package (tags EXP / VTPART / VTROW / VTSET / BRT)."""
+    package (tags EXP / TAROW)."""
     tables = workspace / "tables"
     tables.mkdir(parents=True, exist_ok=True)
-    # 亮度表要 --rows：默认输出只有"条数"（构建用的替身），数据行由这里进 derived.tsv。
-    # The brightness generator needs --rows: by default it only prints the count (the build stub); the data rows
-    # are what goes into derived.tsv here.
-    generators = (("dm_vault_tab.h", ROOT / "ios/tools/gen_vault_table.py", ()),
-                  ("dm_hud_exp.h", ROOT / "ios/tools/gen_hud_exp.py", ()),
-                  ("dm_bright_levels.inc", ROOT / "tools/gen_bright_levels.py", ("--rows",)))
+    generators = (("dm_hud_exp.h", ROOT / "ios/tools/gen_hud_exp.py", ()),)
     for name, generator, extra in generators:
         table = capture([sys.executable, generator, romfs, *extra], "生成 " + name, timeout=30 * 60)
         if not table.strip():

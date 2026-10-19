@@ -15,7 +15,7 @@ English: [README.md](README.md)
 
 | 文件 | 管什么 |
 |---|---|
-| `Makefile` | 编出 Mac 宿主 `dmhost`。`hle_*.c` 与图形层的源文件按通配纳入，新增文件不用改它；缺的三份表（`dm_vault_tab.h`、`dm_hud_exp.h`、`dm_bright_levels.inc`）从你的游戏文件现生成，不进仓库 |
+| `Makefile` | 编出 Mac 宿主 `dmhost`。`hle_*.c` 与图形层的源文件按通配纳入，新增文件不用改它；缺的那份表（`dm_hud_exp.h`）从你的游戏文件现生成，不进仓库 |
 | `hle_target.c` | 触屏点按时自动选怪的先后：首领、精英、普通。接在原版手柄选目标的比较函数上，原版的资格、射程、视线检查照旧 |
 | `hle_private_aim.c` | 拖动技能键瞄准：把右摇杆在屏幕上的方向换算成游戏世界里的方向 |
 | `touch_mac.c`、`touch_mac.h` | Mac 宿主上的触摸前端：按触点脚本（`DM_TOUCH_SCRIPT`）逐拍送触点，[dm/verify](../verify/README.zh-CN.md) 的触摸功能用例靠它跑 |
