@@ -2,6 +2,32 @@
 
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+## 2026-10-19 23:15 Asia/Shanghai — [TOTK] NA-012 裁剪批 7f（高价值掉落：光柱 / 落地音 / 震动）进行中
+
+[BEGIN] na-012-dropoverlay-trim
+
+- 命令：`git rm dm/host/dm_dropfilter.c dm/host/dm_drophaptic.c`、摘掉宿主调用 0x87/0x88 的登记行（中英各两条）、枚举两项与尾注、`hle_hostcall.c` 的两个 case、`patch_nso.py` 的两个剪口条目与六行注释、`front_ios.m` 的四行震动块、`drop_light.py`／`gen_romfs_overlay.py` 的注释、`dm_custom.h` 的键注释、`Makefile` 的 `SRC`、两个 README 表行、白名单行、`uireg` 两行，然后 `ci_checks.py` + `build.py --game-run --version trim-b11` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉高价值掉落一族后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`2043fb3e57d82382e0ae83bc35675db561830807`
+[END] na-012-dropoverlay-trim
+
+- 退出码：`build.py --game-run --version trim-b11` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，19,118,543 字节（2026-10-19 21:59:02；比 trim-b10 小 16,384 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除：`dm/host/dm_dropfilter.c`（掉落光柱 = 宿主调用 0x87，落地音 = 0x88）、`dm/host/dm_drophaptic.c`（高价值掉落震动）—— 这族是 29 个剩余模块里唯一不牵连 iOS 应用源码、中英表与单测的。
+- 宿主调用四处收口：`dm/host/hle.h` 的 0x87/0x88 登记行（中英各两条）与枚举 `SVC_HOST_GROUND_ASSET`／`SVC_HOST_DROP_SOUND` 及枚举尾注；`dm/host/hle_hostcall.c` 的两个 case；`dm/tools/patch_nso.py` 的两个剪口条目（`0x468f2c`／`0x8fa590`）与六行注释。
+- iOS 端：`dm/ios/Sources/front_ios.m` 第 408–411 行那四行震动块**必须**同批删 —— 它每帧调 `dm_drop_haptic_take`，留着 iOS 构建会链接不上。**本机 NOT RUN**：iOS 构建是 macOS 专用，本机编不了也测不了，这四行的删除只做了逐行检查。
+- 其余引用点：`dm/ios/tools/drop_light.py`（两行注释：宿主侧改指规则已摘除，这些带光变体现在没人指向）、`dm/ios/tools/gen_romfs_overlay.py`（第 54 行注释）、`dm/host/dm_custom.h`（第 7／10 行键注释里的 `drop_light`／`drop_haptic` 条目；两个键本身仍留在 `dm_custom.c` 的 `k_keys` 位置数组里，与 `loot_filter`／`auto_buff`／`pot_pick` 同一处理）、`dm/host/Makefile` 的 `SRC` 两项、`dm/host/README.md` 与 `README.zh-CN.md` 的表行两行、`dm/i18n/literal_whitelist.tsv` 的 `host/dm_drophaptic.c` 行、`dm/ios/tools/uireg/affected.tsv` 两行。
+- 宽口径复核 `git grep -n -i -e dm_dropfilter -e dm_drophaptic -e dm_drop_haptic -e DM_DROP_LIGHT -e DM_DROPF_LOG -- .`：除 `docs/HANDOFF*` 外 0 命中。
+- `dm\android\tools\build.py --game-run --version trim-b11`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：提交后在干净树上复跑 exit 0，10 项通过 / 0 项失败。
+
 ## 2026-10-19 22:55 Asia/Shanghai — [TOTK] NA-011 裁剪批 7e（进局落在城镇小站旁）进行中
 
 [BEGIN] na-011-townwp-trim
