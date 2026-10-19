@@ -2,6 +2,33 @@
 
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+## 2026-10-19 22:55 Asia/Shanghai — [TOTK] NA-011 裁剪批 7e（进局落在城镇小站旁）进行中
+
+[BEGIN] na-011-townwp-trim
+
+- 命令：`git rm dm/host/dm_townwp.c`、摘掉宿主调用 0x8a/0x8b 的登记行（中英各两条）、枚举两项、`hle_hostcall.c` 的 case、`patch_nso.py` 的两个剪口条目与注释、`diag.c` 的调用行、`Makefile` 的 `SRC`、两个 README 表行、`uireg/affected.tsv` 的行、`uireg.py` 的说明块与 `OLD_SPAWN` 免跑表、`touchcases/no_move_taps/script.txt` 的注释，然后 `ci_checks.py` + `build.py --game-run --version trim-b10` + `agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：摘掉进局落点规则后 `ci_checks` 10/0、完整构建仍产出 APK
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`dec728845774b611daf53f638f28ecf5b369049d`
+[END] na-011-townwp-trim
+
+- 退出码：`build.py --game-run --version trim-b10` exit 0
+- 产物：`dm/android/build/D2R-Android-port.apk`，19,134,927 字节（2026-10-19 21:48:56；比 trim-b9 小 16,384 字节）
+- 结果：SUCCESS
+- 备注：`ci_checks.py` 与 `agent_handoff_check.py --verify` 的结果见本条目下方的证据行
+
+证据（本条目对应的命令与退出码）：
+
+- 删除：`dm/host/dm_townwp.c`（进局落在城镇小站旁，宿主调用 0x8a/0x8b）。
+- 宿主调用四处同步收口：`dm/host/hle.h` 的 0x8a/0x8b 登记行（中英各两条）与枚举 `SVC_HOST_JOIN_SPAWN`／`SVC_HOST_JOIN_CORPSE`；`dm/host/hle_hostcall.c` 的 case；`dm/tools/patch_nso.py` 的两个剪口条目（`0x5d8040`／`0x5d8400`）与四行注释。
+- 其余调用点：`dm/host/diag.c` 的 `dm_townwp_tick` 调用行、`dm/host/Makefile` 的 `SRC` 一项、`dm/host/README.md` 与 `README.zh-CN.md` 的表行、`dm/ios/tools/uireg/affected.tsv` 的 `dm/host/dm_townwp*` 行。
+- **环境变量名不含模块名**：按模块名 grep 抓不到 `DM_TOWNWP_OFF`，宽口径复核（`git grep -n -i -e townwp`）又抓到三处并清掉：`dm/ios/tools/uireg/uireg.py` 的说明块与 `OLD_SPAWN` 免跑表（那批局靠 `DM_TOWNWP_OFF=1` 免掉产品落点，特性摘除后这个开关无人消费，删掉行为等价）、专门验该特性的 "wp" 回归局、`dm/verify/shotgate_pages/automap.json` 与 `warlock_camp.json` 里那个只剩这一项的 `env` 块（两个 JSON 改后用 `json.load` 验过合法，`uireg.py` 用 `ast.parse` 验过语法）。
+- `dm/verify/touchcases/no_move_taps/script.txt` 第 3 行的坐标位移（8 下右移 600 / 上移 450）是为「进局落在小站上」做的 D2R 产品测量；出生点规则摘除后落点回到原版，这两处位移是否要撤属 D2R 产品侧判断，本机（无 macOS / 无 D2R 真机）无法验证，故**只改注释写明现状**，坐标数字保持不动，待 TotK 侧重做用例时重新量。
+- 宽口径复核 `git grep -n -i -e townwp -- .`：除 `docs/HANDOFF*` 与上述那条写明现状的注释外 0 命中。
+- `dm\android\tools\build.py --game-run --version trim-b10`：exit 0，产物同上。
+- `dm\android\tools\ci_checks.py`：提交后在干净树上复跑 exit 0，10 项通过 / 0 项失败。
+
 ## 2026-10-19 22:35 Asia/Shanghai — [TOTK] NA-010 裁剪批 7d（药水自动拾取）进行中
 
 [BEGIN] na-010-potpick-trim
