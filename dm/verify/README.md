@@ -67,7 +67,6 @@ dm/verify/accept.sh [--fast|--full] [build output dir]
 
 | Item | Content | Criterion | Prerequisite |
 |---|---|---|---|
-| ⓪ | `bootchk.sh`: the boot block list (the list of resource blocks pre-read at startup) | The build output directory's `bootlist.tsv` exists, its build number matches `main.cuts.tsv`, it is byte-for-byte identical to `dm/data/bootlist_<build number>.tsv`, its checksums are self-consistent, and it matches the resource pack block by block. The public repository does not ship this list: without it there is simply no prefetch (startup skips one step of decoding ahead of time), but this item reports red; to use it, record one yourself with `dm/tools/tact_bootlist.py`, put it at `dm/data/bootlist_<build number>.tsv` and regenerate the build output | Game files, the boot block list |
 | ① | `regress.sh` verifies the build output under test; then `--struct-only` is run on the `touch` build output (the kind compiled into the App) | Two `REGRESS OK` lines | Game files |
 | ② | `dm/tools/host_savecmp.sh`: the host replays the input of one ground-truth run, saves and exits, and the save is compared byte by byte with the ground truth's save (`savecmp.py`) | The 6-slot state matches tick by tick; the saves match; the negative control (ground-truth save versus the starting save) must not match; no red lines in the host log | Ground-truth run |
 | ②B/C | `rulegate.sh 400` and `logicself.sh <touch build output> 230` | See the next section | Ground-truth run |
@@ -143,7 +142,6 @@ The prerequisite is a standard save (see below). The existing assertions were wr
 | `savesha.sh` | Computes the content fingerprint of a save directory |
 | `uicmp.py`, `c2scmp.py` | Comparison of UI message streams and command packet sequences; the rules are on their respective format pages |
 | `oracle/swgdb.py`, `oracle/swtick.py` | A minimal client for the emulator's GDB interface; per-tick state is read through it |
-| `bootlist_static.py` | Static check of the boot block list, called by `bootchk.sh` |
 | `gfxq/` | Image quality metric and visual-equivalence ruler, see [gfxq/image_quality.md](gfxq/image_quality.md) |
 | `overlay_contract.json` | A draft contract for acceptance of the iOS touch overlay controls; no script reads it at present |
 

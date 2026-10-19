@@ -234,7 +234,7 @@ def main():
     # 5. Write the game program as a dynamic library + load table
     import guest_dylib
     fw, n = guest_dylib.write(out, os.path.join(stage, 'Frameworks'), MODS); say('游戏程序动态库：%d 字节' % n)
-    for f in [m + s for m in MODS for s in ('.fixups.tsv', '.gates.tsv')] + ['bootlist.tsv', 'main.cuts.tsv']:
+    for f in [m + s for m in MODS for s in ('.fixups.tsv', '.gates.tsv')] + ['main.cuts.tsv']:
         if os.path.isfile(os.path.join(out, f)): shutil.copyfile(os.path.join(out, f), os.path.join(stage, 'dm', f))
 
     # 自检：壳按链版本找着色器——目录名、下标清单的首行、每个着色器说明里的版本，三处都必须是壳认的那个（任何一处不是，壳都会拒绝加载）

@@ -24,7 +24,6 @@ class AcceptTests(unittest.TestCase):
         src = Path(os.environ.get('ACCEPT_SOURCE', Path(__file__).with_name('accept.sh')))
         shutil.copyfile(src, self.verify / 'accept.sh')
         self.write('dm-work/build/cache/dm/venv/bin/python', 'echo "替身 plan test OK"\n')
-        self.write('dm/verify/bootchk.sh', 'echo BOOTLIST OK\n')
         self.write('dm/verify/regress.sh', 'echo REGRESS OK\n')
         self.write('dm/verify/test_accept.py', 'import unittest\nclass T(unittest.TestCase):\n    def test(self): pass\n')   # ④ 里 accept 自身单测的替身（防递归） | Stand-in for accept's own unit tests in ④ (prevents recursion)
         self.write('dm/ios/run.sh', 'echo "替身 iOS 构建 $*"\n')   # ⑧ iOS 构建项的替身 | ⑧ Stand-in for the iOS build item

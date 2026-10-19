@@ -921,21 +921,3 @@ with open(P('obs.tsv'), 'w') as f:
     f.write(f'# BUILD_ID\t{BUILD_ID}\n')
     for off, oid, ow, why in obs: f.write(f'{off:#x}\t{oid}\t{ow}\t{why}\n')
 print(NAME, stats, 'cuts', len(cuts), 'obs', len(obs), 'patch', len(patch), 'PATCH_OFF', hex(PATCH_OFF), 'slot_refs', len(fix), 'gates', len(gates))
-# 启动块清单随 main 出：取仓库版本化数据 dm/data/bootlist_<main 构建号>.tsv 原样拷进产物目录并写 sha256（清单入库、不每版重录；
-# 记录本身有竞态——同产物三次记录块集合 5292 / 5114 / 5281、发起线程亦有不同——重录只在构建号变化或主动改进时做，提交附 mini A/B）
-# The boot block list ships with main: take the repository's versioned data dm/data/bootlist_<main build ID>.tsv, copy it as is into the build output directory and write its sha256 (the list is checked in, not re-recorded for every version;
-# the recording itself is racy -- three recordings of the same build output gave block sets of 5292 / 5114 / 5281, and the initiating threads also differed -- re-record only when the build ID changes or for a deliberate improvement, and attach an A/B from the second Mac to the commit)
-if NAME == 'main':
-    import hashlib, shutil
-    BL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', f'bootlist_{BUILD_ID}.tsv')
-    if not os.path.isfile(BL):   # 公开仓库不带这份清单（它每行带原版资源块的开头字节）：没有就不预取，启动时少一步提前解码，别的不受影响 | the public repository does not ship this list (each line carries the first bytes of an original resource block): without it there is no prefetch, so launch skips one ahead-of-time decode step and nothing else is affected
-        print('bootlist 没有启动块清单，跳过（不预取）。要用的话自己录一份：dm/tools/tact_bootlist.py')
-        for n in ('bootlist.tsv', 'bootlist.sha256'):   # 产物目录里以前留下的也去掉：留着会被当成这一次的产物带进安装包和壳的清单 | Leftovers from earlier runs in the build output directory are removed too: if kept they would be taken as outputs of this run and carried into the install package and the shell manifest
-            if os.path.exists(os.path.join(outdir, n)): os.remove(os.path.join(outdir, n))
-    else:
-        hd = open(BL, encoding='utf-8').readline().split()
-        if hd[-1:] != [BUILD_ID]: sys.exit(f'【红】{BL} 头行构建号 {hd[-1:]} 与 main {BUILD_ID} 不符')
-        shutil.copyfile(BL, os.path.join(outdir, 'bootlist.tsv'))
-        sha = hashlib.sha256(open(BL, 'rb').read()).hexdigest()
-        open(os.path.join(outdir, 'bootlist.sha256'), 'w').write(f'{sha}  bootlist.tsv\n')
-        print('bootlist', os.path.relpath(BL), sha[:12])

@@ -1,20 +1,20 @@
 #!/bin/bash
-# Switch 路线验收入口：⓪ 启动块清单 ① 改写等价回归 ② 存档逐字节对拍 ③ 对真值的画面闸门 ④ 单测 ⑤ 补拍积压确定性 ⑥ 全档存档事务 ⑧ iOS 构建 ⑨ 功能用例 touchchain ⑩ 局内切运行模式（①–⑩ 并行）；任一项红即整体红。
+# Switch 路线验收入口：① 改写等价回归 ② 存档逐字节对拍 ③ 对真值的画面闸门 ④ 单测 ⑤ 补拍积压确定性 ⑥ 全档存档事务 ⑧ iOS 构建 ⑨ 功能用例 touchchain ⑩ 局内切运行模式（①–⑩ 并行）；任一项红即整体红。
 # r 版本切现行之前必须跑；「完成」以它为准。
-# 用法：dm/verify/accept.sh [--fast|--full] [产物目录=out/<当前代号>-keypage]；缺省全档（17 页 + 存档事务 4 例），快档只抽已批准 5 页，⓪①②④⑤不变。
+# 用法：dm/verify/accept.sh [--fast|--full] [产物目录=out/<当前代号>-keypage]；缺省全档（17 页 + 存档事务 4 例），快档只抽已批准 5 页，①②④⑤不变。
 # 输出：每项一行读数 + 末尾「期望 → 真结果」对位表 + 总用时；日志在 $DM_ROOT/run/verify/dm/accept/<时刻>/；退出码 0 = 全绿
 # 按改动范围选项（先少干活）。改动 = 本树相对 main 分叉点的已提交改动 + 未提交改动的路径并集。映射表：
-#   全部路径 ⊂ { dm/ios/**、docs/**、*.md }                → 只跑 ⓪ ⑧（iOS 壳与文档进不了宿主：不跑回归 / 对拍 / 闸门 / 单测 / 功能用例 / 切模式）
-#   全部路径 ⊂ { dm/gfx/**、dm/ios/**、docs/**、*.md }     → 跑 ⓪ ③ ④ ⑧ ⑩（图形改动不动改写产物与存档逻辑：不跑 ① ② ②B/C ⑤ ⑥ ⑨）
+#   全部路径 ⊂ { dm/ios/**、docs/**、*.md }                → 只跑 ⑧（iOS 壳与文档进不了宿主：不跑回归 / 对拍 / 闸门 / 单测 / 功能用例 / 切模式）
+#   全部路径 ⊂ { dm/gfx/**、dm/ios/**、docs/**、*.md }     → 跑 ③ ④ ⑧ ⑩（图形改动不动改写产物与存档逻辑：不跑 ① ② ②B/C ⑤ ⑥ ⑨）
 #   其余（dm/host、dm/verify、dm/tools、dm/data、重命名、拿不准的任何路径）、没有改动（= 主干头复核）、ACCEPT_ALL=1 → 全量
 # 被跳过的项在输出与对位表里逐项列「⏭ 跳过」，不静默。
-# Acceptance entry for the Switch route: (0) boot block list (1) rewrite equivalence regression (2) byte-for-byte save comparison (3) screenshot gate against ground truth (4) unit tests (5) catch-up tick backlog determinism (6) full-mode save transactions (8) iOS build (9) functional cases touchchain (10) switching operation mode in game ((1)-(10) in parallel); any failing item fails the whole run.
+# Acceptance entry for the Switch route: (1) rewrite equivalence regression (2) byte-for-byte save comparison (3) screenshot gate against ground truth (4) unit tests (5) catch-up tick backlog determinism (6) full-mode save transactions (8) iOS build (9) functional cases touchchain (10) switching operation mode in game ((1)-(10) in parallel); any failing item fails the whole run.
 # Must be run before an r version is made current; "done" is defined by it.
-# Usage: dm/verify/accept.sh [--fast|--full] [build output directory=out/<current codename>-keypage]; default is full mode (17 pages + 4 save transaction cases), fast mode samples only the 5 approved pages, (0)(1)(2)(4)(5) unchanged.
+# Usage: dm/verify/accept.sh [--fast|--full] [build output directory=out/<current codename>-keypage]; default is full mode (17 pages + 4 save transaction cases), fast mode samples only the 5 approved pages, (1)(2)(4)(5) unchanged.
 # Output: one readout line per item + an "expected -> actual result" side-by-side table at the end + total time; logs in $DM_ROOT/run/verify/dm/accept/<timestamp>/; exit code 0 = all green
 # Items are selected by change scope (do less work first). Change = the union of paths of this tree's committed changes relative to the fork point from main + uncommitted changes. Mapping table:
-#   all paths ⊂ { dm/ios/**, docs/**, *.md }                -> run only (0) (8) (the iOS shell and docs cannot get into the host: no regression / comparison / gate check / unit tests / functional cases / mode switch)
-#   all paths ⊂ { dm/gfx/**, dm/ios/**, docs/**, *.md }     -> run (0) (3) (4) (8) (10) (graphics changes do not touch the rewrite build output or save logic: no (1) (2) (2)B/C (5) (6) (9))
+#   all paths ⊂ { dm/ios/**, docs/**, *.md }                -> run only (8) (the iOS shell and docs cannot get into the host: no regression / comparison / gate check / unit tests / functional cases / mode switch)
+#   all paths ⊂ { dm/gfx/**, dm/ios/**, docs/**, *.md }     -> run (3) (4) (8) (10) (graphics changes do not touch the rewrite build output or save logic: no (1) (2) (2)B/C (5) (6) (9))
 #   everything else (dm/host, dm/verify, dm/tools, dm/data, renames, any path in doubt), no change (= recheck of the main head), ACCEPT_ALL=1 -> full set
 # Skipped items are listed one by one as 「⏭ 跳过」(skipped) in the output and the side-by-side table, not silently.
 set -u
@@ -83,7 +83,6 @@ item() {   # item <序号> <名> <期望> <日志> <读数行正则> <读数行�
   printf '%s\n| %s | %s | %s %s | %s 秒 |\n' "$rc" "$name" "$want" "$mark" "${got:-（无读数行，见 ${log}）}" "$((SECONDS - s))" > "$L/$k.row"
   echo "$mark ${name}（$((SECONDS - s)) 秒）"
 }
-item 0 "⓪ 启动块清单 bootlist.tsv" "存在、构建号与 main.cuts.tsv 一致、与仓库 dm/data/bootlist_<构建号>.tsv 逐字节相同、sha 自洽、块数 > 0、逐块与资源包一致" bootlist.log '^BOOTLIST' 1 "$HERE/bootchk.sh" "$OUT"
 # ①②③ 互相独立，并行（accept ≤ 2 分钟）：regress 吃 CPU、host_savecmp 一局宿主、shotgate 4 路宿主
 # (1)(2)(3) are independent of each other and run in parallel (accept <= 2 minutes): regress eats CPU, host_savecmp is one host run, shotgate is 4 hosts in parallel
 regress_both() {   # ① 被测产物全套 + 出包产物（iOS 发给玩家的 touch）结构核对（触屏私有门 4 条登记缺口，accept 只核 keypage 一直没暴露） | (1) structure check of the full set of build output under test + the packaging build output (the touch one iOS ships to players) (4 registration gaps in the touch-screen private gates went unexposed because accept only checked keypage)
@@ -100,9 +99,9 @@ savecmp_gate() {   # host_savecmp + 宿主日志红线（只比存档字节、�
   echo "HOSTLOG 宿主日志红线 $(echo "$r" | cut -f1) 行 $(echo "$r" | cut -f2)（$hd/host.log）"
   [ $lrc = 0 ] || { [ $lrc = 2 ] && echo "HOSTLOG 找不到宿主日志，判红"; rc=1; }
   # 预取命中只报不判：预取是性能优化，命中数取决于最低 QoS 预取线程跑了多久，负载下实测 5270→3244、2148，
-  # 截止点无论取「到选角」还是整局都和墙钟赛跑；清单对不对是静态性质，归 ⓪ bootchk（逐块核资源包）
+  # 截止点无论取「到选角」还是整局都和墙钟赛跑
   # Prefetch hits are only reported, not judged: prefetch is a performance optimization, and the hit count depends on how long the lowest-QoS prefetch thread got to run, measured under load 5270->3244, 2148,
-  # so whether the cutoff is taken "at character select" or over the whole run it is a race against the wall clock; whether the list is correct is a static property and belongs to (0) bootchk (checks the resource package block by block)
+  # so whether the cutoff is taken "at character select" or over the whole run it is a race against the wall clock
   local hit=$(grep -o 'DM_TACT_PREFETCH：命中 [0-9]*' "$hd/host.log" | tail -1 | grep -o '[0-9]*$')
   echo "PREFETCH 预取命中 ${hit:-无读数} 块（只报不判）"
   return $rc
@@ -229,7 +228,7 @@ item 10 "⑩ 局内切运行模式 opmode" "切换前已进局；取走通知 30
 [ "$MODE" = full ] && item 6 "⑥ 存档事务 save_txn_regress" "4/4 注入命中；已提交文件同期望版；校验和自洽；残缺工作目录 / 拒绝日志负对照成立" save_txn.log '^✓|^✗|^结论|^SAVE_TXN' 6 bash "$HERE/../tools/save_txn_regress.sh" "$OUT" &
 wait
 allrc=0; rows=()
-ITEMS=(0 1 2 3 4 5 7 8 9 10); [ "$MODE" = full ] && ITEMS+=(6)
+ITEMS=(1 2 3 4 5 7 8 9 10); [ "$MODE" = full ] && ITEMS+=(6)
 for k in "${ITEMS[@]}"; do { read -r rc; read -r row; } < "$L/$k.row"; [ "$rc" = 0 ] || allrc=1; rows+=("$row"); done
 [ "$allrc" = 0 ] || echo "ACCEPT $MODE 红；本目录保留，不删不覆盖" > "$L/KEEP"
 echo; echo "| 项 | 期望 | 真结果 | 用时 |"; echo "|---|---|---|---|"; printf '%s\n' "${rows[@]}"

@@ -18,7 +18,6 @@ Three kinds of things live here. The first you will use when following the front
 | `casc_overlay.py` | Builds the overlay at build time: points chosen resource paths at our new content without touching the original archives |
 | `astc_pack.py` | Supplement pack for older devices: converts BC-format game textures offline into ASTC, which those devices support |
 | `gen_bright_levels.py` | Generates the level table used by the 3D brightness boost (built from your game files) |
-| `tact_bootlist.py` | Generates the startup prefetch list: resource blocks needed before character select, decoded ahead of time at launch |
 
 ## Measurement and regression scaffolding
 

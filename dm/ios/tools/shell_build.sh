@@ -62,7 +62,7 @@ for d in romfs_overlay romfs_overlay_variants hud_v4_ui mapgoal mercslots; do ta
 # 测试存档（我们自己的回归用）与老机型补充包的覆盖层（没带补充包时是空目录）：壳里不带，使用者也不用补
 # Test saves (for our own regression) and the overlay of the Legacy Device Pack (an empty directory when no Legacy Device Pack is included): not carried in the shell, and users do not need to add them either
 for d in save_ref save_ref_warlock romfs_overlay_astc romfs_overlay_astc_variants; do take "$d/" nolist; done
-for f in "$A"/dm/*.fixups.tsv "$A"/dm/*.gates.tsv "$A"/dm/bootlist.tsv "$A"/dm/main.cuts.tsv "$A"/dm/c1_full.tsv "$A"/dm_native_*.png "$A"/native_art_manifest.json; do [ -e "$f" ] && take "${f#$A/}"; done
+for f in "$A"/dm/*.fixups.tsv "$A"/dm/*.gates.tsv "$A"/dm/main.cuts.tsv "$A"/dm/c1_full.tsv "$A"/dm_native_*.png "$A"/native_art_manifest.json; do [ -e "$f" ] && take "${f#$A/}"; done
 echo "dm/derived.tsv" >> "$O/shell_manifest.txt"; echo "Frameworks/Guest.framework/" >> "$O/shell_manifest.txt"
 # 清单与版本信息随壳走（d2rm_pack.py 读它们：壳要的产物代号、着色器链版本对不上就拒绝往里做）
 # The manifest and version info travel with the shell (d2rm_pack.py reads them: if the build output codename or shader chain version the shell requires does not match, it refuses to pack into it)
