@@ -1,12 +1,12 @@
 ---
 protocol: 1
-updated_at: 2026-10-21T05:05:00+08:00
+updated_at: 2026-10-21T04:27:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 9a26e94
+observed_head: df23175
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 25b56f4
+origin_head_at_checkpoint: df23175b7612dc682ffd0480a51f726953a18c23
 code_worktree: CLEAN
 next_action_id: NA-044
 ---
@@ -140,10 +140,18 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-21 05:05（Asia/Shanghai；**本机时钟比前几条日志早约 6 小时**，时间以 git 提交时间为准）
+- 快照时间：2026-10-21 04:27（Asia/Shanghai；**本文件里几条较新的时间戳是按会话顺序写的，可能与本机时钟不一致 —— 以 git 提交时间为准**）
 - 当前阶段：M0 勘察完成；NA-033/034/035 收口；NA-036 数据/着色器/符号解析三条前置已验；NA-037 NVN 接口面对齐；NA-038 接口覆盖清零（103 → 0）；**NA-039 5 个空实现补成真实现 + NA-040 歧义控制键（43.6% 风险）给出运行期解法 + 预排布贴图接上**；下一步 NA-041 做 TotK 专属的 M4 部分；真机推包开机与更新包的 BKTR 补丁仍待办
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：见 frontmatter `observed_head`（`9a26e94`：变体命中/退回计数；之前 `2c6f80b` 预检脚本、`14510c3` 变体候选、`206777b` 预排布贴图、`2db6a3a` 变体挑选、`001d1c9` 5 个空实现）
+- **本会话（NA-037 ~ NA-044）的结论**：**设备前的全部静态闸门全绿 → 可以推机**；剩下的每一步都要在真机上做。
+  - 补上了 TotK 的 NVN 名字表（536 个；此前 13 个取不到 → 会拿到空函数指针而崩）与 **213 个被调接口的全部实现**
+    （`dm/gfx/tools/nvn_coverage.py --check` exit 0：取址缺口 0 / 缺实现 0 / 空实现 0）。
+  - 查清并处理了 M3 最大的坑：1,640 个控制键对应多种机器码，按多数派选会 **43.6% 的着色器拿错 SPIR-V**；
+    现在包里同时存完整键并在运行期挑变体（键代数已对归档 47,260 个着色器逐个核对一致）。
+  - 预排布贴图数据接上了（游戏给的是指针，不是池里偏移）。
+  - M4 核对结论：触控（通用虚拟手柄）/ 存档目录 / 音频 / 手柄映射**都是通用件**，不需要为 TotK 重写，只需真机校准。
+  - 数据包已重建：`D:\Switch\totk-work\package-totk\totk-package.zip`（16.62 GiB；game 9 / romfs 304,207 / shaders 24,535）。
+- 观测 HEAD：见 frontmatter `observed_head`（`df23175`：完整预检全绿的记录；代码侧最后的提交是 `1191b01` 变体挑选的依据注释、`9a26e94` 命中/退回计数）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
@@ -216,7 +224,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - ID：NA-044
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：HEAD 含 `9a26e94`；`dm/android/tools/totk_preflight.py --package D:\Switch\totk-work\package-totk\totk-package.zip --shaders D:\Switch\totk-work\package-totk\shaders` 的结论是「没有红项 → 可以推机」；
+- 前置条件：**唯一的前置是手机接上**（手机不在时做本节末尾列的三件小事）；HEAD 含 `df23175`；`dm/android/tools/totk_preflight.py --package D:\Switch\totk-work\package-totk\totk-package.zip --shaders D:\Switch\totk-work\package-totk\shaders` 的结论是「没有红项 → 可以推机」；
   **一加 12 仍��断开**（这是唯一的阻塞：所有剩下的验证都要在真机上做）。
 - 动作：**手机一回来就做 NA-036（推包开机）**，按下面的顺序：
   ① `python dm/android/tools/deploy_totk.py --package D:\Switch\totk-work\package-totk\totk-package.zip --profile totk`
@@ -238,11 +246,15 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 失败判据：导入失败 → 先只推模块与着色器（几百 MB）验证游戏活动能起来，再单独解决大数据；
   开机就崩 → 按日志分清是**数据缺失**（查路径与 BKTR）、**HLE 缺口**（`dm/tools/check_guest_imports.py` 复核）
   还是**图形侧**（c[2] / 描述符集 / 子组 / 变体 / 合并句柄）。
-- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`9a26e94`）。
+- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`df23175`）。
 - 需要写入的证据：推送用时与包大小、导入结果与三个目录的清单、logcat 的启动序列、变体命中/退回计数、
   第一个缺导入 / 红桩、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。
-- 手机不在时可以接着做的（不阻塞主线）：① 把预检脚本的不带 `--quick` 那一档跑完（变体键链，约 5 分钟）；
-  ② 更新包的 BKTR 补丁（已排除三种可能，没有参考实现时解不开）；③ Mac 侧的翻译链重建（`dmsh_chain.h` 本来就过期）。
+- 手机不在时可以接着做的（不阻塞主线）：
+  ① **更新包的 BKTR 补丁**：已排除明文 Brotli / 同段 CTR / XTS+头密钥三种可能。
+     **本会话实测的网络情况**：`git push/pull` 到 github.com **通** ✓，但 `api.github.com` 与 `raw.githubusercontent.com`
+     **超时不通** ✗ → 参考实现要用 `git clone`（走 github.com 的 git 通路）去拿，不要走 raw/api。
+  ② Mac 侧的翻译链重建（`dmsh_chain.h` 的版本本来就过期，`dmsh_chain.py --header` 要在 Mac 侧 `--update-lock` 之后重跑）。
+  ③ 预检脚本（`dm/android/tools/totk_preflight.py`）**已经跑过完整档、全绿**；改动代码后重跑一次即可。
 
 ## 长操作两阶段日志
 
