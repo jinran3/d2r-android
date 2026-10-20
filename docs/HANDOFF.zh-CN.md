@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-20T21:40:00+08:00
+updated_at: 2026-10-20T20:30:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 45d5254
+observed_head: 2a140a8
 origin_ref: origin/totk/scaffold
 origin_head_at_checkpoint: 45d5254fc9d8f03543194fbd0a0b625dd85d39db
 code_worktree: CLEAN
-next_action_id: NA-034
+next_action_id: NA-035
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,23 +140,23 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-20 21:40（Asia/Shanghai）
-- 当前阶段：M0 勘察完成（§4.4 着色器事实来源已坐实：**SPH 已解析、事实表已出、4,778 个受影响键重译完、267 个 SPIR-V 有可核对变化**）；M1（模块装载）就绪；**下一步转入宿主侧的 c[2] 布局**（NA-034）
+- 快照时间：2026-10-20 20:30（Asia/Shanghai）
+- 当前阶段：M0 勘察完成（§4.4 事实来源已坐实）；**NA-034 已收口：c[2] 句柄表布局按游戏档位可选，宿主与真机都验过**；**驱动选型已在真机上实测收口**（系统驱动就是 Adreno 750 硬件驱动）；下一步转入**宿主着色器键口径**（NA-035，新发现的头号拦路虎）
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：见 frontmatter `observed_head`（NA-033 业务提交 `45d5254`：SPH 解析 + `dm/gfx/tools/totk_facts.py` 事实表生成器 + 计划 §4.4 收口）
+- 观测 HEAD：见 frontmatter `observed_head`（NA-034 业务提交 `2a140a8`：c[2] 布局按档位 + 真机 Vulkan 探针 + 三处既有真机测试缺陷修正）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b29`，17,725,903 字节）
-- 本次会话目标：NA-033 收口（SPH 解析、事实表坐实、计划 §4.4 画句号）+ 找出真机渲染的拦路虎。
+- 本次会话目标：NA-034 收口（c[2] 布局按档位可选）+ 驱动选型在真机上实测 + 找出真机渲染的下一个拦路虎。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：**★ c[2] 布局按规则集可选**（NA-034，NA-033 查出的头号拦路虎）：宿主把 D2R 的布局写死了，TotK 的贴图句柄偏移 `0x20 + 8r` 全部落在宿主认的三段之外 → **一个贴图都绑不上，画面必然是黑的**；翻译器 `dmsh_xlate/Program.cs` 的 `TexSlot()` 也用死值 `TexBase = 0x168`；**图像格式**（只能运行期观测，方案 B）；**改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」与 `blr x18` 两种 D2R 没有的形态，当前 TotK 规则域先不做 x18 改写、靠宿主保全 x18）；更新包 RomFS 的 **BKTR 补丁**应用（最终数据集还差这层）；**真机装载与进 `nnMain`**（一加 12 本会话未接上，`adb devices` 为空）；**驱动选型**（仓库内置 Turnip 是 T30/Adreno 830 构建，一加 12 是 Adreno 750）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线）。
-- 最近一次成功命令：`totk_facts.py` 出事实表 exit 0（9,807 键；贴图维度事实 6,857 键、属性事实 4,206 键、**同一槽出现两种维度的 0 个**）；`totk_xlate.py --facts <v2 表>` 重译 4,778 个受影响键 exit 0（**4,778 成功 / 0 失败**），逐个与旧 SPIR-V 比对：**267 个键有变化**（多出 `uvec4`，即整数顶点属性），4,511 个逐字节相同。
-- 最近一次失败命令及原因：① 第一次重译用错了翻译器 dll（`dm/gfx/tools/dmsh_xlate/obj/Release/net10.0/dmsh_xlate.dll` 缺 `runtimeconfig.json`），6 个分片全部退出码 2147516547；改用上次成功的构建输出 `D:\Switch\totk-work\tools\xlate\dmsh_xlate.dll` + `D:\Switch\totk-work\tools\dotnet\dotnet.exe` 即通过。② `ci_checks.py` 的「Agent 交接控制面」一项失败 —— HANDOFF 快照过期（本次已更新，重跑即过）。
-- 已验证产物路径：仓库外：`D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv`（9,807 键的新事实表）、`D:\Switch\totk-work\xlate-full\changed_index.tsv`（4,778 个受影响键）、`D:\Switch\totk-work\xlate-facts2b\out0..5\`（重译出的 SPIR-V 与 res.json）、`D:\Switch\totk-work\probe\sph\sph.tsv` + `sph\ctrl\`（9,807 个着色器的 SPH / 控制头勘察表）；仓库内：`dm/gfx/tools/totk_facts.py`（新工具）、计划 §4.4 与进度文档已更新。
-- 当前阻塞：**一加 12 本会话没有接上**（`adb devices` 返回空列表；上次会话收尾时设备也掉过一次）—— 真机部分（装 TotK 数据、跑起来）需要用户把手机插上；**这不影响本会话已完成的 SPH / 事实表工作**。新的头号待办是 **c[2] 布局**（NA-034）：TotK 与 D2R 的 c[2] 布局不同（TotK 合并句柄在 `0x20 + 8r`，D2R 分离贴图在 `0x168 + 8r`），宿主 `dm/android/native/nvn_vulkan_handles.inc` 与 `nvn_vulkan_shader.inc` 把 D2R 的写死了，翻译器 `dmsh_xlate/Program.cs` 的 `TexSlot()` 也写死了 `TexBase = 0x168` → **TotK 上一个贴图都绑不上**。驱动选型（内置 Turnip 是 T30/Adreno 830 构建，一加 12 是 Adreno 750）排在 c[2] 之后。
-- 需要用户提供的材料：**一加 12 请插上电脑并授权 USB 调试**（本会话 `adb devices` 为空）；其余无（TotK v1.4.2 合并 XCI、`prod.keys` 均已到位）。
+- 未完成：**★ 宿主着色器键口径**（NA-035，NA-034 顺带查出的头号拦路虎）：宿主用 `sha256(控制段)[:16]` 找 SPIR-V，而 **TotK 的控制段不唯一** —— 49,089 个变体里只有 9,807 个唯一 `(控制段+机器码+c1)`，按控制段只有 5,534 个唯一值，**1,640 个控制键对应多种机器码**（最多的一个 47 种）→ 同一控制键的变体会共用一个 SPIR-V，**渲染必错**；宿主必须改成 `sha256(控制段+机器码+c1)`，这要求宿主在 `nvnProgramSetShaders` 时同时拿到机器码指针。**翻译器侧的 c[2] 基址**（`dmsh_xlate/Program.cs` 的 `TexSlot` 写死 0x168；TotK 要 0x20，影响 26 个 TXQ 着色器；改它会动翻译链版本 `dmsh_chain.h`，要连带重出 Mac 侧 B 库）；**TotK 侧的宿主演示器数据**（宿主要的是「着色器 + 绑定反射」，D2R 侧由 PC 反射给出，TotK 侧要从控制头与机器码自己解）；**图像格式**（只能运行期观测，方案 B）；**改写器的 x18 适配**；更新包 RomFS 的 **BKTR 补丁**；**真机装载与进 `nnMain`**（一加 12 已接上，但还没装 TotK 数据）；批 6 剩余的 D2R 清理。
+- 最近一次成功命令：`totk_facts.py` 出事实表 exit 0；`totk_xlate.py --facts` 重译 4,778 个受影响键 exit 0（4,778 成功 / 0 失败，267 个 SPIR-V 有可核对变化）；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b30` exit 0（APK 17,742,287 字节）；**真机：`vulkan-test` 全绿 exit 0**（含新增的「c[2] 句柄表：D2R 分离表与 TotK 合并表」用例）；**真机：`launch-settings-test` PASS（58 cases）**；`run_vulkan_probe.py` exit 0（Adreno 750 / Vulkan 1.3.128 / subgroup 64）。
+- 最近一次失败命令及原因：① 第一次重译用错了翻译器 dll（缺 `runtimeconfig.json`），改用 `D:\Switch\totk-work\tools\xlate\dmsh_xlate.dll` 即通过；② 真机 `vulkan-test` 起初在 `uniform_arena_test.inc:27` 失败 —— **未改动的基线代码在同一处同样失败**（用 stash 对比实测），是这台机器上本来就有的缺陷，不是本批引入；③ `ci_checks.py` 的「Agent 交接控制面」一项失败 —— HANDOFF 快照过期（本次已更新，重跑即过）；④ `launch-settings-test` 在 Android 上创建 FIFO 被 SELinux 拦（errno 13）—— 已按「如实标跳过」处理。
+- 已验证产物路径：仓库外：`D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv`（9,807 键事实表）、`xlate-full\changed_index.tsv`、`xlate-facts2b\out0..5\`（重译 SPIR-V）、`probe\sph\sph.tsv` + `probe\sph\ctrl\`（SPH / 控制头勘察表）；仓库内：`dm/android/native/nvn_c2_layout.h`（新）、`dm/android/tools/vulkan_probe.c` + `run_vulkan_probe.py`（新）、`dm/android/tests/c2_layout_test.c` + `c2_layout_test.inc`（新）；APK `dm/android/build/D2R-Android-port.apk`（trim-b30，17,742,287 字节）。
+- 当前阻塞：**没有外部阻塞**：一加 12 已接上（`3b864e51` / PJD110 / Android 16 / Adreno 750），真机可跑测试。**头号待办是宿主着色器键口径**（NA-035）：TotK 的控制段不唯一，宿主按 `sha256(控制段)` 查 SPIR-V 会取错变体。**驱动这条不再是阻塞**：实测系统 Vulkan 就是 Adreno 750 硬件驱动（Vulkan 1.3.128、subgroup 64、132 个设备扩展），仓库内置的 Turnip 是 T30/Adreno 830 构建且 `.so` 里**没有任何 `vk*` 导出**（只有 `tu_*` 模板），在 750 上根本装不上 —— 启动界面应保持「系统驱动」。
+- 需要用户提供的材料：**无阻塞项**（TotK v1.4.2 合并 XCI、`prod.keys`、一加 12 均已到位）。后续若要真机跑起来，需要把 TotK 数据装进手机（下一步由宿主的「导入数据包」流程完成）。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据；**外部项目的代码不要直接搬进来**（`OJZen/totk-mobile` 是 Apache-2.0，本仓库是 MIT；只读思路与格式事实，代码自己写；Ryujinx 是 MIT，可用但要保留声明）。
 
@@ -213,20 +213,17 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-034
+- ID：NA-035
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：HEAD = NA-033 的业务提交 `45d5254`；代码工作区干净；事实表在仓库外 `D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv`（9,807 键）。
-- 动作：**把 c[2] 驱动常量段的布局做成按规则集可选，宿主与翻译器两侧一起改** —— 这是 NA-033 查出的、**真机出图的直接拦路虎**（不是事实表）。实测：TotK 的 9,807 个着色器里**全部**贴图引用的 c[2] 字节偏移都落在 `0x20 + 8r`（r = 0..31，合并句柄，handle type = 0），偏移集合是干净的 8 字节步进、没有一个越界，0x120 正好是图像句柄表的起点；而 D2R 用的是**分离**贴图 `0x168 + 8r` 与分离采样器 `0x568 + 8r`。宿主现在只认 D2R 那三段 → TotK 的贴图句柄全读成 0，**画面必然是黑的**。要改四处：① **宿主读侧** `dm/android/native/nvn_vulkan_handles.inc`：`shader_handle_word()` / `shader_texture_slot()` / `shader_image_slot()` 里 0x168 / 0x568 / 0x120 的死值 → 按规则集取；② **宿主写侧** `dm/android/native/nvn_vulkan_shader.inc`：c[2] 那块 0x968 字节缓冲与 `memcpy(data+0x168+8*i,&tex,4)` → TotK 要把「纹理 ID（低 20 位）+ 采样器 ID（第 20..31 位）」的**合并句柄**写进 `0x20 + 8r`；③ **翻译器侧** `dm/gfx/tools/dmsh_xlate/Program.cs`：`TexSlot()` 的死值 `TexBase = 0x168` → 改成由作业带 `c2_tex_base`（TotK = 0x20），并与 `dm/gfx/tools/totk_facts.py --tex-base` 同一口径；④ **规则集接线**：确认 `DM_RULESET=totk-run-v1` 在宿主侧从哪里能拿到（构建期固化还是运行期传递），据此决定 c[2] 布局的取值点。**D2R 路径必须逐字节不变**。
-- NA-034 实施要点（本次会话已查清，下一节不用再摸）：① **宿主里没有任何规则集痕迹** —— 全仓 grep `dm/android/native/` 与 `dm/gfx/nvn/` 都找不到 `DM_RULESET` 或 `totk-run-v1`（规则集只作用于 `dm/tools/patch_nso.py` 的 NSO 改写），所以 c[2] 布局只能**构建期**决定（编译期宏 / 单独的宿主构建变体）或另设运行期开关。
-- NA-034 实施要点（续）：② **游戏的绑定入口是 `nvnCommandBufferBindTexture(cmdbuf, stage, index, handle)` → `state.textures[stage][index] = handle`**，`index` 就是着色器的贴图槽号（D2R 侧已闭合验证：游戏 index r ↔ `c[2][0x168 + 8r]` ↔ 着色器立即数 `0x5A + 2r`）。TotK 同理 → 基址取 `0x20` 时，「游戏 index r ↔ `c[2][0x20 + 8r]`」成立，**槽号语义两边一致**。
-- NA-034 实施要点（续）：③ **合并句柄的打包**：NVIDIA 的合并句柄 = 纹理 ID 低 20 位 + 采样器 ID 第 20..31 位（`TextureHandle.UnpackTextureId` / `UnpackSamplerId`）；宿主读侧现在只取 `shader_handle(...) & 0xfffff`（低 20 位）当纹理 ID，所以 TotK 要额外把第 20..31 位的采样器 ID 用起来（`shader_handle()` 的 type 0 分支只返回了一个字）。④ c[2] 那块缓冲现在固定 `uint8_t data[0x968]`（D2R 的 0x168..0x968 段），TotK 只需要 0x20..0x120 一段，**缓冲大小也要按规则集取**（别写死 0x968）。
-- 命令或编辑目标：先读 `dm/android/native/nvn_vulkan_handles.inc` 与 `nvn_vulkan_shader.inc` 里 0x168 / 0x568 / 0x120 的全部出处，以及 `DM_RULESET` 在宿主里的传递路径（`dm/tools/patch_nso.py` 产出的规则集 → 宿主怎么知道）；再按上面四处改；随后在 `dm/android/tests/` 里补一条 TotK c[2] 布局的单测；最后 `ci_checks.py`、`build.py --game-run --version trim-b29`、`tools/agent_handoff_check.py --verify`。
-- 成功判据：① 宿主单测（新增的 TotK c[2] 布局用例）与现有 `dm/android/tests/` 全绿；② `ci_checks.py` 10 项通过 / 0 项失败；③ `build.py --game-run --version trim-b29` exit 0 且产出 APK；④ 用 `totk_facts.py --tex-base 0x20` 出的事实表喂回翻译器后，**那 12 个 TXQ 着色器的 SPIR-V 出现可核对的变化**（此前因为 `TexSlot()` 的基址不对，事实表里的贴图维度没被查到）；⑤ **D2R 侧行为逐字节不变**（D2R 的 c[2] 布局与翻译器输出与改前一致）。
-- 失败判据：改完宿主后 D2R 的既有单测 / `ci_checks` / 构建任一非零；或 TotK 的 c[2] 布局在真机上仍读不到句柄（说明合并句柄的 ID 打包方式猜错）—— 此时回滚本批，并改走「运行期观测 + 逐槽记录」的诊断路径，把读到的 c[2] 内容 dump 出来定位。
-- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`45d5254`）。
-- 需要写入的证据：改动前后的 c[2] 布局对照表（偏移 → 语义 → 规则集）、宿主单测的输出、翻译器 12 个 TXQ 键重译前后的 SPIR-V 对比、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。**本机 NOT RUN 的部分**：一加 12 上的实际出图（设备本会话未接上）、iOS / macOS 侧编译（Mac 侧需重建翻译器并跑 `dmsh_chain.py --update-lock` 更新源码指纹 —— **本批改了 `dmsh_xlate/Program.cs`，锁一定要更新**）。
-- 顺带记下（下一步之后要做）：① **驱动选型（§4.5）** —— 内置 Turnip 是 T30/Adreno 830 构建，一加 12 是 Adreno 750；本机解析该 `.so` 没有任何 `vk*` 导出符号，而宿主是 `dlsym(driver, "vkGetInstanceProcAddr")` 取入口，要先查清加载方式，再决定是找 750 对应的 Turnip 构建还是改宿主取入口的方式；`host-subgroup-size.txt` 也要按 750 实测核对（着色器按 64 子组构建）。② **改写器的 x18 适配** —— TotK 的 main 有「分支跳进独占窗口中间」与 `blr x18` 两种 D2R 没有的形态，做法是给每个入口各发一段序言、让外部跳进来的目标也有入口；参考 `OJZen/totk-mobile` 的 `tools/patch_module.py` + `tools/exclusive.py`（Apache-2.0，**只读思路、代码自己写**），它的 v1.4.3 main 构建号是 `277178b7dba1b6d4949a84778d4abc58`（我们是 v1.4.2 的 `5cb42b1c…`），跳转表是**有符号**且按 v1.4.3 地址写死，v1.4.2 要自己定位。③ 更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这层）。④ 真机：把 TotK 的 `guest-so` 与 RomFS 装进一加 12，走 M1 的「装载 → `nnMain`」。
+- 前置条件：HEAD = NA-034 的业务提交 `2a140a8`；代码工作区干净；一加 12 已接上（`adb devices` → `3b864e51 device PJD110`）；TotK 侧 49,089 个着色器变体与 9,807 个唯一键的勘察结果在仓库外 `D:\Switch\totk-work\probe\sph\` 与 `D:\Switch\totk-work\shaders-index4\`。
+- 动作：**让宿主的着色器键包含机器码** —— NA-034 顺带查出的、比 c[2] 布局更要紧的拦路虎。实测：TotK 的归档里**同一个 NVN 控制头被多个着色器变体共用**（49,089 个变体 → 9,807 个唯一 `(控制段+机器码+c1)`；按控制段只有 **5,534 个**唯一值，其中 **1,640 个控制键对应多种机器码**，最多的一个对应 **47 种**）。而宿主 `dm/android/native/nvn_vulkan_shader.inc` 的 `shader_get(control)` 用的是 `sha256(控制段前 0x880 字节)[:16]`，与 `dm/gfx/tools/totk_shaders.py` 的 `sha256(控制段+机器码+c1)[:16]` **口径不同** → 同一控制键的多个变体会共用一个 SPIR-V，**渲染必错**。做法：① 客体的 NVN 层在 `nvnProgramSetShaders` 时把**机器码指针与长度**一起交给宿主（着色器二进制里控制段与代码是同一块，客体本来就拿得到；机器码与 c1 的切分可以从控制头 0x6F8 的 `program_size / c1_offset / total / offset` 读出，与 `totk_shaders.py` 同一口径）；② 宿主的键改成 `sha256(控制段 + 机器码 + c1)`，与流水线的键**逐字节一致**；③ D2R 侧**行为必须不变**（D2R 的控制段本来就唯一，改完键值会变 → 要么保留 D2R 的旧键、要么连带把 D2R 的 B 库重出，见失败判据）。
+- 命令或编辑目标：先读 `dm/gfx/nvn/hle_nvn.c` 的 `nvnProgramSetShaders` 与 `dm/host/` 里 `prog_t.sd[].control` 的来源，确认机器码指针在客体侧能不能拿到、怎么传给宿主；再改 `dm/android/native/nvn_vulkan_shader.inc` 的 `shader_get()` 与客体的对应路径；补一条宿主单测（**同一个控制头 + 两种机器码 → 键必须不同**）到 `dm/android/tests/c2_layout_test.inc` 旁边；最后 `ci_checks.py`、`build.py --game-run --version trim-b31`、`tools/agent_handoff_check.py --verify`，以及真机 `vulkan-test`。
+- 成功判据：① 新增宿主单测通过，且 `dm/android/tools/vulkan_probe.py`（新工具）报出 c[2] 键与流水线键一致；② `ci_checks.py` 10 项通过 / 0 项失败；③ `build.py --game-run --version trim-b31` exit 0 且产出 APK；④ **真机 `vulkan-test` 全绿 exit 0**（一加 12 上跑）；⑤ D2R 侧的键与 SPIR-V **逐字节不变**（若做不到，见失败判据）。
+- 失败判据：D2R 的既有真机测试 / `ci_checks` / 构建任一非零；或改完键口径后 D2R 的 B 着色器库（`b-<V>/`）对不上 → 此时**回滚本批**，改走「键只用于 SPIR-V 查找、另设一张「控制段+机器码 → 键」的映射表由宿主在装载时查」的方案（宿主侧多一张表，D2R 的键不变）。
+- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`2a140a8`）。
+- 需要写入的证据：49,089 变体 / 9,807 唯一键 / 5,534 控制键 / 1,640 多机器码控制键的实测数字（可复算）、改前后的键对照、宿主单测输出、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码、**真机 `vulkan-test` 的 exit 0**。**本机 NOT RUN 的部分**：一加 12 上真正跑 TotK 出图（TotK 数据还没装进手机）。
+- 顺带记下（下一步之后要做）：① **翻译器侧的 c[2] 基址**（`dm/gfx/tools/dmsh_xlate/Program.cs` 的 `TexSlot` 写死 `TexBase = 0x168`，TotK 要 0x20）—— 改它会动翻译链版本 `dm/gfx/nvn/dmsh_chain.h`，必须连带重出 Mac 侧 B 库并跑 `dmsh_chain.py --update-lock`；影响面只有 26 个 TXQ 着色器，可以放在后面。② **TotK 侧的宿主演示器数据**：宿主要的是「着色器 + 绑定反射」，D2R 侧来自 PC 反射，TotK 侧要从控制头与机器码自己解（`dm/gfx/tools/totk_shaders.py` 已有控制头解析，绑定信息要从机器码的常量段引用反推，可参考 `dm/gfx/tools/maxwell_refs.py` 的 `bindings()`）。③ **启动界面的游戏档位**：native 侧已支持 `launch-settings.conf` 的 `game_profile=d2r|totk`，但启动界面还没有这一项（`LauncherActivity.java` 的 `OWNED_KEYS` 与界面要加），并要在导入数据包时按档位选 TotK 数据。④ 更新包 RomFS 的 BKTR 补丁。⑤ 改写器的 x18 适配。
 
 ## 长操作两阶段日志
 

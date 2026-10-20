@@ -259,6 +259,27 @@ TotK 与 D2R 的 **c[2] 驱动常量段布局不一样**，而我们的 Android 
 - 现仓库内置 Turnip：`dm/android/prebuilt/turnip/vulkan.purple.so`，版本 `26.3.0-T30-1.4.359`，作者 @Mr_Purple_666，**T30 构建**，实测机是 Adreno 830。
 - 一加 12 是 **Adreno 750**。仓库 README 明确：「不同 GPU 应使用兼容的驱动和相匹配的着色器分组配置；不能直接套用另一台设备的测量结果」。
 - 必做：① 启动界面保留「Turnip / 手机自带驱动」切换（已有该功能）；② 查 Adreno 750 对应的 Turnip 构建（`vulkan.purple.so` 有针对不同 Adreno 的版本）；③ `host-subgroup-size.txt` 必须按 750 实测核对——README 说着色器按 **64 子组尺寸**构建，这个值不匹配会直接出错。
+**2026-10-20 的真机实测结论（本节收口）**：
+
+- **一加 12 的系统 Vulkan 就是 Adreno 750 硬件驱动**（新增仓库工具 `dm/android/tools/vulkan_probe.c` + `run_vulkan_probe.py`，在手机上实测）：
+  `VK_ICD_FILENAMES=(unset)`、加载器实例版本 1.4.0、唯一物理设备 **`Adreno (TM) 750`**（`deviceType=1` 独显、
+  `apiVersion=1.3.128`、`driverVersion=0.762.41`、`vendorID=0x5143`）、`maxImageDimension2D=16384`、
+  `maxComputeWorkGroupInvocations=1024`、`maxPushConstants=256`、**132 个设备扩展**
+  （含 `VK_EXT_shader_atomic_float`、`VK_EXT_depth_clip_control`、`VK_EXT_subgroup_size_control`、
+  `VK_KHR_shader_float16_int8`、`VK_KHR_shader_subgroup_extended_types`；**没有 fp64**）。
+  设备上没有 ICD 清单（`/vendor/etc/vulkan/` 等目录都不存在），加载器靠 `ro.hardware.vulkan=adreno` 兜底找到
+  `/vendor/lib64/hw/vulkan.adreno.so`。
+- **`host-subgroup-size.txt` 要按 750 实测的那个数，实测就是 64**：设备的 `subgroupSize=64`
+  （`supportedOperations=0xbf`、`supportedStages=0x30`），**与「着色器按 64 子组尺寸构建」的口径一致**，
+  §4.5 里担心的子组尺寸不匹配**不存在**。
+- **仓库内置的 Turnip 在这台机器上装不上**：`dm/android/prebuilt/turnip/vulkan.purple.so`（`meta.json` 写明
+  `26.3.0-T30-1.4.359`，T30 / Adreno 830 构建）的 `.dynsym` 里**没有任何 `vk*` 导出**（只有 `tu_*` 模板与 libc 符号），
+  而宿主是 `dlsym(driver, "vkGetInstanceProcAddr")` 取入口 → 取不到；再加上它本来就是给 830 的构建。
+  → **结论：一加 12 走系统驱动**，启动界面保持「系统驱动」即可；内置 Turnip 那一档在这台机器上没有意义。
+- 顺带得到的两条宿主侧结论：`VK_EXT_shader_atomic_float` 与 `VK_EXT_depth_clip_control` **在 750 上是有的**，
+  而 TotK 翻译作业目前声明了 `host_no_fp64` 与 `host_no_depth_clip` —— fp64 确实没有（声明正确），
+  但**深度裁剪控制是可以支持的**，宿主实现到位后这一项可以放开（属于后续优化，不阻塞首帧）。
+
 
 ---
 

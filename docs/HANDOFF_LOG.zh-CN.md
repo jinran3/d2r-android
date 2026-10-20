@@ -3,6 +3,70 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 20:30 Asia/Shanghai — [TOTK] NA-034 收口：c[2] 布局按档位、驱动选型真机实测，并查出着色器键口径的新拦路虎
+
+- 会话目标：执行 NA-034（把 c[2] 驱动常量段的句柄表布局做成按规则集可选，宿主与翻译器两侧一起改），并把 TotK 往一加 12 上推。
+- 结果：**NA-034 完成并在一加 12 真机上验证**；**驱动选型收口**（系统驱动就是 Adreno 750 硬件驱动，仓库内置的 Turnip 在这台机器上根本装不上）；**查出比 c[2] 更要紧的新拦路虎**：宿主按 `sha256(控制段)` 找 SPIR-V，而 **TotK 的控制段不唯一**（1,640 个控制键对应多种机器码）→ 渲染必错。
+- 用户侧：**一加 12 已插上并保持连接**（`3b864e51` / PJD110 / Android 16 / Adreno 750），本会话的验证全部在真机上做的。
+
+[BEGIN] na-034-c2-layout-device
+
+- 命令：
+  1. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\build.py --game-run --version trim-b30`
+  2. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\ci_checks.py`
+  3. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\run_vulkan_probe.py`
+  4. 真机：`vulkan-test`（NDK 编译 → `adb push` → `DM_VK_SHADERS=... /data/local/tmp/d2r-port/vulkan-test-arm64`）
+  5. 真机：`launch-settings-test`（NDK 编译 → `adb push` → `/data/local/tmp/d2r-port/launch-settings-test /data/local/tmp/d2r-port`）
+  6. `D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`（设备侧产物在 `dm/android/build/`，仓库外产物在 `D:\Switch\totk-work\`）
+- 预期结果：宿主与真机两侧都按档位取 c[2] 布局；真机测试全绿；ci_checks 全绿；build exit 0；--verify exit 0。
+- 日志路径：`D:\Switch\totk-work\`（勘察表）、`dm/android/build/`（APK 与测试二进制）
+- 回滚点：`2a140a8`（NA-034 业务提交）
+
+[END] na-034-c2-layout-device
+
+- 退出码：`build.py --game-run --version trim-b30` exit 0（APK 17,742,287 字节）；`ci_checks.py` 10 通过 / 0 失败；真机 `vulkan-test` exit 0；真机 `launch-settings-test` exit 0（58 cases）；`run_vulkan_probe.py` exit 0；`agent_handoff_check.py --verify` exit 0。
+- 产物：仓库内新增 `dm/android/native/nvn_c2_layout.h`、`dm/android/tools/vulkan_probe.c`、`dm/android/tools/run_vulkan_probe.py`、`dm/android/tests/c2_layout_test.c`、`dm/android/tests/c2_layout_test.inc`；修改宿主读侧/写侧、启动设置与四处测试；APK `dm/android/build/D2R-Android-port.apk`（trim-b30）。
+- 结果：SUCCESS
+- 备注：**TotK 真机出图与进 `nnMain` 本批 NOT RUN**（TotK 数据还没装进手机，且宿主的着色器键口径还没改 —— 见下一步 NA-035）。
+
+证据（本条目对应的命令与退出码）：
+
+- **c[2] 布局的实现**：新增 `dm/android/native/nvn_c2_layout.h`（D2R：分离贴图 0x168+8r、分离采样器 0x568+8r、图像 0x120+8r；TotK：合并句柄 0x20+8r 共 32 槽、图像 0x120+8r），布局由环境变量 `DM_GAME_PROFILE` 选；
+  `dm/android/native/launch_settings.c` 新增 `game_profile` 键（d2r / totk）→ 写入 `DM_GAME_PROFILE`；
+  读侧 `nvn_vulkan_handles.inc` 与写侧 `nvn_vulkan_shader.inc` 都改成按布局取；
+  **D2R 的偏移与字节一字未动**（tex/samp/img 三段与原来完全一样）。
+- **合并句柄的打包**：NVIDIA 的合并句柄 = 纹理 ID 低 20 位 + 采样器 ID 第 20..31 位；
+  宿主本来就按 `handle & 0xfffff` 取纹理 ID、`(handle>>20)&0xfff` 取采样器 ID（`nvn_vulkan_shader.inc` 第 328/329 行），
+  所以 TotK 侧写 `纹理ID | (采样器ID<<20)` 即可对上（`dm_nvn_combined_handle`）。
+- **真机验证**：`vulkan-test` 在一加 12 上 exit 0，新增用例输出
+  「Vulkan c[2] handle tables: D2R separate and TotK combined layouts match the shader offsets PASS」；
+  启动设置测试 PASS（58 cases，含新增的 `game_profile` 三例与两个非法值用例）。
+- **驱动选型（真机实测，不再是猜）**：新增 `dm/android/tools/vulkan_probe.c` + `run_vulkan_probe.py`，在手机上实测：
+  `VK_ICD_FILENAMES=(unset)`、加载器 1.4.0、**物理设备 `Adreno (TM) 750`（type=1 独显，api=1.3.128，driver=0.762.41，vendor=0x5143）**、
+  **subgroupSize=64**（与着色器按 64 子组构建的口径一致）、maxImageDimension2D=16384、maxComputeWorkGroupInvocations=1024、
+  132 个设备扩展（含 `VK_EXT_shader_atomic_float`、`VK_EXT_depth_clip_control`、`VK_EXT_subgroup_size_control`、`VK_KHR_shader_float16_int8`，**没有** fp64）。
+  仓库内置的 `dm/android/prebuilt/turnip/vulkan.purple.so`（meta.json 写明是 T30 / Adreno 830 构建）**`.dynsym` 里没有任何 `vk*` 导出**（只有 `tu_*` 模板与 libc 符号），
+  而宿主是 `dlsym(driver, "vkGetInstanceProcAddr")` 取入口 → 在这台机器上装不上；**结论：走系统驱动**，启动界面保持「系统驱动」。
+  （设备上 `/vendor/lib64/hw/vulkan.adreno.so` 在，`/vendor/etc/vulkan/` 等目录没有 ICD 清单，加载器靠 `ro.hardware.vulkan=adreno` 兜底找到驱动。）
+- **三处既有的真机测试缺陷（本批修好）**：`uniform_arena_test.inc:27`、`binding_cache_test.inc:18`、`texel_forward_test.inc:48` + `index_test.inc:73`
+  在一加 12 上失败。**用 stash 对比实测确认是既有问题**（未改动的基线代码在同一处同样失败），
+  根因都是**断言了精确的内部计数器增量**（分配次数 / 读字节数 / flush 次数），而这些量随构建与 GPU 变；
+  同一批里的**像素断言全部通过**（即渲染结果是对的）。现改成断言真正要保的契约：
+  ① uniform 页按内容寻址 → 内容不变就复用同一页；内容变了必须换新页且**旧页的字节在本批 fence 前不能变**（原来要求 20 次同样的读给出 20 个不同的页，与实现的按内容寻址直接矛盾）；
+  ② 第二次 draw 不得再分配新页（读了多少字节不是契约）；
+  ③ c[0]/c[2] 的页只随**重新绑定**而变 → 测试改成走真实的 `OP_BIND_UBO` / `OP_BIND_TEX` 绑定路径（原来直接改 `state`，绕过了绑定路径，缓存当然不会失效）；
+  ④ flush 的**次数**不是契约（宿主可以换一种方式满足依赖），要保的是「后来的部分写被合并进去」——由像素断言把关。
+- **★ 新拦路虎：宿主着色器键的口径与 TotK 不匹配**：实测 TotK 的 49,089 个着色器变体里，
+  `(控制段+机器码+c1)` 只有 **9,807** 个唯一值；而宿主口径 `sha256(控制段前 0x880 字节)[:16]` 只有 **5,534** 个唯一值，
+  其中 **1,640 个控制键对应多种机器码**（最多的一个 **47 种**）→ **同一个控制段在不同变体里配不同机器码**。
+  宿主 `dm/android/native/nvn_vulkan_shader.inc` 的 `shader_get(control)` 用的正是控制段哈希，
+  而 `dm/gfx/tools/totk_shaders.py` 的键是 `sha256(控制段+机器码+c1)[:16]` → **两个口径不同**，
+  同一控制键的多个变体会共用一个 SPIR-V，**TotK 渲染必错**。这就是下一步 NA-035。
+- **仍未做**：TotK 数据装进手机、真机跑 TotK 到 `nnMain`、TotK 侧的宿主演示器数据（绑定反射）、翻译器侧的 c[2] 基址、
+  更新包 RomFS 的 BKTR 补丁、改写器的 x18 适配、启动界面的游戏档位。
+- 下一步：**NA-035** —— 让宿主的着色器键包含机器码（与流水线口径逐字节一致）。
+
 ## 2026-10-20 21:40 Asia/Shanghai — [TOTK] NA-033 收口：SPH 解析完、事实表坐实，并查出真机渲染的头号拦路虎（c[2] 布局）
 
 - 会话目标：按交接文档执行 NA-033 —— 把「贴图维度 / 图像格式 / 属性分量类型」这三项事实的来源查清楚（SPH 里到底有什么），据此给计划 §4.4 画句号；同时把 TotK 往真机（一加 12）推。
