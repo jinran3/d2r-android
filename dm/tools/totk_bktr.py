@@ -104,11 +104,79 @@ def parse_ivfc(blob: bytes) -> dict:
             'num_levels': num_levels, 'levels': levels}
 
 
+def scan_payload(nca: S.Nca, section: dict, romfs: Path, limit: int = 4) -> list:
+    """扫载荷里的 zstd 帧，按帧头写的字典 id 解开，并报出解出来的是什么。
+
+    The payload's frames name their dictionary in the frame header; the dictionaries live in the
+    game's own /Pack/ZsDic.pack.zs (ids 1/2/3). Decoded frames turn out to be SARC archives --
+    the game's pack archives -- so this reports how many frames there are and what they hold.
+    """
+    import zstandard
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import switch_shaders as SS
+    pack = romfs / 'Pack' / 'ZsDic.pack.zs'
+    if not pack.is_file():
+        raise SystemExit('缺少 zstd 字典包：%s' % pack)
+    dictionaries = SS.load_dictionaries(pack.read_bytes())
+    payload_end = struct.unpack_from('<Q', section['fs_header'], 0x100)[0]
+    frames = []
+    offset = 0
+    tail = b''
+    while offset < payload_end:
+        chunk = read_plain(nca, section, offset, min(1 << 24, payload_end - offset))
+        if chunk is None:
+            break
+        buffer = tail + chunk
+        base = offset - len(tail)
+        at = buffer.find(b'\x28\xb5\x2f\xfd')
+        while at >= 0:
+            frames.append(base + at)
+            at = buffer.find(b'\x28\xb5\x2f\xfd', at + 1)
+        tail = buffer[-8:]
+        offset += len(chunk)
+    out = []
+    for position in frames[:limit]:
+        data = read_plain(nca, section, position, 1 << 23)
+        try:
+            parameters = zstandard.get_frame_parameters(data)
+            dict_id = parameters.dict_id
+            content = parameters.content_size
+        except Exception as error:
+            out.append({'offset': position, 'error': str(error)[:60]})
+            continue
+        record = {'offset': position, 'dict_id': dict_id, 'content_size': content}
+        failure = '没有匹配的字典'
+        for key in list(dictionaries) + [None]:
+            try:
+                plain = zstandard.ZstdDecompressor(dict_data=dictionaries.get(key)).decompress(
+                    data, max_output_size=1 << 26)
+            except Exception as error:
+                failure = str(error)[:70]
+                continue
+            record['dictionary'] = key
+            if plain[:4] == b'SARC':
+                entries = SS.sarc_entries(plain)
+                record['kind'] = 'SARC'
+                record['entries'] = len(entries)
+                record['first_entries'] = list(entries)[:3]
+            else:
+                record['kind'] = 'plain'
+                record['head'] = plain[:16].hex(' ')
+            break
+        else:
+            record['kind'] = 'undecoded'
+            record['error'] = failure
+        out.append(record)
+    return [{'frame_count': len(frames), 'frames': out}]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('nca', type=Path, help='更新包里的 .nca 文件 | the update .nca file')
     parser.add_argument('--keys', type=Path, help='prod.keys | the key file')
     parser.add_argument('--json', action='store_true', help='输出 JSON | print JSON')
+    parser.add_argument('--romfs', type=Path,
+                        help='本体 RomFS 目录（要带 Pack/ZsDic.pack.zs）：用来读 zstd 字典并扫载荷 | the base RomFS directory (must hold Pack/ZsDic.pack.zs)')
     args = parser.parse_args()
 
     if not args.keys:
@@ -156,6 +224,8 @@ def main() -> int:
         and meta_offset + meta_size <= section['size']
         and hash_ok and ivfc_ok)
 
+    if args.romfs:
+        layout['payload'] = scan_payload(nca, section, args.romfs)
     if args.json:
         print(json.dumps(layout, ensure_ascii=False, indent=2))
     else:
@@ -181,6 +251,22 @@ def main() -> int:
         for region in layout['regions']:
             print('  0x%08x .. 0x%08x  %-22s %d 字节' % (
                 region['offset'], region['offset'] + region['size'], region['name'], region['size']))
+        if 'payload' in layout:
+            payload = layout['payload'][0]
+            print('载荷里的 zstd 帧：%d 个' % payload['frame_count'])
+            for record in payload['frames']:
+                if 'error' in record:
+                    print('  0x%08x  帧头解析失败：%s' % (record['offset'], record['error']))
+                    continue
+                if record.get('kind') == 'undecoded':
+                    print('  0x%08x  字典 id=%s 内容 %s → 解不开：%s' % (
+                        record['offset'], record['dict_id'], record['content_size'], record.get('error')))
+                    continue
+                print('  0x%08x  字典 id=%s 内容 %s → %s%s' % (
+                    record['offset'], record['dict_id'], record['content_size'],
+                    record.get('kind', '?'),
+                    ('，%d 条（例：%s）' % (record['entries'], record['first_entries']))
+                    if record.get('kind') == 'SARC' else ''))
         print('布局自洽：%s' % layout['consistent'])
     return 0 if layout['consistent'] else 1
 
