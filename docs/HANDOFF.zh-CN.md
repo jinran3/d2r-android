@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-21T04:05:00+08:00
+updated_at: 2026-10-21T04:25:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 14510c3
+observed_head: 2c6f80b
 origin_ref: origin/totk/scaffold
 origin_head_at_checkpoint: 25b56f4
 code_worktree: CLEAN
-next_action_id: NA-042
+next_action_id: NA-043
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,19 +140,19 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-21 04:05（Asia/Shanghai；**本机时钟比前几条日志早约 6 小时**，时间以 git 提交时间为准）
+- 快照时间：2026-10-21 04:25（Asia/Shanghai；**本机时钟比前几条日志早约 6 小时**，时间以 git 提交时间为准）
 - 当前阶段：M0 勘察完成；NA-033/034/035 收口；NA-036 数据/着色器/符号解析三条前置已验；NA-037 NVN 接口面对齐；NA-038 接口覆盖清零（103 → 0）；**NA-039 5 个空实现补成真实现 + NA-040 歧义控制键（43.6% 风险）给出运行期解法 + 预排布贴图接上**；下一步 NA-041 做 TotK 专属的 M4 部分；真机推包开机与更新包的 BKTR 补丁仍待办
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：见 frontmatter `observed_head`（`14510c3`：变体挑选再多试一个机器码位置；之前 `206777b` 预排布贴图、`2db6a3a` 变体挑选、`001d1c9` 5 个空实现）
+- 观测 HEAD：见 frontmatter `observed_head`（`2c6f80b`：真机预检脚本；之前 `14510c3` 变体候选、`206777b` 预排布贴图、`2db6a3a` 变体挑选、`001d1c9` 5 个空实现）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b31`）
-- 本次会话目标：NA-041（手机断开期间的离线工作）：包重建；把 M4 里「哪些要为 TotK 改」查清楚。
+- 本次会话目标：NA-042（手机断开期间的离线工作）：把设备前的闸门收成一条命令，给出「可以推机」的结论。
 - 已完成（带证据）：见下方「已完成清单」。
 - 未完成：**★ 真机推包与开机**（包已重建：`D:\Switch\totk-work\package-totk\totk-package.zip`，**16.62 GiB**；手机断开）。**★ 运行期仍未验的三件事**：① 变体挑选在真机上命中哪个候选（机器码的运行期地址）；② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。**★ M4 剩下的只有真机校准**（触控 / 音频 / 手柄的**通用件**已核对：触控是虚拟手柄布局、存档目录通用、音频与手柄映射通用 → 不用为 TotK 重写）。**★ 更新包的 BKTR 补丁**（无参考实现时解不开）。（数据包已就绪：`D:\Switch\totk-work\package-totk\totk-package.zip`，16.31 GiB，315,286 条目，**手机本会话完全断开**）。**★ 更新包的 RomFS 补丁（BKTR）**（段与本体同构、media type 4 vs 3、逻辑 17 GB 而物理 456 MiB；已排除明文 Brotli / 同段 CTR / XTS+头密钥三种可能，**没有参考实现时解不开**）。**歧义控制键的取舍**（1,640 个控制键对应多种机器码；变体之间差的是 Maxwell 私有编码的机器码（不是 ARM64，capstone 解不了），要靠真机画面定）。**Mac 侧的翻译链重建**（`dmsh_chain.h` 的版本本来就过期）。
-- 最近一次成功命令：`build.py --game-run --version trim-b37` exit 0；`build_package.py inspect` exit 0（game 9 / romfs 304,207 / shaders 24,535）；`dm/gfx/tools/nvn_coverage.py --check` exit 0（取址缺口 **0**、缺实现 **0**、空实现 **0**）；`dm/gfx/tools/totk_variant_keys.py` exit 0（47,260 个着色器键一致）；`dm/gfx/tools/totk_shader_package.py --verify-shaders` exit 0（11,447 meta、1,640 份变体名单、文件齐全）；`dm/gfx/tools/nvn_table.py --check` exit 0；`ci_checks.py` 12 项通过 / 1 项失败（失败项是交接控制面本身，见下一条，更新本文件后复跑应全绿）；`check_guest_imports.py` exit 0；`verify_totk_rewrite.py` exit 0。
+- 最近一次成功命令：`dm/android/tools/totk_preflight.py --package … --shaders … --quick` exit 0（结论：可以推机，1 项黄）；`build.py --game-run --version trim-b37` exit 0；`build_package.py inspect` exit 0（game 9 / romfs 304,207 / shaders 24,535）；`dm/gfx/tools/nvn_coverage.py --check` exit 0（取址缺口 **0**、缺实现 **0**、空实现 **0**）；`dm/gfx/tools/totk_variant_keys.py` exit 0（47,260 个着色器键一致）；`dm/gfx/tools/totk_shader_package.py --verify-shaders` exit 0（11,447 meta、1,640 份变体名单、文件齐全）；`dm/gfx/tools/nvn_table.py --check` exit 0；`ci_checks.py` 12 项通过 / 1 项失败（失败项是交接控制面本身，见下一条，更新本文件后复跑应全绿）；`check_guest_imports.py` exit 0；`verify_totk_rewrite.py` exit 0。
 - 最近一次失败命令及原因：① 第一次出的包**路径是错的**（父目录前缀丢失 → 1,693 处重名路径且内容不同、文件被放错目录）——**已定位并修复遍历**（`e946844`），重出的包 0 重名、抽样一致；② 手机在会话中途掉线（`adb devices` 空），真机部署顺延；③ 逐文件解包本体 RomFS 太慢（NTFS 小文件 + Defender，约 1 万个/2.5 小时）→ 改为导出 RomFS 映像再直接出包。
 - 已验证产物路径：仓库内新增 `dm/gfx/tools/nvn_slots_auto.py`、`dm/gfx/tools/nvn_table.py`、`dm/gfx/tools/nvn_coverage.py`、`dm/gfx/tools/totk_variant_keys.py`；仓库外 `D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，含 5,534 个控制段键 + 5,913 个变体完整键 + 1,640 份变体名单）；仓库内新增 `dm/gfx/tools/nvn_slots_auto.py`（自动定位 NVN 取址函数）、`dm/gfx/tools/nvn_table.py`（只靠名字表重建跳板/计数/原型表）、`dm/gfx/tools/nvn_coverage.py`（覆盖核对）、`dm/gfx/nvn/nvn_names_totk.txt`（TotK 取址名 534 个）、`dm/gfx/nvn/nvn_calls_totk.tsv`（TotK 真正调用的 213 个接口与调用点数）；仓库外：`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.31 GiB，含按 Android 口径重译的着色器** ✓）、`D:\Switch\totk-work\xlate-android\out0..5\`（9,807 个新 SPIR-V）、`D:\Switch\totk-work\package-totk\shaders\`（5,534 套宿主键）、`D:\Switch\totk-work\android-translator\`、`D:\Switch\totk-work\base\romfs.img`+`.ivfc`、`D:\Switch\totk-work\pack-totk\produce\game\`、`D:\Switch\totk-work\package-totk\ambiguity.tsv`；仓库内新增 `dm/android/tools/build_android_translator.py`、`dm/tools/verify_totk_rewrite.py`、`dm/tools/check_guest_imports.py`；APK `dm/android/build/D2R-Android-port.apk`（trim-b30）。
 - 当前阻塞：**手机完全断开**（线插着但 adb 枚举不到，PnP 报 Code 45）—— 推包与开机验证要等设备回来，这是唯一的外部阻塞。**数据侧只差更新包的 BKTR 补丁**（本体数据已完整且逐条校验过）。c[2] 布局、着色器键口径、着色器翻译口径（子组 64 + 每阶段描述符集）、驱动（系统 Adreno 750）、客体符号解析、数据路径映射都已经验过。
@@ -213,34 +213,29 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-042
+- ID：NA-043
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：HEAD 含 `14510c3`；数据包 `D:\Switch\totk-work\package-totk\totk-package.zip`（16.62 GiB）已重建并核对过清单；
-  `dm/gfx/tools/nvn_coverage.py --check` exit 0；**一加 12 仍然断开**（本动作不需要手机）。
-- 动作：**写「真机预检」脚本，把设备前能查的全套闸门一键跑完，并输出「可以推机 / 还差什么」的结论**：
-  ① 构建产物：APK 存在、`build.py --game-run` 可复现；
-  ② 数据包：清单可读（game / romfs / shaders 的条目数与字节数）、着色器键覆盖（每个 `.meta` 的 c[2] 偏移落在 TotK 的合并表区间）、
-     变体名单与文件一一对应；
-  ③ 客体接口：NVN 名字表覆盖 TotK 取址的全部名字、213 个被调接口全部有实现；
-  ④ 变体键链：流水线键与宿主运行期算法一致（对着归档重算）；
-  ⑤ 交接面：`ci_checks.py`、`agent_handoff_check.py --verify`；
-  ⑥ 结论分两档：**静态全绿（可以推机）** 与 **有红项（列出红项与对应的影响）**。
-  脚本只做检查与打印，**不改任何东西**；退出码 0 = 全绿，1 = 有红项。
-- 命令或编辑目标：新建 `dm/android/tools/totk_preflight.py`（一次性把上面 6 条串起来，调用现有的
-  `totk_shader_package.py --verify-shaders`、`nvn_coverage.py --check`、`totk_variant_keys.py`、
-  `build_package.py inspect`、`ci_checks.py`、`tools/agent_handoff_check.py --verify`）；
-  产物路径与包路径走命令行参数，不写死。
-- 成功判据：① `python dm/android/tools/totk_preflight.py --package <包>` exit 0 并打印「可以推机」；
-  ② 脚本对每条闸门都给出**证据行**（命令 + 退出码 / 数字），不是一句「通过」；
-  ③ 有红项时退出码为 1 并逐条列出影响（例如「变体挑选未验证 → 画面可能有 43.6% 的着色器不对」）；
-  ④ 脚本本身进 `ci_checks.py` 的闸门（只跑不需要游戏数据的那几条）。
-- 失败判据：闸门本身报错（例如包读不出来）→ 脚本要把它当成红项而不是崩掉，退出码 1 并说明。
-- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`14510c3`）。
-- 需要写入的证据：脚本的输出、退出码、每条闸门的证据行、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。
-- 顺带记下（下一步之后要做）：① **真机推包与开机**（手机一回来就做，见 NA-036 的步骤：推 16.62 GiB 的包 → 启动界面导入 →
-  「游戏」切到王国之泪 → 开机看 logcat；日志里重点看 `[vulkan-shader] 控制键 … 命中变体 …` 与 `【红】`）；
-  ② **更新包的 BKTR 补丁**（无参考实现时解不开）；③ **Mac 侧的翻译链重建**。
+- 前置条件：HEAD 含 `2c6f80b`；预检脚本刚跑过（结论「没有红项、有 1 项黄」）；**一加 12 仍然断开**（本动作不需要手机）。
+- 动作：**把「运行期机器码地址在哪」在静态层面钉死** —— 这是变体挑选那条路唯一的未知假设：
+  ① 在 TotK 的 main 里找到 BAHS 容器解析的那段代码（容器头 +0x18 是 code_size、+0x1C 是 code_base；
+     变体段在 0x150 + alignment；每个变体给出「代码区偏移 + 控制段偏移」），看它把**代码地址**与**控制段地址**
+     写进着色器表的哪个字段；
+  ② 与宿主侧的候选对齐：宿主目前试 `data`、`data ± 程序偏移`、`控制段 + 0x880`、`控制段 + 0x880 + 程序偏移`
+     五个位置；若静态结论指向别的位置，就把候选改成（或补上）那个位置；
+  ③ 结论写进 `docs/TOTK_PORT_PROGRESS.zh-CN.md` 与代码注释（**这是假设，写清依据**）；
+  ④ 顺带用预检脚本跑一次不带 `--quick` 的完整档（变体键链那条约 5 分钟），把「可以推机」的结论补成全绿。
+- 命令或编辑目标：TotK 二进制（`D:\Switch\totk-work\nso\upd_main.img`）+ `dm/android/native/nvn_vulkan_shader.inc`（候选列表）；
+  证据用 `dm/gfx/tools/nvn_slots_auto.py` 那套静态扫描写法（新写一个一次性脚本即可，不必进仓）。
+- 成功判据：① 静态结论给出「运行期机器码地址 = 哪个表达式的值」并附指令级证据（地址 + 反汇编片段）；
+  ② 宿主的候选列表与该结论一致（必要时改代码并重建）；③ `dm/android/tools/totk_preflight.py`（不带 --quick）exit 0，
+  结论为「全绿 → 可以推机」；④ `ci_checks.py` 全绿；⑤ `build.py --game-run --version trim-b38` exit 0。
+- 失败判据：静态上看不出来（游戏可能把容器拷来拷去）→ **不要瞎猜**，把「五种候选都试过、真机日志会告诉我们」的现状写进交接，
+  并把「日志里找 `[vulkan-shader] 控制键 … 命中变体 …`」列成真机第一件事。
+- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`2c6f80b`）。
+- 需要写入的证据：反汇编片段与地址、结论、代码改动、`totk_preflight.py` 的完整输出与退出码、`ci_checks.py` 计分行、
+  构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。
+- 顺带记下（下一步之后要做）：① **真机推包与开机**（手机一回来就做，见 NA-036 的步骤）；② **更新包的 BKTR 补丁**；③ **Mac 侧的翻译链重建**。
 
 ## 长操作两阶段日志
 
