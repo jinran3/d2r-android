@@ -3,6 +3,48 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 02:10 Asia/Shanghai — [TOTK] 启动界面的游戏档位、导入上限、着色器包按档位校验
+
+- 会话目标：把不依赖手机的事做完。
+- 结果：启动界面能切「暗黑2 / 王国之泪」两档；导入器的条目上限原本会把 TotK 的包判成「太大」，已修；着色器包现在能按档位自动核对句柄表区间 —— **从翻译产物独立印证了 TotK 用合并句柄表 0x20+8r**。手机仍完全断开，推包与开机顺延。
+
+[BEGIN] na-036-launcher-and-caps
+
+- 命令：`dm/ios/tools/dm_i18n.py --check`、`dm/android/tools/build.py --game-run --version trim-b30`、`dm/gfx/tools/totk_shader_package.py --verify-shaders …`、`dm/android/tools/ci_checks.py`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：中英表一致、APK 能构建、着色器包的句柄偏移落在 TotK 的区间里、闸门全绿。
+- 日志路径：`D:\Switch\totk-work\`
+- 回滚点：`047c0dc`
+
+[END] na-036-launcher-and-caps
+
+- 退出码：`dm_i18n.py --check` exit 0（204 条 ✓）；`build.py --game-run --version trim-b30` exit 0 ✓；
+  `totk_shader_package.py --verify-shaders` exit 0 ✓；`ci_checks.py` 12 项通过（交接控制面一项在本条更新后重跑）。
+- 产物：启动界面的「游戏」行与三条文案、导入条目上限 600,000、着色器包的 `--verify-shaders` 模式；
+  APK `dm/android/build/D2R-Android-port.apk`（trim-b30）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机断开）。
+
+证据（本条目对应的命令与退出码）：
+
+- **启动界面**：`LauncherActivity.java` 新增 `GAME_STATES = {"d2r", "totk"}`、「游戏」行、状态文件里的 `game=`，
+  以及写进 `launch-settings.conf` 的 **`game_profile=`** ✓（并把 `game_profile` 加进 `OWNED_KEYS`，
+  重写配置时不会抹掉 ✓）。native 侧早就支持这个键（`launch_settings.c` → `DM_GAME_PROFILE` ✓），缺的是界面这一头。
+- **导入上限**：`PackageArchive.java` 的 `MAX_ENTRIES` 原本是 **300,000**，而 TotK 的包有 **315,286** 个条目
+  → 会被判成「太大」直接拒掉。现在改成 600,000（仍然只用来挡恶意包 ✓），注释里写明哪个包需要余量 ✓。
+  `MAX_TOTAL_BYTES`（24 GiB）与 `MAX_ENTRY_BYTES`（12 GiB）本来就够 ✓。
+- **★ 独立印证 c[2] 布局**：新增 `totk_shader_package.py --verify-shaders` —— 逐个 `.meta` 解析贴图/图像绑定的
+  c[2] 字节偏移 `(handle & 0x3fff) * 4`，要求落在该档位的句柄表区间且 8 字节对齐。
+  实测 TotK 包：**5,534 个 meta、31,626 个贴图绑定、恰好 32 个不同偏移（0x20 .. 0x118）**，
+  **全部落在 [0x20, 0x120) 且 8 字节对齐 ✓** —— 说明机器码里的贴图立即数真的指着合并句柄表那张表，
+  宿主按 `0x20 + 8r` 去取是对的 ✓（此前只有「立即数落在 0x20..0x118」这一个统计口径，现在由翻译产物本身复核了一遍）。
+- **BKTR 的进展**：那个段的 fs_header 与本体同构，只是 media type 是 4 而不是 3；IVFC 声称逻辑大小 17 GB 而物理只有 456 MiB
+  → **确实是增量补丁** ✓。但按 CTR 解出来整段都是随机字节（哈希表本该有大量零）→ **加密方式与其它段不同** ✗。
+  上游 hactool 1.4.0 报 "Invalid BKTR layout!"，而本机连不上 GitHub 取不到它的实现 → 只能逆向，暂缓。
+- **部署脚本**：`deploy_totk.py` 改成「推包 zip + 写 game_profile」，其余交给启动界面的导入流程
+  （它本来就把 `game/` 放内部存储、`romfs/` 与 `shaders/` 放外部存储 ✓）。
+- 下一步：**NA-036** —— 手机回来后推包、导入、开机看日志。
+
 ## 2026-10-21 01:20 Asia/Shanghai — [TOTK] 启动界面加「游戏」档位（D2R / TotK）
 
 - 会话目标：把剩下的、能不依赖手机做完的事做完。
