@@ -163,8 +163,68 @@ static shader_entry *shader_load_by_key(const char *key,int stats,int fatal) {
 }
 // 运行期入口：控制块哈希出键，命中共享表或走致命加载；预热入口按清单键非致命加载。
 // Runtime entry: hash the control block to a key, then hit the shared table or load fatally; the warm entry loads non-fatally by manifest key.
-static shader_entry *shader_get(const void *control) {
+// 控制段里的代码描述字段：c1 偏移（+0x700）、指令区总长（+0x704）、程序在代码区里的偏移（+0x708）。
+// The code descriptor fields inside the control block: the c1 offset (+0x700), the instruction-area
+// length (+0x704) and the program offset inside the code area (+0x708).
+static int shader_code_layout(const void *control,uint32_t *c1_offset,uint32_t *total,uint32_t *offset) {
+    const uint8_t *c=(const uint8_t *)control;uint32_t co,tt,of;
+    memcpy(&co,c+0x700,4);memcpy(&tt,c+0x704,4);memcpy(&of,c+0x708,4);
+    if(of>0x1000||co<=of||tt<co||tt-co>0x100000)return 0;
+    *c1_offset=co;*total=tt;*offset=of;return 1;
+}
+// 完整键 = sha256(控制段前 0x880 字节 + 机器码 + c1)，与流水线的变体键同口径。
+// The full key = sha256(control[0:0x880] + machine code + c1), the same convention as the pipeline's
+// variant key.
+static void shader_full_key(const void *control,const void *code,size_t len,char *out) {
+    uint8_t hash[32];dm_android_sha256_context ctx;dm_android_sha256_init(&ctx);
+    dm_android_sha256_update(&ctx,control,0x880);dm_android_sha256_update(&ctx,code,len);dm_android_sha256_final(hash,&ctx);
+    for(int i=0;i<8;i++)snprintf(out+i*2,3,"%02x",hash[i]);
+}
+// 变体名单（<控制键>.variants）里有没有这个完整键。
+// Whether the variant list (<control key>.variants) contains this full key.
+static int shader_variants_has(const char *variants,size_t vbytes,const char *key) {
+    size_t klen=strlen(key);
+    for(size_t i=0;i<vbytes;){
+        if(i+klen<=vbytes&&!memcmp(variants+i,key,klen)&&(i+klen==vbytes||variants[i+klen]=='\n'||variants[i+klen]=='\r'))return 1;
+        while(i<vbytes&&variants[i]!='\n')i++;
+        if(i<vbytes)i++;
+    }
+    return 0;
+}
+// 同一控制段哈希下可能有多个机器码变体（TotK 有 1,640 个这样的键，覆盖 43.6% 的着色器出现次数）：
+// 控制段本身分不出变体 → 用运行期能看到的机器码算「完整键」去挑变体；挑不到就退回控制段键
+// （拿包里多数派那个变体），并在日志里说清楚用的是哪一条。
+// One control hash can cover several machine-code variants (TotK has 1,640 such keys, covering 43.6%
+// of the shader occurrences): the control block alone cannot tell them apart → compute the full key
+// from the machine code visible at run time and pick the matching variant; if that fails, fall back to
+// the control key (the majority variant) and log which path was taken.
+static shader_entry *shader_get(const void *control, NVNbufferAddress data) {
     uint8_t hash[32];dm_android_sha256_context ctx;dm_android_sha256_init(&ctx);dm_android_sha256_update(&ctx,control,0x880);dm_android_sha256_final(hash,&ctx);char key[17];for(int i=0;i<8;i++)snprintf(key+i*2,3,"%02x",hash[i]);
+    size_t vbytes=0;char *variants=(char *)read_shader_file_opt(key,"variants",&vbytes);
+    if(variants){
+        uint32_t co,tt,of;
+        if(shader_code_layout(control,&co,&tt,&of)){
+            uint32_t plen=co-of,clen=tt-co,total=plen+clen;
+            uint64_t starts[5];unsigned nstarts=0;
+            starts[nstarts++]=data;                       // 客体给的数据地址可能就是程序起点 | the guest's data address may be the program start
+            if(data>=of)starts[nstarts++]=data-of;        // 或者是代码区起点 | or the start of the code area
+            starts[nstarts++]=(uint64_t)(uintptr_t)control+0x880;   // 或者程序紧跟在控制段后面 | or the program directly follows the control block
+            if((uint64_t)(uintptr_t)control+0x880+of>=(uint64_t)(uintptr_t)control+0x880)starts[nstarts++]=(uint64_t)(uintptr_t)control+0x880+of;
+            uint8_t *buf=(uint8_t *)malloc(total);
+            if(buf){
+                for(unsigned i=0;i<nstarts;i++){
+                    if(!starts[i]||snapshot_read((uintptr_t)starts[i],buf,total))continue;
+                    char vkey[17];shader_full_key(control,buf,total,vkey);
+                    if(!shader_variants_has(variants,vbytes,vkey))continue;
+                    shader_entry *s=shader_load_by_key(vkey,0,0);
+                    if(s){LOG("[vulkan-shader] 控制键 %s 命中变体 %s（机器码来自 %#llx）| control key %s picked variant %s (machine code at %#llx)",key,vkey,(unsigned long long)starts[i],key,vkey);free(buf);free(variants);return s;}
+                }
+                free(buf);
+            }
+        }
+        LOG("[vulkan-shader] 控制键 %s 的变体没挑中，退回多数派变体 | control key %s: no variant matched, using the majority variant",key,key);
+        free(variants);
+    }
     return shader_load_by_key(key,1,1);
 }
 // ProgramSetShaders 每次生成新序号；按程序地址及序号复用解析，防地址重用返回旧着色器。
@@ -173,11 +233,11 @@ typedef struct resolved_program { const prog_t *program; uint64_t serial; shader
 static resolved_program *program_index[1024];
 static shader_entry *program_shader(const prog_t *program,unsigned index) {
     if(index>=program->nstage||index>=6)die("Vulkan program stage bounds");
-    if(!program->serial)return shader_get(program->sd[index].control);
+    if(!program->serial)return shader_get(program->sd[index].control,program->sd[index].data);
     unsigned bucket=((uintptr_t)program>>4)&1023;resolved_program *entry=program_index[bucket];while(entry&&entry->program!=program)entry=entry->next;
     if(!entry){entry=calloc(1,sizeof *entry);if(!entry)die("Vulkan program cache allocation");entry->program=program;entry->next=program_index[bucket];program_index[bucket]=entry;}
     if(entry->serial!=program->serial){entry->serial=program->serial;memset(entry->shaders,0,sizeof entry->shaders);}
-    if(!entry->shaders[index])entry->shaders[index]=shader_get(program->sd[index].control);return entry->shaders[index];
+    if(!entry->shaders[index])entry->shaders[index]=shader_get(program->sd[index].control,program->sd[index].data);return entry->shaders[index];
 }
 static void program_remove(const prog_t *program) {
     unsigned bucket=((uintptr_t)program>>4)&1023;resolved_program **link=&program_index[bucket];while(*link&&(*link)->program!=program)link=&(*link)->next;

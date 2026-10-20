@@ -141,13 +141,29 @@ def verify_shaders(directory, tex_base, tex_end):
                 if not tex_base <= offset < tex_end or (offset - tex_base) % 8:
                     bad.append((path.name, hex(offset)))
             position += 40
-    print("着色器包 %s：%d 个 meta，贴图/图像用到的 c[2] 偏移 %d 个（%s .. %s）"
-          % (directory, len(metas), len(offsets), hex(min(offsets)) if offsets else "-",
-             hex(max(offsets)) if offsets else "-"))
+    # 变体名单：名单里的每个完整键都要有对应的 .spv 与 .meta（宿主按名单挑变体）。
+    # The variant lists: every full key in a list needs its .spv and .meta (the host picks a variant from the list).
+    variant_lists = sorted(p for p in directory.iterdir() if p.name.endswith(".variants"))
+    missing_variant = []
+    listed = 0
+    for path in variant_lists:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            key = line.strip()
+            if not key:
+                continue
+            listed += 1
+            if not (directory / (key + ".spv")).is_file() or not (directory / (key + ".meta")).is_file():
+                missing_variant.append((path.name, key))
+    print("着色器包 %s：%d 个 meta，%d 份变体名单（列了 %d 个完整键），贴图/图像用到的 c[2] 偏移 %d 个（%s .. %s）"
+          % (directory, len(metas), len(variant_lists), listed, len(offsets),
+             hex(min(offsets)) if offsets else "-", hex(max(offsets)) if offsets else "-"))
     if bad:
         print("不合规 %d 个（前面几个：%s）" % (len(bad), bad[:5]))
         return 1
-    print("全部落在 [%#x, %#x) 且 8 字节对齐 ✓" % (tex_base, tex_end))
+    if missing_variant:
+        print("变体名单里缺文件的 %d 个（前面几个：%s）" % (len(missing_variant), missing_variant[:5]))
+        return 1
+    print("全部落在 [%#x, %#x) 且 8 字节对齐 ✓；变体名单里的文件齐全 ✓" % (tex_base, tex_end))
     return 0
 
 
@@ -208,6 +224,37 @@ def main():
         (shaders / (host_key + ".meta")).write_bytes(build_meta(row["stage"], entries, c1, attributes))
         packaged += 1
 
+    # 同一个控制段哈希下有多个机器码变体时：**控制段本身分不出变体**，
+    # 宿主在运行期只能拿到控制段哈希 → 必须把变体也按「完整键」（含机器码与 c1）一起放进包里，
+    # 宿主用运行期算出的完整键去挑变体；挑不到就退回控制段键（拿多数派那个变体）。
+    # When one control hash has several machine-code variants, the control block alone cannot tell
+    # them apart: ship the variants under their full keys (control + machine code + c1) as well, so
+    # the host can pick the right one at run time; if it cannot, it falls back to the control key.
+    variants_written = 0
+    for host_key, group in by_host.items():
+        keys = sorted(Counter(row["key"] for row in group).items(), key=lambda item: (-item[1], item[0]))
+        if len(keys) <= 1:
+            continue
+        with (shaders / (host_key + ".variants")).open("w", encoding="utf-8") as f:
+            for key, _ in keys:
+                f.write(key + "\n")
+        for key, _ in keys:
+            row = next(item for item in group if item["key"] == key)
+            spv = find(args.spirv, key + ".spv")
+            res = find(args.spirv, key + ".res.json")
+            if not spv.is_file() or not res.is_file():
+                continue
+            meta = json.loads(res.read_text(encoding="utf-8"))
+            entries = [(0, {"binding": 0})]
+            for kind, label in [(1, "cbufs"), (2, "sbufs"), (3, "textures"), (4, "images")]:
+                entries += [(kind, binding) for binding in meta.get(label, [])]
+            c1 = bytes.fromhex(row.get("c1") or "")
+            code = spv.read_bytes()
+            attributes = spirv_inputs(code, facts.get(key, {}).get("attr", {})) if row["stage"] == "vs" else [0] * 32
+            (shaders / (key + ".spv")).write_bytes(code)
+            (shaders / (key + ".meta")).write_bytes(build_meta(row["stage"], entries, c1, attributes))
+            variants_written += 1
+
     report = args.ambiguity or (args.out / "ambiguity.tsv")
     report.parent.mkdir(parents=True, exist_ok=True)
     with report.open("w", encoding="utf-8") as f:
@@ -216,11 +263,12 @@ def main():
             f.write("%s\t%d\t%s\t%s\n" % (host_key, len(counts), chosen[host_key],
                                            ",".join("%s:%d" % item for item in counts)))
     profile = {"schema": 1, "shader_count": packaged, "spirv_target": "vulkan1.1",
-               "host_key": "sha256(control[0:0x880])", "control_keys": len(by_host),
-               "variant_keys": len(rows), "ambiguous_control_keys": len(ambiguous)}
+               "host_key": "sha256(control[0:0x880])", "variant_key": "sha256(control + machine code + c1)",
+               "control_keys": len(by_host), "variant_keys": len(rows),
+               "ambiguous_control_keys": len(ambiguous), "variant_files": variants_written}
     (args.out / "host-profile.json").write_text(json.dumps(profile, indent=2) + "\n", encoding="utf-8")
-    print("着色器包：%d 个宿主键（变体 %d 个），歧义控制键 %d 个；缺翻译结果 %d 个"
-          % (packaged, len(rows), len(ambiguous), missing))
+    print("着色器包：%d 个宿主键（变体 %d 个），歧义控制键 %d 个（另存变体文件 %d 个）；缺翻译结果 %d 个"
+          % (packaged, len(rows), len(ambiguous), variants_written, missing))
     print("包目录：%s；歧义报告：%s" % (shaders, report))
     return 1 if missing else 0
 
