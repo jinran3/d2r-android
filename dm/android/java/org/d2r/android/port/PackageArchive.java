@@ -39,12 +39,15 @@ final class PackageArchive {
     static final String[] MODULE_NAMES = {"main", "sdk", "subsdk0"};
     static final String[] LAYOUT_KINDS = {"fixups", "gates"};
 
-    // 上限只用来挡恶意或损坏的包：真实包约 9 GB、约 4.2 万个条目、清单 310 字节，离这些值很远。
-    // The caps only stop a hostile or corrupt archive: a real package is about 9 GB, about 42k entries and a
-    // 310-byte manifest, far from these numbers.
+    // 上限只用来挡恶意或损坏的包。D2R 的真实包约 9 GB、约 4.2 万个条目；TotK 的包是本体 RomFS
+    // （304,207 个文件）加着色器与模块，约 17.4 GB、约 31.5 万个条目 —— 条目上限必须留出余量，
+    // 否则 TotK 的包会被直接判成"太大"而导不进去。
+    // The caps only stop a hostile or corrupt archive. D2R's real package is about 9 GB and 42k entries; TotK's
+    // package carries the base RomFS (304,207 files) plus the shaders and modules, about 17.4 GB and 315k entries,
+    // so the entry cap needs headroom or the TotK package would be refused as too big.
     private static final long MAX_ENTRY_BYTES = 12L << 30;
     private static final long MAX_TOTAL_BYTES = 24L << 30;
-    private static final int MAX_ENTRIES = 300000;
+    private static final int MAX_ENTRIES = 600000;
     private static final int MAX_MANIFEST_BYTES = 1 << 20;
 
     private PackageArchive() { }
