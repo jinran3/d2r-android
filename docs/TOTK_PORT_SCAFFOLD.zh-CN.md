@@ -140,7 +140,20 @@ main (保留 D2R 可构建)
 
 **结论**：M3 之前必须用 A+B 组合拿到「能出 3D 画面」的事实表，并把 D 当备选调研。**这是本计划里唯一可能推翻「原生移植」路线、被迫退回模拟器路线的风险点**，要在 M2 结束时就给出结论，不要拖到 M3。
 
-**2026-10-20 的实测结论（风险基本解除）**：
+**2026-10-20 的实测结论（路线已在本机跑通，风险解除）**：
+
+- **TotK 的着色器能翻成 SPIR-V**：用我们自己的工具链（`dm/gfx/tools/dmsh_xlate` + 仓内 `dm/third_party/ryujinx`，都在本机构建），
+  把 TotK 的 Maxwell 机器码翻成 SPIR-V（Vulkan 口径）——实测 200 个作业翻译 190 成功 / 10 失败（去重后 126 个唯一键里只有 3 个失败）。
+  事实表为空时按缺省作答即可，**不需要 PC 版反射**。这就把 §4.4 这条「可能推翻整条路线」的风险解除了。
+- **可复现的编译步骤**（本机 Windows）：装 .NET 10 SDK（`https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.401/dotnet-sdk-10.0.401-win-x64.zip`）
+  → `dotnet build dm/gfx/tools/dmsh_xlate/dmsh_xlate.csproj -c Release -o <输出目录>`（csproj 目标 `net10.0`；
+  仓内 `dm/third_party/ryujinx` 是 MIT 源码）；跑翻译用 `dotnet <输出目录>/dmsh_xlate.dll <作业.json> <输出目录>`
+  （apphost `dmsh_xlate.exe` 在本机会报 BadImageFormat，直接跑 dll 更稳）。
+- **翻译器要对 TotK 做三处适配**（已做成**作业驱动**，D2R 行为一字未变）：① 深度范围：TotK 用 -1..1（作业 `depth_minus_one_to_one = true`；D2R 仍是 0..1）；
+  ② 宿主能力：声明宿主不支持 fp64 与深度裁剪控制（作业 `host_no_fp64` / `host_no_depth_clip`），
+  翻译器据此降级；③ **联编**：作业带下一阶段（顶点 → 像素，作业 `next.code`），片元阶段才知道顶点写出的属性。
+
+
 
 - 任天堂的 zstd 字典**在游戏自己里**：`/Pack/ZsDic.pack.zs` 是 SARC，装 3 份 128 KB 字典（id 1/2/3），着色器包的 zstd 帧头写明自己要哪一份（着色器用 id=1）。没有它，任何 `*.bfsha.zs` / `*.sarc.zs` 都是 `Dictionary mismatch`。
 - 用这份字典，TotK 的着色器归档**能解开**：`ApplicationPackage.Nin_NX_NVN.release.sarc.zs` → SARC（19 个条目，含 `*.sharcb`），各 `*.bfsha.zs` → FSHA 容器；条目里带 `cTexSrc`、`gl_InstanceID` 这类**反射元数据**。所以 D2R 那条「从 PC 版反射冻结事实表」的路确实不存在，但**从游戏自带归档取**（方案 D）成立 —— 事实表的下一步是把 FSHA / BNSH 的结构解析出来。

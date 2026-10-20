@@ -1,6 +1,6 @@
 ---
 protocol: 1
-updated_at: 2026-10-20T12:40:00+08:00
+updated_at: 2026-10-20T14:10:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
@@ -151,7 +151,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b26`，17,725,903 字节）
 - 本次会话目标：NA-031（模块来源接规则域 + HLE 缺口普查）与 NA-032（§4.4 着色器事实表来源）。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：贴图维度 / 图像格式 / 属性分量类型**不在着色器里**（已实测确认），要靠游戏数据或运行期观测；翻译链（`dm/gfx/tools/dmsh_xlate` + 仓内 Ryujinx C#）**要在本机编出来**（csproj 目标 net10.0，需 .NET 10 SDK）并翻一批 TotK 着色器到 SPIR-V 验证路线（NA-032 剩下的部分）；**改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」和 `blr x18` 调用两种 D2R 没有的形态，当前 TotK 规则域先不做 x18 改写，Android 侧靠宿主保全 x18；正式做法见 NA-032 之后那一步）；更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这层）；真机装载与进 `nnMain`（一加 12 未接）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线）。
+- 未完成：把 TotK 的全部着色器翻成 SPIR-V 并出库（现在只验证了 200 个作业 / 126 个唯一键），修掉那 3 个翻译失败的着色器（`IndexOutOfRangeException`）；贴图维度 / 图像格式 / 属性分量类型**不在着色器里**（已实测确认），要靠游戏数据或运行期观测；**改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」和 `blr x18` 调用两种 D2R 没有的形态，当前 TotK 规则域先不做 x18 改写，Android 侧靠宿主保全 x18；正式做法见 NA-032 之后那一步）；更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这层）；真机装载与进 `nnMain`（一加 12 未接）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线）。
 - 最近一次成功命令：`build.py --game-run --version trim-b26` exit 0（APK 17,725,903 字节）；`ci_checks.py` 10 项通过 / 0 项失败；`agent_handoff_check.py --verify` exit 0；`test_rewriter.py` exit 0；`make_package.py --ruleset totk-run-v1 --exefs ... --modules-only` exit 0；`switch_shaders.py` exit 0（30 个着色器文件 + 清单）。
 - 最近一次失败命令及原因：① `make_package.py` 第一次跑 TotK 报 `FileNotFoundError: ...\produce\game` —— 自备 ExeFS 那条路少了 `produce.mkdir`，已修；② `test_rewriter.py` 首次报 `FileNotFoundError` —— 本机没设 `DM_ANDROID_TOOLS`（脚本按 `~/dm-work/tools/android` 找工具链），设上即 exit 0；③ `switch_nca.py romfs-extract` 多线程共用一个文件句柄导致读串台（已改为每线程一个句柄，并加了读满校验）。
 - 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（`trim-b26`）；TotK 侧仓库外产物：`D:\Switch\totk-work\`（upd-exefs、pack-totk\produce\game、guest-so、shaders-out、base\RomFS 解包中）
@@ -202,6 +202,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-032 §4.4 着色器事实表来源（`944681d`）：**任天堂的 zstd 字典就在游戏自己里** —— `/Pack/ZsDic.pack.zs` 是个 SARC装着 3 份 128 KB 字典（`zs.zsdic` id=1、`bcett.byml.zsdic` id=2、`pack.zsdic` id=3），着色器包的 zstd 帧头写着自己要 id=1；之前「Dictionary mismatch」的死结由此解开。用新写的 `dm/tools/switch_shaders.py` 解出全部着色器归档：`ApplicationPackage.Nin_NX_NVN.release.sarc.zs` → SARC 19 个条目（含 `AglShader.sharcb` 794,624 字节等），12 个 `*.bfsha.zs` → FSHA 容器（`material...` 解出 101,165,712 字节），条目里带 `cTexSrc`、`gl_InstanceID`、`grass_shader` 这类**反射元数据字符串** —— 也就是 D2R 那条「从 PC 版反射冻结事实表」的路对 TotK 不成立，但**从游戏自带的着色器归档取**这条路成立（方案 D 可行），§4.4 的 go/no-go 风险基本解除。
 - NA-032 着色器事实表（第一半，`a25ccc3`）：按确认的归档格式自己写了 `dm/gfx/tools/totk_shaders.py`（BNSH / FSHA / BAHS v9 三种容器 → 逐着色器解出控制头、机器码与 C1，算出**着色器键** = `sha256(control+program+c1)[:16]`、阶段、控制头尺寸）。实测：`/Shader` 归档里 49,089 条记录、**9,807 个唯一键**（cs 18 / ps 5,557 / vs 4,232）；**计算着色器的线程组与共享内存直接从控制头 0x748 读出**（如 64x1x1、8x8x1、1x1x1，共享内存 0 / 2048 字节）—— 这类事实**不需要 PC 反射**，TotK 侧直接可得。贴图维度 / 图像格式 / 属性分量类型的位置还没定位（C1 块很小，多半在控制头的描述符表），仍按方案 A / B 走。
 - NA-032 着色器事实（第二半的实测）：**贴图维度 / 图像格式 / 属性分量类型不在着色器里** —— 抽查 4 个归档的 vs / ps，控制头（0x880 字节）只有 15–33 个非零字、没有描述符表，C1 块也只有 0–64 字节；这几项事实只能来自游戏的数据（材质 / 图形数据）或运行期观测（方案 B）。同时确认：我们的翻译链 `dm/gfx/tools/dmsh_xlate/`（MIT，引用仓内 `dm/third_party/ryujinx` 的 MIT 源码）输入作业里带 `tex` / `img` / `attr` / `fout` / `local` / `c1`，**缺项按缺省作答**（2D / R8G8B8A8Unorm / float），输出是 **SPIR-V（Vulkan）** —— 正是 Android 侧要的东西，也正是方案 A 的落点。它的 csproj 目标 `net10.0`，本机只有 .NET 8（覆盖目标框架会报 NETSDK1045），已下载 Windows 版 .NET 10.0.401 SDK（300,608,304 字节）到仓库外工作区，解压中。
+- NA-032 收尾（`3a9ea0c` + 本条）：**TotK 着色器在本机翻成 SPIR-V 成功** —— 本机装 .NET 10.0.401 SDK（Windows x64，300,608,304 字节，仓库外工作区）后 `dotnet build dm/gfx/tools/dmsh_xlate/dmsh_xlate.csproj -c Release` exit 0（15 分 9 秒，0 警告 0 错误，产出 dmsh_xlate + Ryujinx.Graphics.Shader.dll 等 68 个文件），再用 TotK 的键 + 机器码 + c1 造作业翻译：**单个像素着色器「翻译 1 成功，0 失败」**（产出 1,860 字节 SPIR-V + res.json），**批量 200 个作业「翻译 190 成功，10 失败」**（去重后 126 个唯一键里只有 3 个失败，都是翻译器内部 `IndexOutOfRangeException`）。翻译器已做三处 **作业驱动** 的 TotK 适配（深度范围 -1..1、宿主不支持 fp64 与深度裁剪控制、顶点→像素联编），D2R 的行为一字未变（缺省值即原值）。**注意**：改了 `Program.cs` 后翻译器源码指纹变了，Mac 侧要重建一次并跑 `dm/gfx/tools/dmsh_chain.py --update-lock`（D2R 产物不变，只是锁里的源码指纹要更新）。另修了自己一个解析错误：c1 块的长度是 `0x704 - 0x700`（指令区总长减 c1 偏移），不是 `0x6fc` 那个字段——此前「C1 只有几字节」是假象，真实 c1 是 256 字节（开头就是间接跳转表）。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
@@ -215,7 +216,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
 - 前置条件：HEAD / origin 均为 NA-032 的业务提交（见 frontmatter）；代码工作区干净；着色器归档已能解出（`D:\Switch\totk-work\shaders-out\`，30 个文件 + `manifest.json`）。
-- 动作：把解出的着色器归档变成**事实表**并让仓库现有的翻译链吃下 TotK 的着色器：① 事实表第一版 = 计算着色器的线程组与共享内存（已能给出）+ 其余按缺省（翻译器的缺省查询本来就按 2D / R8G8B8A8Unorm / float 作答）；② **在本机编出翻译器**（`dm/gfx/tools/dmsh_xlate/dmsh_xlate.csproj`，目标 net10.0 → 需 .NET 10 SDK；仓内 `dm/third_party/ryujinx` 是 MIT 源码）；③ 用 TotK 的键 + 机器码 + c1 造一批作业，翻成 SPIR-V，看能否成功并检查产物。归档结构已摸清（BNSH / FSHA / BAHS v9，键 = `sha256(control+program+c1)[:16]`），事实表的边界也清楚了（见「已完成清单」）；剩下的就是编译翻译器与翻一批着色器。
+- 动作：把 TotK 的着色器**全量翻成 SPIR-V**（工具链已在本机跑通）：① 事实表第一版 = 计算着色器的线程组与共享内存（已能给出）+ 其余按缺省；② 翻译器已在本机编出（.NET 10 SDK + `dotnet build dm/gfx/tools/dmsh_xlate/dmsh_xlate.csproj`），三处 TotK 适配已做成作业驱动（深度范围 / 宿主能力 / 顶点-像素联编）；③ 用 `dm/gfx/tools/totk_shaders.py` 的索引（键 + 机器码 + c1）给**全部 9,807 个键**造作业并翻译，统计失败集并逐个查因（已知 3 个失败是翻译器内部 `IndexOutOfRangeException`）。归档结构已摸清（BNSH / FSHA / BAHS v9，键 = `sha256(control+program+c1)[:16]`），事实表的边界也清楚了（见「已完成清单」）；剩下的就是编译翻译器与翻一批着色器。
 - 命令或编辑目标：先 `git grep -n -e shader_facts -e dmsh_facts -- dm/gfx/tools` 看现有事实表的格式与消费方，再写一个解析脚本（放 `dm/tools/` 或 `dm/gfx/tools/`，按仓库规矩命名），用 `D:\Switch\totk-work\shaders-out\` 里的文件跑；随后 `ci_checks.py`、`build.py --game-run --version trim-b28`。
 - 成功判据：能从一批 TotK 着色器里读出维度 / 格式 / 线程组等事实并写成与现有事实表同格式的表；对同一批着色器跑翻译链能产出 SPIR-V 且不报「缺事实」；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b28` exit 0 且产出 APK。
 - 失败判据：解析不出事实（说明游戏自带归档里没有这些信息 → §4.4 需要改走方案 A/B，**如实记录并改结论**）、翻译链吃不下、任一验证命令非零 —— 此时回滚本批并更新计划 §4.4 的结论。
