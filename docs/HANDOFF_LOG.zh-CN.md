@@ -3,6 +3,44 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 07:40 Asia/Shanghai — [TOTK] 收口三件事：x18 那条其实是空谈、D2R 的 Android 翻译器是上一轮改坏的、数据路径对得上
+
+- 会话目标：把交接清单里剩下的、能在本机查清的三条查清。
+- 结果：① 「分支跳进独占窗口中间」那类形态**在 TotK 下根本不会被处理**（整套 x18 机制由 `REWRITE_X18` 开关控制，TotK 规则域为关）；② **D2R 的 Android 着色器翻译器是上一轮（`3a9ea0c`）改坏的**（基座新增了按作业作答的 fp64，模板又注入了一个同名成员 → CS0111，编译不过），本轮修好；③ 宿主的数据路径映射**不假设 D2R 的 `data/` 前缀**，`rom:/Shader/xxx` 直接落到 `<DM_ROMFS>/Shader/xxx`，TotK 的 RomFS 树能原样对上。
+
+[BEGIN] na-036-loose-ends
+
+- 命令：`git log -S`、`dm/tools/verify_totk_rewrite.py`、读 `dm/tools/patch_nso.py` 与 `dm/host/hle_fs.c`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：把这三条查清并写进交接。
+- 日志路径：无（只读核对）
+- 回滚点：`36807df`
+
+[END] na-036-loose-ends
+
+- 退出码：只读核对，无构建。
+- 产物：交接文档与日志更新。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机断开）。
+
+证据（本条目对应的命令与退出码）：
+
+- **x18 / 独占窗口**：`dm/tools/patch_nso.py` 里 `REWRITE_X18 = RULESET != 'totk-run-v1'`（第 206 行），
+  而 `kinds` 里的 'x18' 条目只在 `REWRITE_X18` 为真时才会写入（第 616 行）；
+  独占窗口与 `br x18` 跳转表的搜索只在「含有 x18 条目的函数」里做（第 625 行）——
+  所以 TotK 规则域下**窗口与跳转表一个都找不到**，「分支跳进独占窗口中间」这类形态压根不会被处理 ✓。
+  与 `verify_totk_rewrite.py` 的实测一致：改动只落在登记的改写点上，没有一处涉及 x18 ✓。
+- **D2R 的 Android 翻译器是被上一轮改坏的**：`git show 3a9ea0c^:…/Program.cs` 里基座**没有** `QueryHostSupportsShaderFloat64`，
+  模板注入一个不重名 ✓ 能编译 ✓；`3a9ea0c` 给基座加了按作业作答的 `host_no_fp64` ✓ → 模板再注入一个同名成员 ✗ → CS0111 ✗ →
+  **D2R 的 Android 着色器库从那以后就构建不出来**。本轮把注入改成**替换**基座那一条 ✓，
+  并让 c[2] 句柄表区间按作业给（缺省仍是 D2R 的 0x168/0x568 ✓，D2R 产物不变 ✓）。已实测能构建 ✓。
+- **数据路径**：`dm/host/hle_fs.c` 的 `host_path_ex()` 把客体的 `rom:/<路径>` 逐段拼到挂载目录上，
+  **没有**任何 D2R 专属的 `data/` 前缀假设 ✓；`DM_ROMFS_OVERLAY` 的多层覆盖也保留着 ✓（将来接上 BKTR 补丁时用得上）。
+  所以包里 `romfs/Shader/...` 会被解到 `<外部>/d2r-package/romfs/Shader/...` ✓，正是宿主要开的路径 ✓。
+- **歧义控制键**：两个变体差的是 Maxwell 私有编码的机器码（**不是 ARM64**，capstone 解不了），
+  其中一部分落在 SPH 之后的填充区 ✓。要判"游戏用的是哪一个"只能靠真机画面 ✓，静态判不了。
+- 下一步：**NA-036** —— 手机回来后推包、导入、开机看日志。
+
 ## 2026-10-21 06:10 Asia/Shanghai — [TOTK] 客体导入符号的落地核对：1,350 个导入全部有提供者
 
 - 会话目标：在等手机的这段时间里，把"开机第一道门"先验掉。
