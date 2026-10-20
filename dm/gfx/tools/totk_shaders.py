@@ -72,11 +72,11 @@ def _stage(control: bytes, code: bytes) -> dict:
     if magic != CONTROL_MAGIC or major != 1 or minor not in (9, 16) or not 0x748 <= declared <= len(control):
         raise ValueError("不认识这个 NVN 着色器控制头")
     control = control[:declared]
-    program_size, c1_size, c1_offset, total, offset, _, _, kind = _read(control, 0x6F8, "<8I")
-    if kind not in STAGES or offset not in (0x30, 0x100) or c1_offset < offset + program_size:
+    program_size, _c1_field, c1_offset, total, offset, _, _, kind = _read(control, 0x6F8, "<8I")
+    if kind not in STAGES or offset not in (0x30, 0x100) or c1_offset < offset + program_size or total < c1_offset:
         raise ValueError("着色器机器码布局不对")
     program = _span(code, offset, c1_offset - offset)
-    c1 = _span(code, c1_offset, c1_size)
+    c1 = _span(code, c1_offset, total - c1_offset)   # c1 = 指令区里 c1 偏移处到指令区末尾这一段（与 D2R 侧同一布局：+0x700 是 c1 相对指令区起点的偏移、+0x704 是指令区总长） | the c1 block runs from the c1 offset to the end of the instruction area (same layout as the D2R side: +0x700 c1 offset, +0x704 instruction-area length)
     result = {
         "key": hashlib.sha256(control + program + c1).hexdigest()[:16],
         "stage": STAGES[kind],
