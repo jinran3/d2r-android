@@ -154,6 +154,19 @@ def verify_shaders(directory, tex_base, tex_end):
             listed += 1
             if not (directory / (key + ".spv")).is_file() or not (directory / (key + ".meta")).is_file():
                 missing_variant.append((path.name, key))
+    # 回退路径：变体挑不中时，宿主按**控制键**去取（shader_get 的最后一跳），所以名单本身
+    # 也必须有自己的 .meta 与 .spv —— 缺一个就是真机上的 FATAL Missing Vulkan shader。
+    # 另外每个 .meta 都得有同名的 .spv，否则直接加载就会 FATAL。
+    # The fallback path: when no variant matches, the host loads by the **control key** (the last hop of
+    # shader_get), so a list must have its own .meta and .spv -- a missing one is a FATAL on the device.
+    # Every .meta also needs a matching .spv, or the direct load path dies the same way.
+    missing_fallback = []
+    for path in variant_lists:
+        key = path.name[:-len(".variants")]
+        if not (directory / (key + ".meta")).is_file() or not (directory / (key + ".spv")).is_file():
+            missing_fallback.append(key)
+    missing_spv = sorted(p.name[:-len(".meta")] for p in metas
+                         if not (directory / (p.name[:-len(".meta")] + ".spv")).is_file())
     print("着色器包 %s：%d 个 meta，%d 份变体名单（列了 %d 个完整键），贴图/图像用到的 c[2] 偏移 %d 个（%s .. %s）"
           % (directory, len(metas), len(variant_lists), listed, len(offsets),
              hex(min(offsets)) if offsets else "-", hex(max(offsets)) if offsets else "-"))
@@ -163,7 +176,14 @@ def verify_shaders(directory, tex_base, tex_end):
     if missing_variant:
         print("变体名单里缺文件的 %d 个（前面几个：%s）" % (len(missing_variant), missing_variant[:5]))
         return 1
-    print("全部落在 [%#x, %#x) 且 8 字节对齐 ✓；变体名单里的文件齐全 ✓" % (tex_base, tex_end))
+    if missing_fallback:
+        print("变体名单本身缺 .meta/.spv 的 %d 个（回退路径会 FATAL；前面几个：%s）"
+              % (len(missing_fallback), missing_fallback[:5]))
+        return 1
+    if missing_spv:
+        print("有 .meta 但没有 .spv 的 %d 个（真机会 FATAL；前面几个：%s）" % (len(missing_spv), missing_spv[:5]))
+        return 1
+    print("全部落在 [%#x, %#x) 且 8 字节对齐 ✓；变体名单里的文件齐全 ✓；回退路径的文件也在 ✓" % (tex_base, tex_end))
     return 0
 
 
