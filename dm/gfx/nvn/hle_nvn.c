@@ -1151,6 +1151,54 @@ NVN(nvnTextureWriteTexelsStrided, void, const NVNtexture *t, const NVNtextureVie
     static int reported; if (!reported++) LOG("【红】TextureWriteTexelsStrided：宿主没有 CPU 写贴图的上传路径 | CPU texture write unsupported");
 }
 
+// ---------- NA-039：TotK 会调用、此前是空实现的那几个接口 ----------
+// ---------- The interfaces TotK calls that used to be empty implementations ----------
+// 当前游戏档位是不是 TotK（启动设置写进 DM_GAME_PROFILE；见 dm/android/native/launch_settings.c）。
+// Whether the current profile is TotK (the launch settings write DM_GAME_PROFILE).
+static int nvn_profile_is_totk(void) { const char *p = getenv("DM_GAME_PROFILE"); return p && !strcmp(p, "totk"); }
+
+// GPU 侧等待：录下栅栏值，回放时等到 GPU 走到该栅栏。
+// D2R 那边保留原来的空实现（D2R 已在真机上跑过，不改它的行为）。
+// GPU-side wait: record the fence value and wait for the GPU to reach it at replay time.
+// D2R keeps the previous empty implementation (its behaviour was verified on a real device).
+NVN(nvnCommandBufferWaitSync, void, NVNcommandBuffer *c, const NVNsync *s) {
+    if (!nvn_profile_is_totk()) return;
+    const sync_t *o = (const sync_t *)s;
+    if (!o || !o->fenced || !o->fence) return;        // 没围栏过的同步对象：真机也是立即返回
+    *(p_wait_sync *)rec(c, OP_WAIT_SYNC, sizeof(p_wait_sync)) = (p_wait_sync){o->fence};
+}
+// 间接派发：计数（x,y,z 三个 uint32）在客体缓冲里。
+// 宿主在回放时读客体内存并按读到的计数做一次直接派发 —— 同一提交内刚写好的计数读不到，
+// 这条限制写进交接的待真机确认项。
+// Indirect dispatch: the counts (x, y, z as three uint32) live in a guest buffer. The host reads
+// the guest memory at replay time and issues a direct dispatch with those counts; counts written
+// by the same submission are not visible yet (tracked as a to-verify item).
+NVN(nvnCommandBufferDispatchComputeIndirect, void, NVNcommandBuffer *c, NVNbufferAddress buffer) {
+    *(p_dispatch_indirect *)rec(c, OP_DISPATCH_INDIRECT, sizeof(p_dispatch_indirect)) = (p_dispatch_indirect){buffer, 0};
+}
+// 深度夹取：Vulkan 侧没有开 depthClamp（开了要重建管线），所以按「不夹取」执行；
+// 但要报一次红，别让它无声无息地被吞掉。
+// Depth bounds: the Vulkan side does not enable depthClamp (it would need pipeline rebuilds), so
+// the values are used unclamped; report it once instead of swallowing it silently.
+NVN(nvnCommandBufferSetDepthBounds, void, NVNcommandBuffer *c, uint32_t enable, float min, float max) {
+    (void)c; (void)min; (void)max;
+    if (enable) { static int reported; if (!reported++) LOG("【红】SetDepthBounds：宿主未启用深度夹取，按不夹取执行 | depth clamping not enabled"); }
+}
+// 着色器局部内存：宿主的后端没有对应能力 → 明确报一次红，不假装支持。
+// Shader scratch memory: the backend has no equivalent → report once instead of pretending.
+NVN(nvnCommandBufferSetShaderScratchMemory, void, NVNcommandBuffer *c, const NVNmemoryPool *p, ptrdiff_t off, size_t size) {
+    (void)c; (void)p; (void)off; (void)size;
+    static int reported; if (!reported++) LOG("【红】SetShaderScratchMemory：宿主不支持着色器局部内存 | shader scratch memory unsupported");
+}
+// 窗口收尾：交换链与计数清零，对象作废（和其它对象的 finalize 一致）。
+// Window teardown: clear the swap chain and the counters and invalidate the object (like the other finalizers).
+NVN(nvnWindowFinalize, void, NVNwindow *w) {
+    win_t *o = (win_t *)w;
+    if (!o->magic) return;
+    LOG("[nvn] 窗口收尾：出图 %llu 次", (unsigned long long)o->presents);
+    o->magic = 0; o->ntex = 0; o->native = NULL; o->presents = 0;
+}
+
 // 只影响 GPU 状态 / 只在 GPU 上执行的命令：空设备只计数（跳板已计）
 // Commands that only affect GPU state / only execute on the GPU: the null device only counts them (the thunk has already counted)
 static void nvn_nop(void) {}
@@ -1158,16 +1206,11 @@ static const char *const g_nops[] = {
     "nvnCommandBufferSetPatchSize",
     "nvnCommandBufferMultiDrawArraysIndirectCount",
     "nvnCommandBufferMultiDrawElementsIndirectCount",
-    "nvnCommandBufferDispatchComputeIndirect",
-    "nvnCommandBufferSetDepthBounds",
     "nvnCommandBufferDownsampleTextureView",
-    "nvnCommandBufferWaitSync",
-    "nvnCommandBufferSetShaderScratchMemory",
     "nvnCommandBufferPushDebugGroupDynamic",
     "nvnCommandBufferPopDebugGroup",
     "nvnCommandBufferInsertDebugMarkerDynamic",
     "nvnCommandBufferWaitEvent",
-    "nvnWindowFinalize",
 };
 __attribute__((constructor)) static void nvn_nops_register(void) {
     // 空实现在槽表初始化后覆盖未实现桩；名字写错（不在 main 名字表里）启动即报红中止

@@ -97,7 +97,8 @@ enum {
     OP_BIND_PROGRAM, OP_BIND_STATE, OP_BIND_VATTR, OP_BIND_VSTREAM, OP_BIND_VBUF,
     OP_BIND_UBO, OP_BIND_SSBO, OP_BIND_TEX, OP_BIND_SAMP,
     OP_STENCIL, OP_POLY_OFFSET, OP_DRAW, OP_DRAW_IDX, OP_DISPATCH, OP_BARRIER,
-    OP_SET_TEX_POOL, OP_SET_SAMP_POOL, OP_COPY_B2T, OP_COPY_STRIDE, OP_BLEND_COLOR, OP_COPY_T2B, OP_BIND_IMG, OP_COPY_T2T, OP_RESET_COUNTER, OP_CLEAR_TEX, OP_COUNT_
+    OP_SET_TEX_POOL, OP_SET_SAMP_POOL, OP_COPY_B2T, OP_COPY_STRIDE, OP_BLEND_COLOR, OP_COPY_T2B, OP_BIND_IMG, OP_COPY_T2T, OP_RESET_COUNTER, OP_CLEAR_TEX,
+    OP_WAIT_SYNC, OP_DISPATCH_INDIRECT, OP_COUNT_
 };
 // 载荷（紧跟 op_hdr）
 // Payload (immediately follows op_hdr)
@@ -118,7 +119,9 @@ typedef struct { int32_t face, value_mask, mask, ref, which; } p_stencil;  // wh
 typedef struct { float factor, units, clamp; } p_poly_offset;
 typedef struct { int32_t prim, first, count, base_instance, instances; } p_draw;   // instances：0/1 = 单实例（与旧行为一致）| instances: 0/1 means a single instance (same as before)
 typedef struct { int32_t prim, itype, count, base_vertex, base_instance, instances; uint64_t ibuf; } p_draw_idx;
-typedef struct { int32_t x, y, z; uint64_t caller; } p_dispatch;   // caller：游戏调用点返回地址（定位派发者） | caller: return address of the game call site (to locate the dispatcher)
+typedef struct { int32_t x, y, z; uint64_t caller; } p_dispatch;
+typedef struct { uint64_t fence; } p_wait_sync;   // 等到该栅栏值（GPU 侧等待）| wait until that fence value (a GPU-side wait)
+typedef struct { uint64_t buffer, offset; } p_dispatch_indirect;   // 间接派发：计数在客体缓冲里 | indirect dispatch: the counts live in a guest buffer   // caller：游戏调用点返回地址（定位派发者） | caller: return address of the game call site (to locate the dispatcher)
 typedef struct { const dpool_t *pool; } p_set_pool;
 typedef struct { uint64_t src; const tex_t *tex; view_t view; uint8_t has_view; NVNcopyRegion r; int32_t flags; } p_copy_b2t;
 typedef struct { const tex_t *src, *dst; view_t sv, dv; uint8_t has_sv, has_dv; NVNcopyRegion sr, dr; int32_t flags; } p_copy_t2t;   // T2B 复用：src 存目标缓冲地址 | Reused for T2B: src stores the destination buffer address

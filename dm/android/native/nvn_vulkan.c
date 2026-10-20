@@ -852,6 +852,14 @@ static void execute(const uint8_t *p, unsigned depth) {
             case OP_STENCIL: { const p_stencil *s = (const void *)a; for (int i = 0; i < 2; ++i) if (s->face & (1 << i)) { if (s->which == 0) state.stencil_faces[i].compareMask = s->value_mask; else if (s->which == 1) state.stencil_faces[i].writeMask = s->mask; else state.stencil_faces[i].reference = s->ref; } break; }
             case OP_RESET_COUNTER: if (v[0] == NVN_COUNTER_TYPE_SAMPLES_PASSED) {graphics_pass_end();post_new(4);} break;
             case OP_DISPATCH: dispatch_compute((const p_dispatch *)a); break;
+            // GPU 侧等待：等到该栅栏值（记录时客体已经提交过的工作）。
+            // GPU-side wait: block until the GPU reaches that fence value (work submitted before the recording).
+            case OP_WAIT_SYNC: { const p_wait_sync *w = (const void *)a; if (w->fence && !mtl_wait(w->fence, UINT64_MAX)) die("Vulkan NVN wait sync failed"); break; }
+            // 间接派发：计数在客体缓冲里，回放时读出来按直接派发执行。
+            // Indirect dispatch: read the counts from the guest buffer and issue a direct dispatch.
+            case OP_DISPATCH_INDIRECT: { const p_dispatch_indirect *d = (const void *)a; uint32_t counts[3] = {0, 0, 0};
+                if (snapshot_read(d->buffer + d->offset, counts, sizeof counts)) die("Vulkan indirect dispatch counts unreadable");
+                p_dispatch direct = {counts[0], counts[1], counts[2], 0}; dispatch_compute(&direct); break; }
             case OP_DRAW: draw_graphics((const p_draw *)a, NULL); break;
             case OP_DRAW_IDX: draw_graphics(NULL, (const p_draw_idx *)a); break;
             default: die("Vulkan NVN packet not implemented: op=%u size=%u (draw=%u indexed=%u dispatch=%u)", h.op, h.size, OP_DRAW, OP_DRAW_IDX, OP_DISPATCH);
