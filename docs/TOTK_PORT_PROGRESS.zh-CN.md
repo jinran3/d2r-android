@@ -540,9 +540,30 @@ NA-029 按用户要求同步了上游 `jhaizhou-ops/d2r-mobile`：其 `main` 的
   | `0x1C85F400`–`0x1C863400` | 16,384 | hash 层 0（主哈希） |
   | `0x1C863400`–`0x1C8634E8` | 232 | 元数据块（`layer_offset` + IVFC 头，3 层） |
 
-- **仍然没解决**：那 478 MB 的**补丁载荷本身是什么格式**。已排除：段首不是 zstd / xz / gzip / brotli 的帧头
-  （前 1 MiB 扫过），也不是明文。下一步的候选：载荷是**未压缩的 RomFS 片段**（要靠重定位表把它拼回去），
-  或者还有一层密钥/压缩没找到。
+- **载荷解开了（2026-10-21 续）**：载荷里是 **zstd 帧，用的是游戏自己的字典**，
+  解出来是 **SARC 归档** —— 也就是游戏的一批 pack 归档。
+
+  ```
+  python dm/tools/totk_bktr.py <更新包的 .nca> --keys <prod.keys> --romfs <本体 RomFS 目录>
+  → 载荷里的 zstd 帧：16 个
+    0x147d5cd0  字典 id=1 内容 12,373,528 → SARC，1,511 条
+                （例：LayoutMsg/TreasureFullShortCut_00.msbt、EventFlowMsg/Npc_TripMaster_13.msbt、…）
+  ```
+
+  - 字典来自本体 RomFS 的 `/Pack/ZsDic.pack.zs`（**游戏自己带的**，SARC 里装着 `zs.zsdic` id=1、
+    `bcett.byml.zsdic` id=2、`pack.zsdic` id=3），解字典的代码仓库里已有
+    （`dm/tools/switch_shaders.py` 的 `load_dictionaries` / `decode`）。
+  - **本体的 pack 也是同一套结构，但用字典 id=3**：
+    `romfs/Pack/*.pack.zs` → zstd(dict 3) → SARC（例如 `AI.Global.Product.100.pack.zs` = 2,061 条，
+    `AIScheduleParam.pack.zs` = 1,917 条，`/Pack/Actor/` 下还有 15,049 个按角色分的 pack）。
+  - 所以**补丁载荷 = 一批更新过的 pack 归档**（消息归档 `EventFlowMsg/*.msbt` 等就在里面）。
+  - 载荷整体熵 7.996 bit/byte（近乎随机），但 12 字节以上可打印串有 138,330 处（随机字节的期望约 3,263）
+    → 结构确实在里面，只是被压缩了。
+- **仍然没解决**：
+  1. **每个载荷块对应本体哪个文件** —— 映射表在 `0x1C843400`–`0x1C857400` 那 81,920 字节里
+     （每 16 KB 一页，页内是稀疏的定长记录），语义还没解出来；
+  2. **载荷的分帧方式** —— 16 个 zstd 帧只占载荷的一部分（帧之间还有别的内容）；
+  3. 载荷开头约 343 MB 里没有 zstd 帧头，那部分是什么也还不知道。
 - **这一层对主线的影响**：本体数据已经完整可用（15.87 GiB / 304,207 个文件，逐字节抽样验过），
   所以**先按「本体数据 + v1.4.2 的模块」开机**，补丁是第二优先级。
 

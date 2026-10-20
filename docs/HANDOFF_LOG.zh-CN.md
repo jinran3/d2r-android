@@ -3,6 +3,70 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 07:35 Asia/Shanghai — [SESSION] 续：着色器回退路径查过了，BKTR 载荷解开了
+
+- 会话目标：接着上一条日志，把「首次开机可能硬失败」的地方再查一遍，并把 BKTR 再往里推一层。
+- 接手核对：`agent_handoff_check.py --resume` exit 0、`--verify` exit 0；分支 `totk/scaffold`、
+  HEAD 与 `origin/totk/scaffold` 一致、代码工作区干净；`adb devices` 仍为空（手机还是没接）。
+
+### 做了什么
+
+1. **着色器的回退路径查过了**（`1b84d4e`）—— 这是真机上最可能的硬失败之一：
+   `FATAL Missing Vulkan shader <目录>/<键>.spv`。
+   宿主挑变体挑不中时会**按控制键**去取（`dm/android/native/nvn_vulkan_shader.inc` 的 `shader_get`
+   最后一跳 `shader_load_by_key(key,1,1)`），所以**每份变体名单自身的 .meta/.spv 也必须在包里**。
+   原先的包闸门只查「名单里列出的键有没有文件」，没查这一条，也没查「每个 .meta 都有 .spv」。
+   现在两条都查了（`dm/gfx/tools/totk_shader_package.py --verify-shaders`）。
+   实测本包：11,447 个 .meta、11,447 个 .spv、1,640 份名单（列了 5,913 个完整键）→ **一个都不缺**。
+2. **BKTR 载荷解开了**（`5bfa14b`）—— 上一条日志里「载荷格式未知」这一项现在有答案了：
+   载荷里是 **zstd 帧，用的是游戏自己的字典**（`/Pack/ZsDic.pack.zs` 里的 `zs.zsdic`，id=1），
+   解出来是 **SARC 归档**：例如 `0x147d5cd0` 那个帧解出 12,373,528 字节、1,511 个条目，
+   条目名就是游戏的消息归档（`LayoutMsg/TreasureFullShortCut_00.msbt`、
+   `EventFlowMsg/Npc_TripMaster_13.msbt`…）。
+   本体的 `/Pack/*.pack.zs` 是同一套结构但用**字典 id=3**（`pack.zsdic`）——
+   例如 `AI.Global.Product.100.pack.zs` 2,061 条、`AIScheduleParam.pack.zs` 1,917 条，
+   `/Pack/Actor/` 下还有 15,049 个按角色分的 pack。
+   → **补丁载荷 = 一批更新过的 pack 归档**。`dm/tools/totk_bktr.py --romfs <本体 RomFS>` 现在会把
+   这些帧连同字典 id 与解出来的条目一起报出来。
+
+### 证据（命令与退出码）
+
+- `python dm/tools/totk_bktr.py <更新包 .nca> --keys <prod.keys> --romfs D:\Switch\totk-work\romfs-test`
+  → **exit 0**，「布局自洽：True」，并列出载荷里的 16 个 zstd 帧（前两个是误命中，解不开；
+  其余解出 SARC 归档并给出条目数与前几条条目名）。
+- `python dm/gfx/tools/totk_shader_package.py --verify-shaders D:\Switch\totk-work\package-totk\shaders`
+  → **exit 0**，末行多了一句「回退路径的文件也在 ✓」（约 6 分钟，磁盘读 11,447 个 meta + 1,640 份名单）。
+- `python dm/gfx/tools/test_totk_shader_package.py` → exit 0。
+- `python dm/android/tools/build.py --game-run --version trim-b40` → **exit 0**，
+  APK `dm/android/build/D2R-Android-port.apk`（17,873,359 字节）。
+- `python dm/android/tools/ci_checks.py` → 13 项通过 / 1 项失败（失败项仍是交接控制面本身，
+  因为文档还没改完；改完复跑即绿）。
+
+### 本会话（本条日志所在的一轮）的提交
+
+| 提交 | 内容 |
+| --- | --- |
+| `abca535` | `dm/tools/totk_bktr.py`：读出并核对更新包 BKTR 段的物理布局 |
+| `1b84d4e` | `dm/gfx/tools/totk_shader_package.py`：包闸门加「回退路径的文件也在」检查 |
+| `5bfa14b` | `dm/tools/totk_bktr.py`：加上载荷扫描（zstd 帧 + 解出来的 SARC 内容） |
+
+（交接控制面另有一个提交。）
+
+### 还差什么
+
+- **真机的一切**：NOT RUN（推包 / 导入 / 开机 / 出图 / 性能）。
+- **BKTR 还差两块**：① 每个载荷块对应本体哪个文件（映射在 `0x1C843400`–`0x1C857400` 那 81,920 字节里，
+  每 16 KB 一页、页内是稀疏的定长记录，语义没解出来）；② 载荷的分帧方式（16 个 zstd 帧只占载荷的一部分，
+  开头约 343 MB 里没有 zstd 帧头）。
+- 运行期仍未验的三件事（合并句柄拆分 / 变体挑选的机器码位置 / 预排布贴图内容）不变。
+
+### 下一步
+
+唯一 READY 动作仍是 **NA-044 = 手机接上后推包开机**。
+手机不在时可以接着做的离线活：① 解开上面那 81,920 字节的重定位表（把载荷块映射到本体文件）；
+② 把 `dm/tools/totk_bktr.py` 接进 `dm/android/tools/totk_preflight.py` 当闸门；
+③ 核对载荷里那 1,511 条的消息归档与本体里对应的归档差在哪（能顺带验证「补丁 = 更新过的 pack」这个结论）。
+
 ## 2026-10-21 06:45 Asia/Shanghai — [SESSION] 手机不在的一轮：首次开机预演清单 + 导入流程核对 + BKTR 布局定位
 
 - 会话目标：按用户要求，这轮只做「不需要真机」的活，重点是**降低首次开机的失败概率**。
