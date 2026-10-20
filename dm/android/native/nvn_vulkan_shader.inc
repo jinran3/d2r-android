@@ -198,6 +198,7 @@ static int shader_variants_has(const char *variants,size_t vbytes,const char *ke
 // of the shader occurrences): the control block alone cannot tell them apart → compute the full key
 // from the machine code visible at run time and pick the matching variant; if that fails, fall back to
 // the control key (the majority variant) and log which path was taken.
+static unsigned g_variant_hit,g_variant_miss;
 static shader_entry *shader_get(const void *control, NVNbufferAddress data) {
     uint8_t hash[32];dm_android_sha256_context ctx;dm_android_sha256_init(&ctx);dm_android_sha256_update(&ctx,control,0x880);dm_android_sha256_final(hash,&ctx);char key[17];for(int i=0;i<8;i++)snprintf(key+i*2,3,"%02x",hash[i]);
     size_t vbytes=0;char *variants=(char *)read_shader_file_opt(key,"variants",&vbytes);
@@ -219,12 +220,17 @@ static shader_entry *shader_get(const void *control, NVNbufferAddress data) {
                     char vkey[17];shader_full_key(control,buf,total,vkey);
                     if(!shader_variants_has(variants,vbytes,vkey))continue;
                     shader_entry *s=shader_load_by_key(vkey,0,0);
-                    if(s){LOG("[vulkan-shader] 控制键 %s 命中变体 %s（机器码来自 %#llx）| control key %s picked variant %s (machine code at %#llx)",key,vkey,(unsigned long long)starts[i],key,vkey);free(buf);free(variants);return s;}
+                    if(s){g_variant_hit++;
+                        if(g_variant_hit<=8||g_variant_hit%64==0)
+                            LOG("[vulkan-shader] 控制键 %s 命中变体 %s（机器码来自 %#llx）| control key %s picked variant %s (machine code at %#llx)",key,vkey,(unsigned long long)starts[i],key,vkey);
+                        free(buf);free(variants);return s;}
                 }
                 free(buf);
             }
         }
-        LOG("[vulkan-shader] 控制键 %s 的变体没挑中，退回多数派变体 | control key %s: no variant matched, using the majority variant",key,key);
+        g_variant_miss++;
+        if(g_variant_miss<=64||g_variant_miss%64==0)
+            LOG("[vulkan-shader] 控制键 %s 的变体没挑中，退回多数派变体（累计退回 %u 次）| control key %s: no variant matched, using the majority variant (%u misses so far)",key,g_variant_miss,key,g_variant_miss);
         free(variants);
     }
     return shader_load_by_key(key,1,1);
