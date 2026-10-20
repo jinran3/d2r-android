@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-20T14:10:00+08:00
+updated_at: 2026-10-20T18:45:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 3a9ea0c
+observed_head: 04ca834
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 3a9ea0c
+origin_head_at_checkpoint: 04ca8349d8e3f9bf348c3c1b656d51b12111f3db
 code_worktree: CLEAN
-next_action_id: NA-032
+next_action_id: NA-033
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,23 +140,23 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-20 10:10（Asia/Shanghai）
-- 当前阶段：M0 勘察完成；M1（模块装载）就绪；§4.4 着色器事实表来源已有解
+- 快照时间：2026-10-20 18:45（Asia/Shanghai）
+- 当前阶段：M0 勘察完成（§4.4 着色器来源已定、**全量翻译 9,807/9,807 通过**）；M1（模块装载）就绪
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：见 frontmatter `observed_head`（NA-032 业务提交：着色器归档解码工具）
+- 观测 HEAD：见 frontmatter `observed_head`（NA-032 业务提交 `04ca834`：TotK 着色器翻译作业流水线 `dm/gfx/tools/totk_xlate.py`）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b27`，17,725,903 字节）
-- 本次会话目标：NA-031（模块来源接规则域 + HLE 缺口普查）与 NA-032（§4.4 着色器事实表来源）。
+- 本次会话目标：NA-032 收口（翻译作业流水线入仓 + 9,807 个键全量翻译 + SPH 修正）与 NA-033 的准备。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：把 TotK 的全部着色器翻成 SPIR-V 并出库（现在只验证了 200 个作业 / 126 个唯一键），修掉那 3 个翻译失败的着色器（`IndexOutOfRangeException`）；贴图维度 / 图像格式 / 属性分量类型**不在着色器里**（已实测确认），要靠游戏数据或运行期观测；**改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」和 `blr x18` 调用两种 D2R 没有的形态，当前 TotK 规则域先不做 x18 改写，Android 侧靠宿主保全 x18；正式做法见 NA-032 之后那一步）；更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这层）；真机装载与进 `nnMain`（一加 12 未接）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线）。
-- 最近一次成功命令：`build.py --game-run --version trim-b27` exit 0（APK 17,725,903 字节）；`ci_checks.py` 10 项通过 / 0 项失败；`agent_handoff_check.py --verify` exit 0；`test_rewriter.py` exit 0；`make_package.py --ruleset totk-run-v1 --exefs ... --modules-only` exit 0；`switch_shaders.py` exit 0（30 个着色器文件 + 清单）。
-- 最近一次失败命令及原因：① `make_package.py` 第一次跑 TotK 报 `FileNotFoundError: ...\produce\game` —— 自备 ExeFS 那条路少了 `produce.mkdir`，已修；② `test_rewriter.py` 首次报 `FileNotFoundError` —— 本机没设 `DM_ANDROID_TOOLS`（脚本按 `~/dm-work/tools/android` 找工具链），设上即 exit 0；③ `switch_nca.py romfs-extract` 多线程共用一个文件句柄导致读串台（已改为每线程一个句柄，并加了读满校验）。
-- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（`trim-b27`）；TotK 侧仓库外产物：`D:\Switch\totk-work\`（upd-exefs、pack-totk\produce\game、guest-so、shaders-out、base\RomFS 解包中）
-- 当前阻塞：一加 12 真机仍未接（`adb devices` 无设备）；FSHA 容器的内层条目格式还没解析（事实表还差最后一步）。
-- 需要用户提供的材料：一加 12（开启 USB 调试）——游戏文件与 `prod.keys` 已由用户于 2026-10-20 提供。
+- 未完成：**贴图维度类型 / 图像格式 / 属性与输出分量类型的事实来源**（贴图与属性这几项按方案 A 走缺省；新线索：图形机器码前 0x30 字节的 **SPH 描述符头**里可能有，见 NA-033）；**改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」与 `blr x18` 两种 D2R 没有的形态，当前 TotK 规则域先不做 x18 改写、靠宿主保全 x18；正式做法见下一步的「顺带记下」）；更新包 RomFS 的 **BKTR 补丁**应用（最终数据集还差这层）；**真机装载与进 `nnMain`**（一加 12 已接，但还没装 TotK 数据、没跑起来）；**驱动选型**（仓库内置 Turnip 是 T30/Adreno 830 构建，一加 12 是 Adreno 750，见「当前阻塞」）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线）。
+- 最近一次成功命令：`totk_xlate.py` 全量翻译 exit 0（**9,807 个键全部成功、0 失败**，SPIR-V 539,816,056 字节，报告 `D:\Switch\totk-work\xlate-full\xlate_report.tsv`）；`build.py --game-run --version trim-b28` exit 0（APK 17,725,903 字节）；`ci_checks.py` 10 项通过 / 0 项失败；`agent_handoff_check.py --verify` exit 0；`make_package.py --ruleset totk-run-v1 --exefs ... --modules-only` exit 0；`switch_shaders.py` exit 0（30 个着色器文件 + 清单）。
+- 最近一次失败命令及原因：① 全量翻译前那 3 个着色器失败（翻译器内部 `IndexOutOfRangeException`）—— 根因是**喂给翻译器的机器码漏了图形着色器开头 0x30 字节的 SPH（描述符头）**；补上 SPH 后 3 个全过，**9,807/9,807 全部成功**（同一条规则 D2R 侧早就写着：`dmsh_build.py` 的 `code = code[0x30:]` 是「丢掉记录头、保留 SPH」）；② `ci_checks.py` 的「Agent 交接控制面」一项失败 —— HANDOFF 快照过期（本次已更新，重跑即过）；③ 上一会话的 `make_package.py` 报 `FileNotFoundError: ...\produce\game`（自备 ExeFS 那条路少了 `produce.mkdir`，已修）。
+- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（`trim-b28`，17,725,903 字节）；TotK 侧仓库外产物：`D:\Switch\totk-work\`（upd-exefs、pack-totk\produce\game、guest-so、shaders-out、shaders-index4、**xlate-full（9,807 个 `.spv` + `xlate_report.tsv`）**、base\RomFS 解包到 24 万个文件后被本会话暂停，可断点续跑）
+- 当前阻塞：**一加 12 已接上**（`adb devices` → `3b864e51 device PJD110`，Android 16 / 骁龙 8 Gen 3 / Adreno 750），不再是阻塞；新的待办是**驱动选型** —— 仓库内置的 `dm/android/prebuilt/turnip/vulkan.purple.so` 是 **T30/Adreno 830** 构建，而宿主 `dm/android/native/gpu_driver.c` 是 `dlsym(driver, "vkGetInstanceProcAddr")` 取入口；本机解析该 `.so` 的 `.dynsym` **没有任何 `vk*` 导出**（只有 `tu_*` 模板与 libc 符号），所以「它到底怎么被加载」要先查清（ICD 私有入口 / 另配 wrapper 库 / 与 APK 内实际打包的不是同一份）。启动器里「系统驱动 / 内置 Turnip」的切换本身是通的。
+- 需要用户提供的材料：**无**（TotK v1.4.2 合并 XCI、`prod.keys`、一加 12 均已到位）。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据；**外部项目的代码不要直接搬进来**（`OJZen/totk-mobile` 是 Apache-2.0，本仓库是 MIT；只读思路与格式事实，代码自己写；Ryujinx 是 MIT，可用但要保留声明）。
 
@@ -203,6 +203,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-032 着色器事实表（第一半，`a25ccc3`）：按确认的归档格式自己写了 `dm/gfx/tools/totk_shaders.py`（BNSH / FSHA / BAHS v9 三种容器 → 逐着色器解出控制头、机器码与 C1，算出**着色器键** = `sha256(control+program+c1)[:16]`、阶段、控制头尺寸）。实测：`/Shader` 归档里 49,089 条记录、**9,807 个唯一键**（cs 18 / ps 5,557 / vs 4,232）；**计算着色器的线程组与共享内存直接从控制头 0x748 读出**（如 64x1x1、8x8x1、1x1x1，共享内存 0 / 2048 字节）—— 这类事实**不需要 PC 反射**，TotK 侧直接可得。贴图维度 / 图像格式 / 属性分量类型的位置还没定位（C1 块很小，多半在控制头的描述符表），仍按方案 A / B 走。
 - NA-032 着色器事实（第二半的实测）：**贴图维度 / 图像格式 / 属性分量类型不在着色器里** —— 抽查 4 个归档的 vs / ps，控制头（0x880 字节）只有 15–33 个非零字、没有描述符表，C1 块也只有 0–64 字节；这几项事实只能来自游戏的数据（材质 / 图形数据）或运行期观测（方案 B）。同时确认：我们的翻译链 `dm/gfx/tools/dmsh_xlate/`（MIT，引用仓内 `dm/third_party/ryujinx` 的 MIT 源码）输入作业里带 `tex` / `img` / `attr` / `fout` / `local` / `c1`，**缺项按缺省作答**（2D / R8G8B8A8Unorm / float），输出是 **SPIR-V（Vulkan）** —— 正是 Android 侧要的东西，也正是方案 A 的落点。它的 csproj 目标 `net10.0`，本机只有 .NET 8（覆盖目标框架会报 NETSDK1045），已下载 Windows 版 .NET 10.0.401 SDK（300,608,304 字节）到仓库外工作区，解压中。
 - NA-032 收尾（`3a9ea0c` + 本条）：**TotK 着色器在本机翻成 SPIR-V 成功** —— 本机装 .NET 10.0.401 SDK（Windows x64，300,608,304 字节，仓库外工作区）后 `dotnet build dm/gfx/tools/dmsh_xlate/dmsh_xlate.csproj -c Release` exit 0（15 分 9 秒，0 警告 0 错误，产出 dmsh_xlate + Ryujinx.Graphics.Shader.dll 等 68 个文件），再用 TotK 的键 + 机器码 + c1 造作业翻译：**单个像素着色器「翻译 1 成功，0 失败」**（产出 1,860 字节 SPIR-V + res.json），**批量 200 个作业「翻译 190 成功，10 失败」**（去重后 126 个唯一键里只有 3 个失败，都是翻译器内部 `IndexOutOfRangeException`）。翻译器已做三处 **作业驱动** 的 TotK 适配（深度范围 -1..1、宿主不支持 fp64 与深度裁剪控制、顶点→像素联编），D2R 的行为一字未变（缺省值即原值）。**注意**：改了 `Program.cs` 后翻译器源码指纹变了，Mac 侧要重建一次并跑 `dm/gfx/tools/dmsh_chain.py --update-lock`（D2R 产物不变，只是锁里的源码指纹要更新）。另修了自己一个解析错误：c1 块的长度是 `0x704 - 0x700`（指令区总长减 c1 偏移），不是 `0x6fc` 那个字段——此前「C1 只有几字节」是假象，真实 c1 是 256 字节（开头就是间接跳转表）。
+- NA-032 收尾（`04ca834` + 本条）：**TotK 的 9,807 个着色器全部翻成 SPIR-V，0 失败** —— 新增 `dm/gfx/tools/totk_xlate.py`（索引 → 事实 → 作业 → SPIR-V → 统计一条命令），**关键修正是「图形机器码必须带 0x30 字节的 SPH」**：先前那 3 个 `IndexOutOfRangeException` 就是漏了 SPH；带上 SPH 后 3 个全过，**9,807 个键 100% 翻译成功**（SPIR-V 共 539,816,056 字节，`res.json` 9,807 个，报告 `xlate_report.tsv` 里全 OK）。实测速率约 180 键/分（6 分片并行），全量约 55 分钟。事实按方案 A：18 个计算着色器的线程组与共享内存来自控制头 0x748（写进 `xlate-full\shader_facts_totk.tsv`，**在仓库外**），其余 9,789 个键按缺省作答（2D / R8G8B8A8Unorm / float）。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
@@ -212,17 +213,17 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-032
+- ID：NA-033
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：HEAD / origin 均为 NA-032 的业务提交（见 frontmatter）；代码工作区干净；着色器归档已能解出（`D:\Switch\totk-work\shaders-out\`，30 个文件 + `manifest.json`）。
-- 动作：把 TotK 的着色器**全量翻成 SPIR-V**（工具链已在本机跑通）：① 事实表第一版 = 计算着色器的线程组与共享内存（已能给出）+ 其余按缺省；② 翻译器已在本机编出（.NET 10 SDK + `dotnet build dm/gfx/tools/dmsh_xlate/dmsh_xlate.csproj`），三处 TotK 适配已做成作业驱动（深度范围 / 宿主能力 / 顶点-像素联编）；③ 用 `dm/gfx/tools/totk_shaders.py` 的索引（键 + 机器码 + c1）给**全部 9,807 个键**造作业并翻译，统计失败集并逐个查因（已知 3 个失败是翻译器内部 `IndexOutOfRangeException`）。归档结构已摸清（BNSH / FSHA / BAHS v9，键 = `sha256(control+program+c1)[:16]`），事实表的边界也清楚了（见「已完成清单」）；剩下的就是编译翻译器与翻一批着色器。
-- 命令或编辑目标：先 `git grep -n -e shader_facts -e dmsh_facts -- dm/gfx/tools` 看现有事实表的格式与消费方，再写一个解析脚本（放 `dm/tools/` 或 `dm/gfx/tools/`，按仓库规矩命名），用 `D:\Switch\totk-work\shaders-out\` 里的文件跑；随后 `ci_checks.py`、`build.py --game-run --version trim-b28`。
-- 成功判据：能从一批 TotK 着色器里读出维度 / 格式 / 线程组等事实并写成与现有事实表同格式的表；对同一批着色器跑翻译链能产出 SPIR-V 且不报「缺事实」；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b28` exit 0 且产出 APK。
-- 失败判据：解析不出事实（说明游戏自带归档里没有这些信息 → §4.4 需要改走方案 A/B，**如实记录并改结论**）、翻译链吃不下、任一验证命令非零 —— 此时回滚本批并更新计划 §4.4 的结论。
-- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
-- 需要写入的证据：FSHA / BNSH 的结构证据（偏移与字段）、事实表的条目数与样例、翻译批量的输出与错误、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。**本机 NOT RUN 的部分**：真机上的实际出图（一加 12 未接）、iOS / macOS 侧编译。
-- 顺带记下（下一步之后要做）：改写器要按 TotK 适配两处形态 —— ① **多入口独占窗口**（一个 LL/SC 区域可以有多个 load 入口共享一个 store，外部分支还能跳进区域中间；做法是给每个入口各发一段序言，外部跳进来的目标也要有入口），② **`blr x18`**（TotK 用 x18 当函数指针调用，需要专门的站点处理）。参考实现见 `OJZen/totk-mobile` 的 `tools/patch_module.py` + `tools/exclusive.py`（Apache-2.0，**只读思路、代码自己写**）。该项目的 v1.4.3 main 构建号是 `277178b7dba1b6d4949a84778d4abc58`（我们是 v1.4.2 的 `5cb42b1c…`），它的跳转表是**有符号**的、按 v1.4.3 的地址写死，TotK v1.4.2 的对应表要自己定位。
+- 前置条件：HEAD / origin 均为 NA-032 的业务提交 `04ca834`（见 frontmatter）；代码工作区干净；全量翻译产物在仓库外 `D:\Switch\totk-work\xlate-full\`（9,807 个 `.spv` + `xlate_report.tsv` + `shader_facts_totk.tsv`）。
+- 动作：**把 TotK 着色器事实表坐实（§4.4 的最后一层）** —— 翻译链已经全量跑通（9,807/9,807），现在只剩「翻译器按缺省作答的那几项事实」要不要补、能不能补。① **先查 SPH**：图形机器码前 0x30 字节就是 SPH（描述符头），**我们至今没解析它**；已抓到的线索：word0 = `0x02060461` / `0x06060461` / `0x00065462`（三种取值，也许对应不同阶段或不同描述符布局），word6 / word7 疑似描述符计数（如 `0x00000f77`、`0x000c0033`、`0x0000000f`），此前失败的 3 个样本 word6 = `0x80000000`（像是一个「无描述符」标志位）。要确认里面有没有**贴图槽 → 维度类型**、**图像槽 → 格式**、**属性/输出 → 分量类型**。② 若 SPH 里没有，就按**方案 A 收口**（全部按缺省），并把「贴图维度等事实只能来自运行期观测（方案 B：`nvnTextureBuilderSetDims` / `SetFormat`）或游戏数据」这个结论写进计划 §4.4。③ 若 SPH 里有，就扩展 `dm/gfx/tools/totk_xlate.py` 出事实表（事实表**留在仓库外**，仓库里只留工具），用 `--facts` 喂回翻译器重跑受影响的那批键，核对重跑前后 SPIR-V 有没有变化。
+- 命令或编辑目标：先用 `D:\Switch\.tools\venv\Scripts\python.exe` 读 `D:\Switch\totk-work\shaders-index4\code\0001473d92450068.bin` 的前 0x30 字节并按 12 个 u32 打印，复核 SPH 头；再在 `dm/gfx/tools/totk_shaders.py` 里加 SPH 解析（它已经解出控制头 / 机器码 / C1，SPH 就在机器码最前面），用一批键统计各字段分布；随后 `ci_checks.py`、`build.py --game-run --version trim-b29`。
+- 成功判据：给出「SPH 里到底有什么」的**实测结论**（有 / 没有贴图维度与格式，能指出字段偏移与样例），据此产出与现有事实表同格式的 TotK 事实表（写在仓库外），并让 `totk_xlate.py --facts` 能把事实喂进作业、重跑受影响键后 SPIR-V 有可核对的变化（或明确「按缺省即无变化」）；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b29` exit 0 且产出 APK。
+- 失败判据：SPH 解析不出来（说明事实确实不在着色器里 → 按方案 A 收口，**如实记录并改 §4.4 的结论**）、事实表喂进去翻译器反而变差、任一验证命令非零 —— 此时回滚本批并更新计划 §4.4。
+- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`04ca834`）。
+- 需要写入的证据：SPH 的原始字节与字段分布统计、事实表的行数与样例、重跑前后的 SPIR-V 对比、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。**本机 NOT RUN 的部分**：真机上的实际出图与进 `nnMain`（一加 12 已接但还没装 TotK 数据）、iOS / macOS 侧编译（Mac 侧还需重建翻译器并跑 `dmsh_chain.py --update-lock` 更新源码指纹）。
+- 顺带记下（下一步之后要做）：① **驱动选型（§4.5）** —— 内置 Turnip 是 T30/Adreno 830 构建，一加 12 是 Adreno 750；本机解析该 `.so` 没有任何 `vk*` 导出符号，而宿主是 `dlsym(driver, "vkGetInstanceProcAddr")` 取入口，要先查清加载方式，再决定是找 750 对应的 Turnip 构建还是改宿主取入口的方式；`host-subgroup-size.txt` 也要按 750 实测核对（着色器按 64 子组构建）。② **改写器的 x18 适配** —— TotK 的 main 有「分支跳进独占窗口中间」与 `blr x18` 两种 D2R 没有的形态，做法是给每个入口各发一段序言、让外部跳进来的目标也有入口；参考 `OJZen/totk-mobile` 的 `tools/patch_module.py` + `tools/exclusive.py`（Apache-2.0，**只读思路、代码自己写**），它的 v1.4.3 main 构建号是 `277178b7dba1b6d4949a84778d4abc58`（我们是 v1.4.2 的 `5cb42b1c…`），跳转表是**有符号**且按 v1.4.3 地址写死，v1.4.2 要自己定位。③ 更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这层）。④ 真机：把 TotK 的 `guest-so` 与 RomFS 装进一加 12，走 M1 的「装载 → `nnMain`」。
 
 ## 长操作两阶段日志
 

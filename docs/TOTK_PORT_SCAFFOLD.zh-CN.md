@@ -161,6 +161,24 @@ main (保留 D2R 可构建)
 - **翻译链我们自己已经有了**：`dm/gfx/tools/dmsh_xlate/`（d2r-mobile 的 MIT 翻译器宿主）引用仓内收录的 `dm/third_party/ryujinx`（MIT），输入作业里带 `tex` / `img` / `attr` / `fout` / `local` / `c1`，**缺项按缺省作答**（贴图按 2D、图像按 R8G8B8A8Unorm、属性按 float）—— 正好是方案 A 的落点；输出口径是 **SPIR-V（Vulkan 口径）**，正是 Android 侧要的东西。csproj 目标框架是 `net10.0`，本机需装 .NET 10 SDK 才能编（Windows 版 10.0.401 已在工作区解压中）。
 - 外部可参考的实现：`OJZen/totk-mobile`（Mac/iOS，已能读档游玩，v1.4.3）。**许可提醒**：它是 Apache-2.0，本仓库是 MIT，只读思路与格式事实、代码自己写；它内嵌的 Ryujinx 部分是 MIT，可按其声明使用。移植雷达（`catoncat/d2r-port-radar`）有机器可读的接口，值得定期看。
 
+
+**§4.4 结论（2026-10-20 实测，已收口一半）**：
+
+1. **来源问题已解**：事实表**不来自 PC 反射**（TotK 没有 PC 版），而是**从游戏自带的着色器归档取**（方案 D）——
+   ① 键 / 阶段 / 机器码 / C1 由 `dm/gfx/tools/totk_shaders.py` 从 BNSH / FSHA / BAHS v9 解出（9,807 个唯一键）；
+   ② 计算着色器的线程组与共享内存从控制头 0x748 直接读出（18 个 cs）；
+   ③ 其余（贴图维度类型 / 图像格式 / 属性与输出的分量类型）**仍按方案 A 走缺省**。
+2. **翻译链已全量跑通**：`dm/gfx/tools/totk_xlate.py`（新增）把「索引 → 事实 → 作业 → SPIR-V → 统计」串成一条命令，
+   **9,807 个键 100% 翻译成功**（SPIR-V 539,816,056 字节），逐个校验魔数 `0x07230203` 全部合法。
+3. **一个必须记住的实现约定**：**图形机器码必须带开头 0x30 字节的 SPH（描述符头）**。漏了它，
+   翻译器会抛 `IndexOutOfRangeException`（实测 9,807 个键里挂 3 个）。D2R 侧同一规则写在 `dmsh_build.py` 里。
+4. **还欠一层**：SPH 本身**至今没有被解析**（线索见进度文档）。里面大概率没有贴图维度 / 图像格式
+   （D2R 那张表就是靠 PC 反射才有的），但**属性与输出的分量类型有可能在**。查完就能给 §4.4 画句号：
+   查得到 → 事实表出在仓库外、用 `--facts` 喂回；查不到 → 方案 A 收口，剩下的靠**运行期观测**（方案 B：
+   `nvnTextureBuilderSetDims` / `SetFormat`）补。
+5. **事实表不进仓库**：仓库纪律是「游戏内容与由它生成的表不进仓库」，D2R 那张 `shader_facts.tsv` 是 PC 反射冻结的
+   （不含游戏内容），TotK 的表是**从游戏归档派生的**，所以只留工具（`totk_xlate.py`）、表落仓库外。
+
 ### 4.5 上游同步：哪些机制能直接搬
 
 本 fork 与上游 `jhaizhou-ops/d2r-mobile`（iOS/macOS 原版）的共同祖先是 `sydeEvans/d2r-android`。上游的 `main` 一直在走，两边 `dm/tools/patch_nso.py` 的差异分三类：

@@ -3,6 +3,44 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 18:45 Asia/Shanghai — [TOTK] NA-032 收口：9,807 个着色器全部翻成 SPIR-V
+
+- 会话目标：把 NA-032 收口 —— 翻译作业流水线入仓、**全部 9,807 个 TotK 着色器翻成 SPIR-V**、把那 3 个 `IndexOutOfRangeException` 查因修掉；顺手把一加 12 接入的实况写进快照。
+- 结果：**9,807/9,807 成功、0 失败**（SPIR-V 539,816,056 字节，`res.json` 9,807 个）。根因是**漏了图形机器码开头 0x30 字节的 SPH（描述符头）**，补上后那 3 个就全过了。
+- 用户新给的信息：一加 12 已接上电脑（`3b864e51` / PJD110 / Android 16 / 骁龙 8 Gen 3 / Adreno 750）。
+
+[BEGIN] na-032-totk-shaders-full
+
+- 命令：
+  1. `D:\Switch\.tools\venv\Scripts\python.exe dm\gfx\tools\totk_xlate.py --index D:\Switch\totk-work\shaders-index4\shader_index.tsv --code D:\Switch\totk-work\shaders-index4\code --work D:\Switch\totk-work\xlate-full --write-facts D:\Switch\totk-work\xlate-full\shader_facts_totk.tsv --xlate D:\Switch\totk-work\tools\xlate\dmsh_xlate.dll --dotnet D:\Switch\totk-work\tools\dotnet10\dotnet.exe --shards 6`
+  2. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\ci_checks.py`
+  3. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\build.py --game-run --version trim-b28`
+  4. `D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`（产物落在仓库外 `D:\Switch\totk-work\xlate-full`）
+- 预期结果：9,807 个键全部产出 SPIR-V；ci_checks 10 通过 / 0 失败；build exit 0；--verify exit 0。
+- 日志路径：`D:\Switch\totk-work\xlate-full\run.log`（翻译）、`D:\Switch\totk-work\build-trim-b28b.log`（构建）
+- 回滚点：`04ca834`（NA-032 业务提交）
+
+[END] na-032-totk-shaders-full
+
+- 退出码：翻译 exit 0（9,807 成功 / 0 失败）；`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b28` exit 0（APK 17,725,903 字节）；`agent_handoff_check.py --verify` exit 0。
+- 产物：`D:\Switch\totk-work\xlate-full\out0..5\<键>.spv`（9,807 个，539,816,056 字节）+ 同名 `.res.json`（9,807 个）+ `xlate_report.tsv`（全 OK）+ `shader_facts_totk.tsv`（18 个计算着色器有事实，**在仓库外**）；仓库内新增 `dm/gfx/tools/totk_xlate.py`（提交 `04ca834`）；APK `dm/android/build/D2R-Android-port.apk`（trim-b28，17,725,903 字节）。
+- 结果：SUCCESS
+- 备注：**真机上的实际出图与进 `nnMain` 本批 NOT RUN**（一加 12 已接、启动器界面能渲染、驱动能切「内置 Turnip」，但还没装 TotK 数据、没跑起来）；iOS / macOS 侧编译 NOT RUN（Mac 侧还需重建翻译器并跑 `dmsh_chain.py --update-lock` 更新源码指纹）。
+
+证据（本条目对应的命令与退出码）：
+
+- **根因（重要，会影响后续所有 TotK 作业）**：先前那 3 个 `IndexOutOfRangeException` 的着色器（`468d6df7ca6c665b` / `702947f3fa3e3a19` / `edcccc039d2a46e2`，都是 `AglShader.sharcb` 的 ps，机器码 208 字节、c1 0 字节）**不是翻译器的 bug，是喂进去的机器码少了 SPH**。复现与修复（同一批作业，只换 `code` 字段）：
+  - 去掉 0x30 字节 SPH：`翻译 0 成功，3 失败`（`【红】…：IndexOutOfRangeException`），exit 1；
+  - 带上 SPH（用 `totk_shaders.py` 产出的原始机器码）：`翻译 3 成功，0 失败`，exit 0。
+  机制：D2R 侧早就写着同一条规则 —— `dm/gfx/tools/dmsh_build.py` 里图形着色器取 `code = code[0x30:]`（丢掉的是**记录头**，留下的是 **SPH + 指令**）。TotK 的机器码区前 0x30 字节同样是 SPH，之前临时造作业时被剥掉了。**教训（写进工具注释）**：TotK 的作业必须直接指向 `totk_shaders.py` 产出的 `code/<键>.bin`，不要自己裁字节。
+- **全量结果**：6 分片并行，每片 1,634~1,635 个作业，**全部成功**；总耗时约 55 分钟（实测速率约 180 键/分）。校验脚本逐个读回 9,807 个 `.spv` 的魔数，**9,807 个都是 `0x07230203`（合法 SPIR-V）、0 个坏**；`xlate_report.tsv` 里 9,807 行全 `OK`。
+- **SPH 的原始线索（留给 NA-033）**：机器码前 12 个 u32（`0001473d92450068` = vs，3792 字节）：`02060461 00000000 00000000 00000000 00000000 00000000 00000f77 000c0033 00000000 00000000 00000000 00000000`；`00309da9bcb0135f`（vs）：`06060461 … 00003f77 00000003 …`；`fd32c9058c6375cd`（54,992 字节）：`06060461 00000600 … ffff0077 000f3333 …`；此前失败的 `468d6df7ca6c665b` / `edcccc039d2a46e2`：`00065462 … 80000000 0000000f …`（word6 的 `0x80000000` 像个「无描述符」标志）。**SPH 至今没有被解析过**，里面有没有贴图维度 / 图像格式 / 属性类型就是 NA-033 要查的。
+- **事实表（方案 A）**：18 个计算着色器的线程组与共享内存来自控制头 0x748（64x1x1、8x8x1、1x1x1；共享内存 0 / 2048 字节），写进 `D:\Switch\totk-work\xlate-full\shader_facts_totk.tsv`（格式与 `dm/gfx/nvn/shader_facts.tsv` 同：键 <TAB> JSON）；其余 9,789 个键的贴图维度 / 图像格式 / 属性类型**按缺省作答**（2D / R8G8B8A8Unorm / float），报告里单列。**事实表不进仓库**（仓库纪律：游戏内容与由它生成的表不进仓库），仓库里只留工具 `dm/gfx/tools/totk_xlate.py`。
+- **真机**：一加 12 已接（`adb devices` → `3b864e51 device PJD110`，Android 16）。`trim-b27` 已装（`org.d2r.android.port`），启动器界面正常渲染（截图 `D:\Switch\totk-work\device\launcher2.png`），「驱动」一行能切到「内置 Turnip」。**但内置 Turnip 的可用性仍未验证**：仓库内置的 `dm/android/prebuilt/turnip/vulkan.purple.so` 是 **T30/Adreno 830** 构建，而本机解析该 `.so` 的 `.dynsym` **没有任何 `vk*` 导出**（只有 `tu_*` 模板与 libc 符号），宿主 `dm/android/native/gpu_driver.c` 却是 `dlsym(driver, "vkGetInstanceProcAddr")` 取入口 —— 加载方式（ICD 私有入口 / 另配 wrapper / 与 APK 内实际打包的不是同一份）要查清，这属于计划 §4.5 的驱动选型，列为下一步之后的第 ① 项。
+- **本会话的一个操作决定**：本体 RomFS 全量解包（后台 python，pid 3312，已解到约 24 万个文件）**被本会话暂停**以让出磁盘 I/O 给翻译与构建；`switch_nca.py romfs-extract` 支持断点续跑，新会话可继续。
+- 下一步：**NA-033** —— 解析 SPH，把「贴图维度 / 图像格式 / 属性类型」这层事实坐实（或按方案 A 收口），把结论写进计划 §4.4。
+
 ## 2026-10-20 09:20 Asia/Shanghai — [TOTK] NA-030 TotK 模块进 Android 装载链
 
 - 会话目标：把 TotK 的三个模块接进 Android 宿主的装载链，并在本机用宿主同款解析核对（M1 第一步，不碰图形）。
