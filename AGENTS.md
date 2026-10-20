@@ -14,8 +14,9 @@
 8. 所有“已完成/已验证”结论必须带命令、退出码或产物证据；没跑就写 `NOT RUN`，不能猜测。
 9. 超过 5 分钟或高风险操作必须在 HANDOFF_LOG 写 `[BEGIN]`/`[END]`；只有 BEGIN 没有 END 时先检查进程、日志和产物，不能直接重跑。
 10. 不提交游戏内容、密钥、存档或构建产物；不回显 `prod.keys`；不把 D2R 数据当作 TotK 数据。
-11. 交接控制面应单独提交并推送；无法提交/推送时，必须在 HANDOFF 中明确标注 `COMMIT: NOT DONE` / `PUSH: NOT DONE` 和恢复命令。
-12. 不使用 `git reset --hard`、强制推送或删除未提交改动来“清理”交接状态。
+11. **上游有更新要同步，并判断对本项目是否有用**：上游 `jhaizhou-ops/d2r-mobile`（iOS/macOS 原版）与本 fork 的共同祖先是 `sydeEvans/d2r-android`；上游的新提交 / issue 要定期看（`gh` 一律带 `--repo jinran3/d2r-android`，查上游用 `--repo jhaizhou-ops/d2r-mobile`）。同步时只取**对本项目有用**的部分（本 fork 已有 Android 宿主改造与裁剪批次，不要整文件覆盖），并把「这条上游改动对本项目有没有用、为什么」的结论写进 `docs/HANDOFF_LOG.zh-CN.md`。
+12. 交接控制面应单独提交并推送；无法提交/推送时，必须在 HANDOFF 中明确标注 `COMMIT: NOT DONE` / `PUSH: NOT DONE` 和恢复命令。
+13. 不使用 `git reset --hard`、强制推送或删除未提交改动来“清理”交接状态。
 
 ## 新会话恢复顺序
 

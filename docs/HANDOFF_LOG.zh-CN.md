@@ -1,7 +1,60 @@
 # Agent 交接会话日志
 
 > 只追加，不覆盖。最新记录放在最上方。
-> 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。## 2026-10-20 06:40 Asia/Shanghai — [TOTK] NA-027 TotK 文件准备 + M0 勘察完成
+> 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+
+## 2026-10-20 08:30 Asia/Shanghai — [TOTK] NA-028 规则域接 TotK + NA-029 上游同步完成
+
+- 会话目标：把 `patch_nso.py` 的 `totk-run-v1` 规则域接到 TotK 真实构建号并跑出第一份 TotK 改写映像与宿主门清单；按用户要求核对上游仓库的更新与 issue，判断对本项目有没有用，并把这条规则写进 AGENTS.md。
+- 结论：**TotK 规则域已可用**（四个模块改写全部 exit 0，cuts/obs 全 0，宿主门面清单拿到）；**宿主侧不需要为 TotK 改 x18 处理**（Android 宿主本来就保全 x18，Linux ABI 也不用 x18）。
+
+[BEGIN] na-028-totk-ruleset
+
+- 命令：`DM_RULESET=totk-run-v1 python dm/tools/patch_nso.py <ExeFS/模块> <输出目录> <模块名>`（四个模块各一次），随后 `ci_checks.py`、`build.py --game-run --version trim-b26`。
+- 工作目录：`D:\Switch\d2r-android`（改写产物落在仓库外 `D:\Switch\totk-work\patched`）
+- 预期结果：构建号断言通过、cuts/obs 为空、产出改写映像与门清单。
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`becd40b`
+
+[END] na-028-totk-ruleset
+
+- 退出码：四个模块的改写全部 exit 0；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b26` exit 0（APK 17,725,903 字节）。
+- 产物：`D:\Switch\totk-work\patched\{main,sdk,subsdk0,rtld}.{patched.bin,gates.tsv,sites.tsv,fixups.tsv,cuts.tsv,obs.tsv,params.tsv}`
+- 结果：SUCCESS
+- 备注：iOS / macOS 侧编译与真机（本批 NOT RUN）；更新包 BKTR 补丁应用 NOT RUN。
+
+证据（本条目对应的命令与退出码）：
+
+- 规则域改动（提交 `a70f0ef`）：`TOTK_BUILDS` 钉住四个模块构建号（main `5cb42b1cf25469fb0635fd046453d843`、sdk `5cf080e800530a7f25bd528ec875c27b`、subsdk0 `3308c1d216f788397d1451c8345a16cd`、rtld `82a3cf78789f9d9858c52379d8d2d129`），构建号不符即中止；CUTS / OBS / PARAMS 三张表给 TotK 的 main 登记空表。
+- 改写结果：`main {'tpidr_r': 814} cuts 0 obs 0 patch 26048`（61,760,960 字节）；`sdk {'tpidr_r': 2, 'tpidrro_r': 124, 'tpidr_w': 3, 'cntpct': 43, 'svc': 58} cuts 0 obs 0`（12,984,320 字节，门 101 个）；`subsdk0 {} cuts 0 obs 0`（6,750,208 字节）；`rtld {'svc': 6} cuts 0 obs 0`（66,136 字节，门 6 个）。
+- 宿主门面清单：sdk 的 58 个不同 svc 号 = 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,31,33,34,35,37,38,39,40,41,42,44,45,47,50,51,52,53,54,64,65,67,68,69,75,80,81,82,112,114（rtld 的 6 个是其中子集）→ 这就是「TotK 实际触发的 syscall 号」的缺口清单（对比 D2R 的 264 处强制接管，量级小得多）。
+- **M1 前提修正（重要）**：改写器第一次跑 TotK 的 main 报 `AssertionError: branch into window a79c0`。查清后根因不是窗口逻辑，而是 **TotK 把 x18 当普通寄存器用**：.text 里 24,204 条指令提到 x18、18,572 条提到 w18（例如 0x3f00 `add x18, x19, #0x260`、0xa761c `stxr w17, w18, [x10]`、0xa79c0 `b.eq #0xa761c` 跳进独占窗口中间），而 D2R 改写器的前提是「x18 = TLS 指针」。实测结论：上游那套机制的实质是**每线程把客体 x18 存进线程槽 K18**，对「x18 是普通寄存器」同样成立；而 Android 宿主本来就保全 x18（`dm/android/native/probe.c` 每次宿主调用前后都比对 x18，Linux AArch64 ABI 也不用 x18）——所以 TotK 规则域**不做 x18 改写**即可，**宿主侧不用改**，D2R 行为一字未动。
+- 未采纳的 D2R 侧改动：批 6 剩余的 D2R CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线仍在队列里（注意 `dm/android/tools/build_shaders.py` 还 import `casc_overlay`，删它要一并改）。
+
+[BEGIN] na-029-upstream-sync
+
+- 命令：拉上游 `jhaizhou-ops/d2r-mobile` 的 `main` 与本地 `dm/tools/patch_nso.py` 比对；检索上游 issue（`x18` / `TLS` / `svc` / `gate` / `thread` / `context`）；采纳 #55 的预筛后跑 `dm/android/tests/test_rewriter.py` 与 TotK 上的独立复核脚本。
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：找出上游对本项目有用的更新并采纳，写清「有没有用、为什么」；把「上游有更新要同步并评估」写进 AGENTS.md。
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`a70f0effedd4cf9ad1d69e699935dc936c65235a`
+
+[END] na-029-upstream-sync
+
+- 退出码：`dm/android/tests/test_rewriter.py` exit 0（unicorn 逐条比对原指令与改写后语义，8 个用例：算术 / 条件 / 位测 / 标志 / PC 相对 / 栈 / 原子（ldxr·stxr 独占窗口）/ TLS）；TotK main 上的独立复核脚本 exit 0（漏 0、多 0）。
+- 产物：提交 `e3c7dbc`（`dm/tools/patch_nso.py` 的预筛 + `dm/tools/switch_nca.py` 的断点续传）。
+- 结果：SUCCESS
+- 备注：上游差异的三类归属与逐条「有用 / 没用」的判断见下方证据；本批 NOT RUN：iOS / macOS 侧编译、真机。
+
+证据（本条目对应的命令与退出码）：
+
+- 上游现状：`jhaizhou-ops/d2r-mobile` 的 `main` 比本 fork 新 —— 其 `dm/tools/patch_nso.py` 88,578 字节 vs 我们 72,377（283 行差异）。差异分三类：① D2R 玩法剪口（我们的裁剪批次 7a–7s 已删，属预期差异）② Android 宿主改造（`DM_TARGET=android`、`thread_base()` 走宿主上下文入口等，我们独有）③ **可直接用的上游改进**。
+- 采纳：上游 issue **#55「Speed up NSO x18 scan with register field prefilter」** —— 线性扫描时先看指令的四个寄存器字段（0/5/10/16 位）有没有 18，命中才反汇编。上游口径：候选 7,201,192 → 189,399，三个模块一趟 78.5s → 20.2s。语义不变（产物逐字节相同）。
+- 本批独立验证（不靠上游的数据）：① 按上游同一口径在 **TotK 的 main** 上复核 —— 11,442,300 字 → 322,813 候选（2.82%）→ 42,776 处 x18/w18，**漏 0、多 0**；② 仓库自带的改写器等价性单测 `dm/android/tests/test_rewriter.py` **exit 0**（含 ldxr/stxr 独占窗口用例）。注：该单测首次运行报 `FileNotFoundError`，原因是本机没设 `DM_ANDROID_TOOLS`（脚本按 `~/dm-work/tools/android` 找工具链），设上环境变量即通过 —— 不是代码问题。
+- 未采纳（逐条理由）：上游「In-game Spanish（esES / esMX）语言开关 / 界面文字 / 物品注释 / 三语 README」是 D2R 产品侧（且我们刚在 NA-025 摘掉 D2R 的自定义页语言开关，TotK 侧语言策略是「一律简中」）；「Adopt community fixes：Mac 悬停提示 / Mac 物品注释与自动增益 / Mac iCloud 启动 / iOS 快速操作 / Xcode 26.2 / 主按钮瞄准死区」全是 D2R 宿主体验项；「fix(loader): preserve null unresolved weak imports (#66)」是 loader 细节，TotK 走的是自己的模块链，暂不引入；「Mac shader retarget：按目录拷贝反射 JSON 并逐库校验（#60）」与 §4.4 相关，**列入待查**（TotK 的反射来源还没定，暂不照搬 D2R 的做法）。
+- 新增规则：`AGENTS.md` 第 11 条「**上游有更新要同步，并判断对本项目是否有用**」—— 写明上游仓库、共同祖先、只取有用部分、不整文件覆盖、结论写进本日志。
+
+## 2026-10-20 06:40 Asia/Shanghai — [TOTK] NA-027 TotK 文件准备 + M0 勘察完成
 
 - 会话目标：用户提供了 TotK v1.4.2 合并 XCI 与 `prod.keys`，按计划 §8 第 2 步把游戏文件解到仓库外工作区，读出 NSO 构建号与模块清单，填计划 §3 的表。
 - 结果：TotK 的四个模块构建号、模块大小、动态符号 / 重定位数、NVN 取址函数数、RomFS 规模全部实测到手（见下方证据）；§3 的表已填。
