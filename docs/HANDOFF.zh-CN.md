@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-21T01:32:00+08:00
+updated_at: 2026-10-21T03:05:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 5b44b51
+observed_head: 152493c
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 5b44b51df80734f38f5c937a859de5060d6411ea
+origin_head_at_checkpoint: 8136185
 code_worktree: CLEAN
-next_action_id: NA-038
+next_action_id: NA-039
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,19 +140,19 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-21 01:32（Asia/Shanghai；**本机时钟比前几条日志早约 6 小时**，时间以 git 提交时间为准）
-- 当前阶段：M0 勘察完成；NA-033/034/035 收口；NA-036 数据/着色器/符号解析三条前置已验；**NA-037 把 TotK 的 NVN 接口面对齐**（名字表补齐 + 13 个新接口落地 + 103 个实现缺口清单）；只剩真机推包开机、更新包的 BKTR 补丁与那 103 个接口
+- 快照时间：2026-10-21 03:05（Asia/Shanghai；**本机时钟比前几条日志早约 6 小时**，时间以 git 提交时间为准）
+- 当前阶段：M0 勘察完成；NA-033/034/035 收口；NA-036 数据/着色器/符号解析三条前置已验；NA-037 把 TotK 的 NVN 接口面对齐；**NA-038 把 TotK 调用的 NVN 接口全部补齐（缺口 103 → 0）**；下一步 NA-039 处理那 5 个空实现；真机推包开机与更新包的 BKTR 补丁仍待办
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：见 frontmatter `observed_head`（`5b44b51`：TotK 的 NVN 接口面对齐 —— 名字表补 13 个 + 13 个新接口 + 缺口清单）
+- 观测 HEAD：见 frontmatter `observed_head`（`152493c`：TotK 调用到的 NVN 接口全部补齐，缺口 103 → 0）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b31`）
-- 本次会话目标：NA-037（手机断开期间的离线工作）：把 TotK 的 NVN 接口面查清并对齐到宿主。
+- 本次会话目标：NA-038（手机断开期间的离线工作）：把 TotK 调用到的 NVN 接口逐个实现。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：**★ TotK 调用但宿主还没实现的 103 个 NVN 接口**（`dm/gfx/tools/nvn_coverage.py` 出清单；缺口最大的：`nvnBufferFlushMappedRange` 132 次、`nvnCommandBufferDrawElementsBaseVertex` 103 次、`nvnDeviceGetTexelFetchHandle` 103 次、`nvnCommandBufferWaitSync` 98 次、`nvnCommandBufferSetRenderEnableConditional` 60 次、`nvnMemoryPoolInvalidateMappedRange` 55 次、`nvnCommandBufferClearColori` 39 次、`nvnCommandBufferBindImage` 29 次）。**★ 真机推包与开机**（数据包已就绪：`D:\Switch\totk-work\package-totk\totk-package.zip`，16.31 GiB，315,286 条目，**手机本会话完全断开**）。**★ 更新包的 RomFS 补丁（BKTR）**（段与本体同构、media type 4 vs 3、逻辑 17 GB 而物理 456 MiB；已排除明文 Brotli / 同段 CTR / XTS+头密钥三种可能，**没有参考实现时解不开**）。**歧义控制键的取舍**（1,640 个控制键对应多种机器码；变体之间差的是 Maxwell 私有编码的机器码（不是 ARM64，capstone 解不了），要靠真机画面定）。**Mac 侧的翻译链重建**（`dmsh_chain.h` 的版本本来就过期）。
-- 最近一次成功命令：`build.py --game-run --version trim-b31` exit 0（含新加的 NVN 实现）；`dm/gfx/tools/nvn_table.py --check` exit 0（三个生成文件与名字表一致）；`dm/gfx/tools/nvn_coverage.py` → 取址缺口 **0**、实现缺口 **103**；`ci_checks.py` 12 项通过 / 1 项失败（失败项是交接控制面本身，见下一条，更新本文件后复跑应全绿）；`check_guest_imports.py` exit 0；`verify_totk_rewrite.py` exit 0。
+- 未完成：**★ 5 个空实现要补成真实现**（`nvn_coverage.py` 列出）：`nvnCommandBufferWaitSync`(98 次调用，最要紧 —— 现在不等待 GPU)、`nvnCommandBufferSetDepthBounds`(15)、`nvnCommandBufferDispatchComputeIndirect`(3)、`nvnCommandBufferSetShaderScratchMemory`(2)、`nvnWindowFinalize`(2)；其中 WaitSync 与 DispatchComputeIndirect 要动后端（新增录制 op + Vulkan 侧实现）。**★ 真机推包与开机**（数据包已就绪：`D:\Switch\totk-work\package-totk\totk-package.zip`，16.31 GiB，315,286 条目，**手机本会话完全断开**）。**★ 更新包的 RomFS 补丁（BKTR）**（段与本体同构、media type 4 vs 3、逻辑 17 GB 而物理 456 MiB；已排除明文 Brotli / 同段 CTR / XTS+头密钥三种可能，**没有参考实现时解不开**）。**歧义控制键的取舍**（1,640 个控制键对应多种机器码；变体之间差的是 Maxwell 私有编码的机器码（不是 ARM64，capstone 解不了），要靠真机画面定）。**Mac 侧的翻译链重建**（`dmsh_chain.h` 的版本本来就过期）。
+- 最近一次成功命令：`build.py --game-run --version trim-b33` exit 0（含 NA-038 的全部新实现）；`dm/gfx/tools/nvn_coverage.py --check` exit 0（取址缺口 **0**、缺实现 **0**、空实现 5）；`dm/gfx/tools/nvn_table.py --check` exit 0；`ci_checks.py` 12 项通过 / 1 项失败（失败项是交接控制面本身，见下一条，更新本文件后复跑应全绿）；`check_guest_imports.py` exit 0；`verify_totk_rewrite.py` exit 0。
 - 最近一次失败命令及原因：① 第一次出的包**路径是错的**（父目录前缀丢失 → 1,693 处重名路径且内容不同、文件被放错目录）——**已定位并修复遍历**（`e946844`），重出的包 0 重名、抽样一致；② 手机在会话中途掉线（`adb devices` 空），真机部署顺延；③ 逐文件解包本体 RomFS 太慢（NTFS 小文件 + Defender，约 1 万个/2.5 小时）→ 改为导出 RomFS 映像再直接出包。
 - 已验证产物路径：仓库内新增 `dm/gfx/tools/nvn_slots_auto.py`（自动定位 NVN 取址函数）、`dm/gfx/tools/nvn_table.py`（只靠名字表重建跳板/计数/原型表）、`dm/gfx/tools/nvn_coverage.py`（覆盖核对）、`dm/gfx/nvn/nvn_names_totk.txt`（TotK 取址名 534 个）、`dm/gfx/nvn/nvn_calls_totk.tsv`（TotK 真正调用的 213 个接口与调用点数）；仓库外：`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.31 GiB，含按 Android 口径重译的着色器** ✓）、`D:\Switch\totk-work\xlate-android\out0..5\`（9,807 个新 SPIR-V）、`D:\Switch\totk-work\package-totk\shaders\`（5,534 套宿主键）、`D:\Switch\totk-work\android-translator\`、`D:\Switch\totk-work\base\romfs.img`+`.ivfc`、`D:\Switch\totk-work\pack-totk\produce\game\`、`D:\Switch\totk-work\package-totk\ambiguity.tsv`；仓库内新增 `dm/android/tools/build_android_translator.py`、`dm/tools/verify_totk_rewrite.py`、`dm/tools/check_guest_imports.py`；APK `dm/android/build/D2R-Android-port.apk`（trim-b30）。
 - 当前阻塞：**手机完全断开**（线插着但 adb 枚举不到，PnP 报 Code 45）—— 推包与开机验证要等设备回来，这是唯一的外部阻塞。**数据侧只差更新包的 BKTR 补丁**（本体数据已完整且逐条校验过）。c[2] 布局、着色器键口径、着色器翻译口径（子组 64 + 每阶段描述符集）、驱动（系统 Adreno 750）、客体符号解析、数据路径映射都已经验过。
@@ -213,24 +213,28 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-038
+- ID：NA-039
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：HEAD 含 `5b44b51`；`dm/gfx/tools/nvn_coverage.py` 当前报出 **103 个**「TotK 调用但宿主未实现」的接口（清单随工具输出，也在 `dm/gfx/nvn/nvn_calls_totk.tsv` 里能查调用点数）；**一加 12 仍然断开**（本动作不需要手机）。
-- 动作：**按调用点数从高到低，补齐 TotK 真正调用、而宿主还接报红桩的 NVN 接口**（M2 的前置）。每个接口都要按 NVN 语义实现，不能只加空壳：
-  ① **映射与刷新**：`nvnBufferFlushMappedRange` / `nvnMemoryPoolFlushMappedRange` / `nvnMemoryPoolInvalidateMappedRange` / `nvnBufferInvalidateMappedRange` / `nvnBufferMap` / `nvnMemoryPoolMap` / `nvnMemoryPoolMapVirtual`（宿主已有内存池与映射机制，见 `hle_nvn.c` 的 `nvnMemoryPool*`）；
-  ② **绘制**：`nvnCommandBufferDrawElementsBaseVertex` / `nvnCommandBufferDrawArraysInstanced` / `nvnCommandBufferDrawElements`（宿主已有 `OP_DRAW_IDX` 录制路径）；
-  ③ **句柄**：`nvnDeviceGetTexelFetchHandle` / `nvnDeviceGetImageHandle` / `nvnCommandBufferBindImage`；
-  ④ **同步与条件渲染**：`nvnCommandBufferWaitSync` / `nvnCommandBufferSetRenderEnableConditional` / `nvnQueueWaitSync`；
-  ⑤ **清除与状态**：`nvnCommandBufferClearColori` / `nvnCommandBufferSetDepthBounds` 等；
-  ⑥ **其余 getter/setter**（只影响 CPU 可见状态，按 NVN 语义返回/记录即可）。
-  实现之前先用 `dm/gfx/nvn/nvn_names_totk.txt` 与调用点证据确认参数与语义；仓内 `nvn.h` 有原型的一律用 `NVN(...)` 宏（有编译期签名检查），没有原型的用 `NVN_NOPROTO(...)`。
-- 命令或编辑目标：`dm/gfx/nvn/hle_nvn.c`（实现）、`dm/gfx/tools/nvn_coverage.py`（核对）、`dm/gfx/nvn/nvn_calls_totk.tsv`（证据表）。
-- 成功判据：① `dm/gfx/tools/nvn_coverage.py` 的「缺实现」降到 **0**（或只剩明确记为 no-op 的项，并在注释里写清为什么可以 no-op）；② `dm/gfx/tools/nvn_table.py --check` exit 0；③ `ci_checks.py` 全绿；④ `build.py --game-run --version trim-b32` exit 0（APK 产出）；⑤ D2R 侧行为不变（名字表顺序不变 → 槽索引不变；新增接口 D2R 不调用）。
-- 失败判据：某个接口的语义在静态证据里说不清 → **不要瞎猜**，写进交接的「待真机确认」清单，先做别的；实在做不了的（例如需要真机画面定）→ 记为 no-op 并在代码注释里写明理由。
-- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`5b44b51`）。
-- 需要写入的证据：每批接口的实现清单与逐条理由、`nvn_coverage.py` 的前后计数、`nvn_table.py --check` 退出码、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。
-- 顺带记下（下一步之后要做）：① **真机推包与开机**（手机一回来就做，见 NA-036 的步骤）；② **更新包的 BKTR 补丁**（已排除三种可能；没有参考实现时解不开）；③ **歧义控制键**（1,640 个；变体差的是 Maxwell 私有编码的机器码，capstone 解不了；需要真机画面定，或用仓内 vendored Ryujinx 的 Maxwell 解码器写个对比工具）；④ **Mac 侧的翻译链重建**（`dmsh_chain.py --header` 要在 Mac 侧 `--update-lock` 之后重跑）。
+- 前置条件：HEAD 含 `152493c`；`dm/gfx/tools/nvn_coverage.py --check` 现在报「缺实现 0、空实现 5」；**一加 12 仍然断开**（本动作不需要手机）。
+- 动作：**把 TotK 调用到的 5 个空实现（`g_nops`）补成真实现**，别让它们继续是「不做处理」：
+  ① **`nvnCommandBufferWaitSync`（98 次调用，最要紧）**：现在完全不等待 GPU。正确做法是录一条「等待同步对象」的命令，
+     在提交 / 回放时按同步对象的栅栏值等 GPU（参照 `hle_nvn.c` 的 `nvnSyncWait` 与后端已有的栅栏机制；
+     Android 侧与 Metal 侧都要接）。
+  ② **`nvnCommandBufferDispatchComputeIndirect`（3 次）**：需要「间接派发」—— 计数在 GPU 缓冲里，
+     要新增录制 op + 后端（`vkCmdDispatchIndirect`）。
+  ③ **`nvnCommandBufferSetDepthBounds`（15 次）**：Vulkan 的深度夹取可以不启用（宿主现在不夹取），
+     但要按 NVN 语义记下状态，不要静默吞掉。
+  ④ **`nvnCommandBufferSetShaderScratchMemory`（2 次）**：着色器局部内存，宿主不支持 → 明确记成 no-op 并写清理由。
+  ⑤ **`nvnWindowFinalize`（2 次）**：窗口对象要真正收尾（释放原生窗口 / 计数归零）。
+- 命令或编辑目标：`dm/gfx/nvn/hle_nvn.c`（`g_nops` 名单与实现）、`dm/gfx/nvn/nvn_obj.h`（新增 op 与载荷）、
+  `dm/android/native/nvn_vulkan.c` 与 `dm/android/native/nvn_vulkan_*.inc`（Vulkan 侧）、`dm/gfx/nvn/nvn_mtl.m`（Metal 侧同步）、
+  `dm/gfx/tools/nvn_coverage.py`（把「空实现」也算进覆盖统计，缺实现保持 0）。
+- 成功判据：① `dm/gfx/tools/nvn_coverage.py --check` 报「空实现 0、缺实现 0」；② `ci_checks.py` 全绿；③ `build.py --game-run --version trim-b34` exit 0；④ D2R 侧行为不变（D2R 不调这 5 个函数里的任何一个 —— `nvnCommandBufferWaitSync` 在 D2R 的 `g_nops` 里，说明 D2R 调它但不需要等待；改动要保证 D2R 的既有行为不变）。
+- 失败判据：某个接口在两个后端上的语义拿不准 → 在代码里显式写成「no-op + 理由」，并写进交接的待真机确认清单，不要瞎猜一个会画错的实现。
+- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`152493c`）。
+- 需要写入的证据：每个接口的实现与理由、`nvn_coverage.py` 的前后计数、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。
+- 顺带记下（下一步之后要做）：① **真机推包与开机**（手机一回来就做，见 NA-036 的步骤）；② **更新包的 BKTR 补丁**（已排除三种可能；没有参考实现时解不开）；③ **歧义控制键**（1,640 个；变体差的是 Maxwell 私有编码的机器码，capstone 解不了；需要真机画面定，或用仓内 vendored Ryujinx 的 Maxwell 解码器写个对比工具）；④ **Mac 侧的翻译链重建**（`dmsh_chain.py --header` 要在 Mac 侧 `--update-lock` 之后重跑）；⑤ **预排布贴图上传**（`nvnTextureBuilderSetPackagedTextureData` 还没有上传路径，TotK 调 13 次，真机上贴图可能是空的）。
 
 ## 长操作两阶段日志
 

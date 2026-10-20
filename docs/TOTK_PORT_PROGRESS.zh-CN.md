@@ -12,6 +12,26 @@
 
 ## 当前状态（继续开发先看这里）
 
+**2026-10-21（最新）：NA-038 —— 把 TotK 真正调用、而宿主还接报红桩的 NVN 接口全部补齐（缺口 103 → 0）。**
+
+- **补齐范围**：按 `dm/gfx/tools/nvn_coverage.py` 的清单逐个实现（分 a/b/c 三批），每批都过完整构建：
+  ① **缓冲族**（`nvnBuffer*`，16 个）：缓冲 = 内存池里的一段，宿主直接用游戏给的真实内存 →
+     映射返回池首地址 + 偏移，刷新 / 失效是空操作（写已经落到真实内存）。
+  ② **绘制**：`nvnCommandBufferDrawElements` / `DrawElementsBaseVertex`（走已有的 `OP_DRAW_IDX`）、
+     `DrawArraysInstanced`（`p_draw` 载荷加上实例数与首实例，Vulkan 侧 `vkCmdDraw` 带上；Metal 侧忽略，D2R 不用）。
+  ③ **句柄与绑定**：`nvnDeviceGetTexelFetchHandle`、`nvnCommandBufferBindImage` / `BindSeparateTexture` / `BindVertexBuffer`。
+  ④ **整数清除**：`nvnCommandBufferClearColori` 的原始位进清除载荷，Vulkan 侧按目标格式取用（原来只有浮点清除）。
+  ⑤ **各类查询**：贴图构建器 / 贴图 / 贴图视图 / 采样器 / 状态对象的 getter，内存池的 getter，调试标签，
+     以及命令缓冲上剩余的开关（保守光栅、tiled cache、viewport swizzle、ZCull 数据、transform feedback 等）。
+- **返回值是「不透明结构体按值返回」的接口**（`NVNmemoryPool`、`NVNmemoryPoolFlags`）改成不做签名检查、按 64 位返回：
+  头文件把它们建模成 96 / 256 字节结构体（按值返回会走间接返回约定），而游戏那边拿到的是寄存器里的普通值。
+- **明确留着「不做处理」的**（代码里都写了理由）：虚拟内存池映射（宿主没有虚拟地址空间 → 明确失败）、
+  CPU 写贴图（宿主还没有这条上传路径 → 报红）、预排布贴图上传、条件渲染（一律渲染）、
+  保守光栅、tiled cache、transform feedback。
+- **闸门**：`dm/gfx/tools/nvn_coverage.py --check` exit 0（取址缺口 **0**、缺实现 **0**、空实现 5），
+  并接进 `ci_checks.py` 作为常设闸门；`build.py --game-run --version trim-b33` exit 0。
+- **本批 NOT RUN**：真机（手机断开）。合并句柄拆分、整数清除、实例绘制都只有静态依据，要等真机出图确认。
+
 **2026-10-21（最新）：NA-037 —— TotK 的 NVN 接口面对齐：查出会直接崩的取址缺口、补 13 个新接口、给出 103 个实现缺口清单。**
 
 - **★ 查出一个会直接崩的坑**：TotK 的 main 取址 **534 个** NVN 接口名（`dm/gfx/nvn/nvn_names_totk.txt`），

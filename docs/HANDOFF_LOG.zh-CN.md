@@ -3,6 +3,43 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 03:05 Asia/Shanghai — [TOTK] NA-038：TotK 调用到的 NVN 接口全部补齐（缺口 103 → 0）
+
+- 会话目标：按 NA-038 的清单，把「TotK 真正调用、宿主还接报红桩」的 NVN 接口逐个实现。
+- 结果：**取址缺口 0、缺实现 0**（还剩 5 个是 `g_nops` 的空实现：`nvnCommandBufferWaitSync` 98 次、
+  `nvnCommandBufferSetDepthBounds` 15 次、`nvnCommandBufferDispatchComputeIndirect` 3 次、
+  `nvnCommandBufferSetShaderScratchMemory` 2 次、`nvnWindowFinalize` 2 次）。覆盖情况由 `dm/gfx/tools/nvn_coverage.py` 复查，并接进 `ci_checks.py` 当常设闸门。
+
+[BEGIN] na-038-nvn-implement
+
+- 命令：`dm/gfx/tools/nvn_coverage.py`、`dm/android/tools/build.py --game-run --version trim-b32 / trim-b33`、`dm/android/tools/ci_checks.py`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：TotK 调用的接口在宿主里都有实现；构建与闸门全绿。
+- 日志路径：无
+- 回滚点：`8136185`
+
+[END] na-038-nvn-implement
+
+- 退出码：`nvn_coverage.py --check` exit 0（缺实现 0）；`build.py --game-run --version trim-b33` exit 0；`ci_checks.py` 13 项通过（交接控制面那一项在本条更新后复跑）。
+- 产物：`dm/gfx/nvn/hle_nvn.c`（a/b/c 三批实现）、`dm/gfx/nvn/nvn_obj.h`（`buffer_t` / `buffer_builder_t`、`p_draw` 加实例数、`p_clear_color` 加整数位）、
+  `dm/android/native/nvn_vulkan_draw.inc`（实例绘制）、`dm/android/native/nvn_vulkan_tex.inc`（整数清除）、`dm/gfx/tools/nvn_coverage.py`（分类与闸门）、`dm/android/tools/ci_checks.py`（接线）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机断开）。合并句柄拆分、整数清除、实例绘制都只有静态依据。
+
+证据（本条目对应的命令与退出码）：
+
+- **缓冲族**：新增 `buffer_t` / `buffer_builder_t`（`nvn_obj.h`，用 `FITS` 断言塞进 `NVNbuffer` 0x30 / `NVNbufferBuilder` 0x40）；
+  `nvnBufferMap` 返回 `池首地址 + 偏移`，`nvnBufferGetAddress` 同理；宿主用游戏给的真实内存（GPU 地址 = CPU 地址），
+  所以 flush / invalidate 是空操作。
+- **绘制**：`p_draw` 加 `base_instance` / `instances` 两个字段（`nvnCommandBufferDrawArrays` 记 1，保持旧行为）；
+  Vulkan 侧 `vkCmdDraw(command, draw->count, draw->instances>0?draw->instances:1, draw->first, draw->base_instance>0?draw->base_instance:0)`。
+- **整数清除**：`p_clear_color` 尾部加 `is_int` + `rgba_i[4]`；Vulkan 侧 `if(c->is_int) memcpy(color.uint32,...) else memcpy(color.float32,...)`。
+- **返回值 ABI 的坑**：`NVNmemoryPool`（0x100 字节）与 `NVNmemoryPoolFlags`（0x60 字节）按值返回会走间接返回约定（x8），
+  而游戏那边把 `NVNmemoryPool` 当指针用（值在 x0）→ 这几个接口改用 `NVN_NOPROTO` 按 64 位返回，不做签名检查。
+- **明确的 no-op**（都写了理由）：虚拟内存池映射（明确失败并报红）、CPU 写贴图（报红）、预排布贴图上传（报红）、
+  条件渲染（一律渲染，多画不少画）、保守光栅、tiled cache、transform feedback、ZCull 数据、shader scratch memory。
+- 下一步：**NA-039** —— 把那 5 个空实现补成真实现（`WaitSync` 与 `DispatchComputeIndirect` 要动后端：新增录制 op + Vulkan 侧实现）。
+
 ## 2026-10-21 01:32 Asia/Shanghai — [TOTK] NA-037：TotK 的 NVN 接口面对齐（查出会直接崩的取址缺口 + 补 13 个接口 + 103 个缺口清单）
 
 - 会话目标：手机断开期间，把 TotK 的 **NVN 接口面**查清并对齐到宿主（这是 M2「NVN 接管」的前置）。
