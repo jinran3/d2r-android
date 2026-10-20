@@ -3,6 +3,40 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 01:20 Asia/Shanghai — [TOTK] 启动界面加「游戏」档位（D2R / TotK）
+
+- 会话目标：把剩下的、能不依赖手机做完的事做完。
+- 结果：启动界面多了一行「游戏」，可以在**暗黑破坏神 II**与**塞尔达传说：王国之泪**之间切换；它写进 `launch-settings.conf` 的 `game_profile` 键，native 据此选 c[2] 的句柄表布局（D2R 分离表 / TotK 合并表）。手机仍掉线，推包与开机顺延。
+
+[BEGIN] na-036-launcher-game-profile
+
+- 命令：`dm/ios/tools/dm_i18n.py --header`、`dm/ios/tools/dm_i18n.py --check`、`dm/android/tools/build.py --game-run --version trim-b30`、`dm/android/tools/ci_checks.py`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：中英表一致、APK 能构建、闸门全绿。
+- 日志路径：`D:\Switch\totk-work\`
+- 回滚点：`e946844`
+
+[END] na-036-launcher-game-profile
+
+- 退出码：`dm_i18n.py --check` exit 0（204 条 ✓）；`build.py --game-run --version trim-b30` exit 0（APK ✓）；`ci_checks.py` 12 项通过（交接控制面一项在本条更新后重跑）。
+- 产物：启动界面的「游戏」行与三条中英文案；APK `dm/android/build/D2R-Android-port.apk`（trim-b30）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机掉线）。
+
+证据（本条目对应的命令与退出码）：
+
+- **启动界面**：`dm/android/java/org/d2r/android/port/LauncherActivity.java` 新增 `GAME_STATES = {"d2r", "totk"}`、
+  「游戏」行（点一下切换 ✓）、显示文案、状态文件里的 `game=` ✓，
+  以及写进 `launch-settings.conf` 的 **`game_profile=`** ✓（并把 `game_profile` 加进 `OWNED_KEYS`，
+  这样重写配置时不会把它抹掉 ✓）。native 侧早就支持这个键（`launch_settings.c` 解析后写成 `DM_GAME_PROFILE` ✓），
+  缺的是界面这一头。
+- **中英表**：新增 `dmAndroidLaunchGame` / `dmAndroidLaunchGameD2R` / `dmAndroidLaunchGameTotK` 三条 ✓，
+  `dm/ios/tools/dm_i18n.py --check` exit 0（204 条 ✓），生成头 `dm/host/dm_i18n_tab.h` 一并重出 ✓。
+- **BKTR 的现状**（更新包的数据补丁解不开）：那个段的 `fs_header` 与本体同构，只是 media type 是 4 而不是 3 ✓；
+  IVFC 的最后一层声称逻辑大小 17 GB 而物理只有 456 MiB → **确实是增量补丁** ✓。
+  本机连不上 GitHub，取不到 hactool 的 BKTR 实现，只能逆向。
+- 下一步：**NA-036** —— 手机回来后把包推上去、走启动界面的导入与「游戏」档位、开机看日志。
+
 ## 2026-10-21 00:30 Asia/Shanghai — [TOTK] NA-036 数据侧就绪：数据包打好并逐条校验，并修掉一个路径 bug
 
 - 会话目标：把 TotK 的数据变成能推到手机上的东西，并查清有没有别的坑。

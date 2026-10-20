@@ -1,6 +1,6 @@
 ---
 protocol: 1
-updated_at: 2026-10-21T00:30:00+08:00
+updated_at: 2026-10-21T01:20:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
@@ -140,8 +140,8 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-21 00:30（Asia/Shanghai）
-- 当前阶段：M0 勘察完成；NA-033/034/035 收口；**NA-036 数据侧就绪：TotK 数据包已打好并逐条校验（RomFS 304,207 个文件、0 重名、抽样逐字节一致）**；**只剩两件事：把包推上手机并开机（手机掉线了），以及更新包的 BKTR 补丁**
+- 快照时间：2026-10-21 01:20（Asia/Shanghai）
+- 当前阶段：M0 勘察完成；NA-033/034/035 收口；NA-036 数据侧就绪（数据包已打好并校验）；**启动界面加了「游戏」档位（D2R / TotK）**；下一步只差把包推上手机并开机（手机掉线了）与更新包的 BKTR 补丁
 - 当前分支：`totk/scaffold`
 - 观测 HEAD：见 frontmatter `observed_head`（RomFS 目录树遍历修复 `e946844`：**路径丢了父目录前缀**，导致 1,693 处重名路径与放错目录的文件）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
@@ -151,11 +151,11 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b29`，17,725,903 字节）
 - 本次会话目标：NA-036 第一阶段：把 TotK 的数据变成能推到手机上的东西（RomFS 映像 → 数据包 zip → 部署脚本）。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：**★ 更新包的 RomFS 补丁（BKTR）** —— 合并包里的 `d214ebdad75878d540c13f3155640f39.nca`（499.5 MB）的 romfs 段是 `crypt: bktr`，而 `dm/tools/switch_nca.py` 的 `read_section` 只支持 CTR 段 → **更新包的数据补丁解不开**（最终数据集因此只差这一层；本体数据已完整可用）。**真机装载与进 `nnMain`**（数据包在打包中；手机本会话掉线了）。**歧义控制键的取舍**（1,640 个控制键对应多种机器码，当前按「出现次数最多」选）。**改写器的 x18 适配**；**翻译器侧的 c[2] 基址**（`TexSlot` 写死 0x168，影响 26 个 TXQ 着色器；改它会动翻译链版本并要重出 Mac 侧 B 库）。**启动界面的游戏档位**（native 侧已支持 `game_profile`，界面还没有这一项）。
+- 未完成：**★ 更新包的 RomFS 补丁（BKTR）** —— 合并包里的 `d214ebdad75878d540c13f3155640f39.nca`（499.5 MB）的 romfs 段是 `crypt: bktr`（fs_header 的 media type 与本体不同：4 vs 3），逻辑大小 17 GB 而物理只有 456 MiB，**是一份增量补丁**；`dm/tools/switch_nca.py` 的 `read_section` 只支持 CTR 段 → **解不开**（上游 hactool 1.4.0 同样报 "Invalid BKTR layout!"，本机也连不上 GitHub 取不到它的源码）。**真机装载与进 `nnMain`**（数据包在 `D:\Switch\totk-work\package-totk\totk-package.zip` ✓；手机本会话掉线了）。**歧义控制键的取舍**（1,640 个控制键对应多种机器码，当前按「出现次数最多」选）。**改写器的 x18 适配**；**翻译器侧的 c[2] 基址**（`TexSlot` 写死 0x168，影响 26 个 TXQ 着色器；改它会动翻译链版本并要重出 Mac 侧 B 库）。
 - 最近一次成功命令：`totk_package.py` 出包 exit 0（**16.31 GiB，条目 315,286：RomFS 304,207 + 着色器 11,069 + 模块 9**，0 重名）；包里抽样 8 个文件与映像**逐字节一致**；`build_package.py inspect` 清单核对通过（`subgroup_size=64`）；`ci_checks.py` 12 项通过 / 0 项失败；真机 `vulkan-test` exit 0；真机 `launch-settings-test` PASS（58 cases）。
 - 最近一次失败命令及原因：① 第一次出的包**路径是错的**（父目录前缀丢失 → 1,693 处重名路径且内容不同、文件被放错目录）——**已定位并修复遍历**（`e946844`），重出的包 0 重名、抽样一致；② 手机在会话中途掉线（`adb devices` 空），真机部署顺延；③ 逐文件解包本体 RomFS 太慢（NTFS 小文件 + Defender，约 1 万个/2.5 小时）→ 改为导出 RomFS 映像再直接出包。
-- 已验证产物路径：仓库外：**`D:\Switch\totk-work\package-totk\totk-package.zip`（16.31 GiB，可直接被启动界面导入）**、`D:\Switch\totk-work\base\romfs.img`（15.93 GiB 解密 RomFS 映像）与 `romfs.img.ivfc`、`D:\Switch\totk-work\package-totk\shaders\`（5,534 套宿主键的 `.spv`+`.meta` 与 `host-subgroup-size.txt`=64）、`D:\Switch\totk-work\pack-totk\produce\game\`（改写后的三个模块与布局表）、`D:\Switch\totk-work\package-totk\ambiguity.tsv`（1,640 个歧义控制键）；仓库内新增 `dm/android/tools/totk_package.py`、`dm/android/tools/deploy_totk.py`、`dm/android/tests/test_package_layout.py`。
-- 当前阻塞：**手机掉线了**（用户插上后又掉，`adb devices` 为空；Windows 的 USB 设备列表里能看到 「ADB Interface」但状态是 Unknown，说明线还插着、adb 没枚举到 —— 多半是手机那边要解锁/重开 USB 调试，或者 adb 服务端版本对不上（本机有两个 adb：系统 v41 与 NDK 里的 v32，起服务时要用同一个））—— 推包与开机验证要等设备回来。**数据侧只差更新包的 BKTR 补丁**（本体数据已完整且逐条校验过；更新包的数据补丁解不开，见未完成项）。c[2] 布局、着色器键口径、驱动（系统 Adreno 750 / Vulkan 1.3.128 / subgroup 64）都已解决。
+- 已验证产物路径：仓库外：**`D:\Switch\totk-work\package-totk\totk-package.zip`（16.31 GiB，可直接被启动界面导入）**、`D:\Switch\totk-work\base\romfs.img`（15.93 GiB 解密 RomFS 映像）+ `romfs.img.ivfc`、`D:\Switch\totk-work\package-totk\shaders\`（5,534 套宿主键的 `.spv`+`.meta`、`host-subgroup-size.txt`=64）、`D:\Switch\totk-work\pack-totk\produce\game\`（改写后的三个模块与布局表）、`D:\Switch\totk-work\package-totk\ambiguity.tsv`；APK `dm/android/build/D2R-Android-port.apk`（trim-b30，含启动界面的游戏档位）。
+- 当前阻塞：**手机掉线了**（线还插着：Windows 的 USB 设备里能看到「ADB Interface」但状态 Unknown，adb 枚举不到；本机有两个 adb：系统 v41 与 NDK v32，起服务要用同一个）—— 推包与开机验证要等设备回来。**数据侧只差更新包的 BKTR 补丁**（本体数据已完整且逐条校验过）。c[2] 布局、着色器键口径、驱动（系统 Adreno 750 / Vulkan 1.3.128 / subgroup 64）都已解决。
 - 需要用户提供的材料：**无阻塞项**（TotK v1.4.2 合并 XCI、`prod.keys`、一加 12 均已到位）。后续若要真机跑起来，需要把 TotK 数据装进手机（下一步由宿主的「导入数据包」流程完成）。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据；**外部项目的代码不要直接搬进来**（`OJZen/totk-mobile` 是 Apache-2.0，本仓库是 MIT；只读思路与格式事实，代码自己写；Ryujinx 是 MIT，可用但要保留声明）。
