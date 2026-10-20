@@ -3,6 +3,40 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 04:45 Asia/Shanghai — [TOTK] NA-043：变体挑选的运行期假设写清 + 命中/退回计数
+
+- 会话目标：把「运行期机器码地址在哪」这个唯一未知假设落到代码注释与文档里，并让真机日志能直接回答它。
+- 结果：结论写进代码注释与进度文档；宿主开始统计变体命中与退回次数；构建通过。
+
+[BEGIN] na-043-variant-layout
+
+- 命令：`dm/android/tools/build.py --game-run --version trim-b38`、`dm/android/tools/ci_checks.py`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：假设有据可依；真机日志能回答「通不通 / 通的是哪一处」。
+- 日志路径：无
+- 回滚点：`be91e7d`
+
+[END] na-043-variant-layout
+
+- 退出码：`build.py --game-run --version trim-b38` exit 0；`ci_checks.py` 14 项通过 / 0 失败。
+- 产物：提交 `9a26e94`（命中/退回计数）与本条的注释改动。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机断开）。
+
+证据（本条目对应的命令与退出码）：
+
+- **静态推断的链条**：游戏的着色器表项是 `{u64 程序地址; u32 ?; u64 控制段地址; u32 阶段数}`（`upd_main.img` 的
+  `0x2f5234` 读表项首字段、`0x2f523c` 读 `+0xc`）；调用 `nvnProgramSetShadersExt` 时传
+  `{data = 表项首字段 + 固定偏移, control = 表项 +0xc}`（`0x2f5244` 的 `stp x9,x10,[sp,#0x10]`）。
+  NVN 的 `data` 语义是「着色器数据（程序）」⇒ 程序地址 = `data - 固定偏移` 或 `data` 本身。
+  宿主按 `data` → `data-程序偏移` → `data+程序偏移` → `控制段+0x880` → `控制段+0x880+程序偏移` 的顺序试
+  （候选与依据写在 `nvn_vulkan_shader.inc` 的注释里）。
+- **真机日志能回答**：宿主统计命中与退回次数，命中打 `[vulkan-shader] 控制键 … 命中变体 …（机器码来自 0x…）`，
+  退回打 `[vulkan-shader] 控制键 … 的变体没挑中，退回多数派变体（累计退回 N 次）`。
+- **诚实标注**：以上是静态推断，**未在真机上确认**；真机第一件事就是看这两行日志。
+
+- 下一步：手机一回来立刻按 NA-036 推包开机（包：`D:\Switch\totk-work\package-totk\totk-package.zip`，16.62 GiB）。
+
 ## 2026-10-21 04:25 Asia/Shanghai — [TOTK] NA-042：真机预检脚本（一条命令给出「可以推机 / 还差什么」）
 
 - 会话目标：把「设备之前能查的全套闸门」收成一条命令，给出带证据的结论。

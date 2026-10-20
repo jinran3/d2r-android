@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-21T04:25:00+08:00
+updated_at: 2026-10-21T04:45:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 2c6f80b
+observed_head: 9a26e94
 origin_ref: origin/totk/scaffold
 origin_head_at_checkpoint: 25b56f4
 code_worktree: CLEAN
-next_action_id: NA-043
+next_action_id: NA-044
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,16 +140,16 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-21 04:25（Asia/Shanghai；**本机时钟比前几条日志早约 6 小时**，时间以 git 提交时间为准）
+- 快照时间：2026-10-21 04:45（Asia/Shanghai；**本机时钟比前几条日志早约 6 小时**，时间以 git 提交时间为准）
 - 当前阶段：M0 勘察完成；NA-033/034/035 收口；NA-036 数据/着色器/符号解析三条前置已验；NA-037 NVN 接口面对齐；NA-038 接口覆盖清零（103 → 0）；**NA-039 5 个空实现补成真实现 + NA-040 歧义控制键（43.6% 风险）给出运行期解法 + 预排布贴图接上**；下一步 NA-041 做 TotK 专属的 M4 部分；真机推包开机与更新包的 BKTR 补丁仍待办
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：见 frontmatter `observed_head`（`2c6f80b`：真机预检脚本；之前 `14510c3` 变体候选、`206777b` 预排布贴图、`2db6a3a` 变体挑选、`001d1c9` 5 个空实现）
+- 观测 HEAD：见 frontmatter `observed_head`（`9a26e94`：变体命中/退回计数；之前 `2c6f80b` 预检脚本、`14510c3` 变体候选、`206777b` 预排布贴图、`2db6a3a` 变体挑选、`001d1c9` 5 个空实现）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b31`）
-- 本次会话目标：NA-042（手机断开期间的离线工作）：把设备前的闸门收成一条命令，给出「可以推机」的结论。
+- 本次会话目标：NA-043（手机断开期间的离线工作）：把变体挑选的运行期假设钉在代码与文档里，并让真机日志能回答它。
 - 已完成（带证据）：见下方「已完成清单」。
 - 未完成：**★ 真机推包与开机**（包已重建：`D:\Switch\totk-work\package-totk\totk-package.zip`，**16.62 GiB**；手机断开）。**★ 运行期仍未验的三件事**：① 变体挑选在真机上命中哪个候选（机器码的运行期地址）；② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。**★ M4 剩下的只有真机校准**（触控 / 音频 / 手柄的**通用件**已核对：触控是虚拟手柄布局、存档目录通用、音频与手柄映射通用 → 不用为 TotK 重写）。**★ 更新包的 BKTR 补丁**（无参考实现时解不开）。（数据包已就绪：`D:\Switch\totk-work\package-totk\totk-package.zip`，16.31 GiB，315,286 条目，**手机本会话完全断开**）。**★ 更新包的 RomFS 补丁（BKTR）**（段与本体同构、media type 4 vs 3、逻辑 17 GB 而物理 456 MiB；已排除明文 Brotli / 同段 CTR / XTS+头密钥三种可能，**没有参考实现时解不开**）。**歧义控制键的取舍**（1,640 个控制键对应多种机器码；变体之间差的是 Maxwell 私有编码的机器码（不是 ARM64，capstone 解不了），要靠真机画面定）。**Mac 侧的翻译链重建**（`dmsh_chain.h` 的版本本来就过期）。
 - 最近一次成功命令：`dm/android/tools/totk_preflight.py --package … --shaders … --quick` exit 0（结论：可以推机，1 项黄）；`build.py --game-run --version trim-b37` exit 0；`build_package.py inspect` exit 0（game 9 / romfs 304,207 / shaders 24,535）；`dm/gfx/tools/nvn_coverage.py --check` exit 0（取址缺口 **0**、缺实现 **0**、空实现 **0**）；`dm/gfx/tools/totk_variant_keys.py` exit 0（47,260 个着色器键一致）；`dm/gfx/tools/totk_shader_package.py --verify-shaders` exit 0（11,447 meta、1,640 份变体名单、文件齐全）；`dm/gfx/tools/nvn_table.py --check` exit 0；`ci_checks.py` 12 项通过 / 1 项失败（失败项是交接控制面本身，见下一条，更新本文件后复跑应全绿）；`check_guest_imports.py` exit 0；`verify_totk_rewrite.py` exit 0。
@@ -213,29 +213,36 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-043
+- ID：NA-044
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：HEAD 含 `2c6f80b`；预检脚本刚跑过（结论「没有红项、有 1 项黄」）；**一加 12 仍然断开**（本动作不需要手机）。
-- 动作：**把「运行期机器码地址在哪」在静态层面钉死** —— 这是变体挑选那条路唯一的未知假设：
-  ① 在 TotK 的 main 里找到 BAHS 容器解析的那段代码（容器头 +0x18 是 code_size、+0x1C 是 code_base；
-     变体段在 0x150 + alignment；每个变体给出「代码区偏移 + 控制段偏移」），看它把**代码地址**与**控制段地址**
-     写进着色器表的哪个字段；
-  ② 与宿主侧的候选对齐：宿主目前试 `data`、`data ± 程序偏移`、`控制段 + 0x880`、`控制段 + 0x880 + 程序偏移`
-     五个位置；若静态结论指向别的位置，就把候选改成（或补上）那个位置；
-  ③ 结论写进 `docs/TOTK_PORT_PROGRESS.zh-CN.md` 与代码注释（**这是假设，写清依据**）；
-  ④ 顺带用预检脚本跑一次不带 `--quick` 的完整档（变体键链那条约 5 分钟），把「可以推机」的结论补成全绿。
-- 命令或编辑目标：TotK 二进制（`D:\Switch\totk-work\nso\upd_main.img`）+ `dm/android/native/nvn_vulkan_shader.inc`（候选列表）；
-  证据用 `dm/gfx/tools/nvn_slots_auto.py` 那套静态扫描写法（新写一个一次性脚本即可，不必进仓）。
-- 成功判据：① 静态结论给出「运行期机器码地址 = 哪个表达式的值」并附指令级证据（地址 + 反汇编片段）；
-  ② 宿主的候选列表与该结论一致（必要时改代码并重建）；③ `dm/android/tools/totk_preflight.py`（不带 --quick）exit 0，
-  结论为「全绿 → 可以推机」；④ `ci_checks.py` 全绿；⑤ `build.py --game-run --version trim-b38` exit 0。
-- 失败判据：静态上看不出来（游戏可能把容器拷来拷去）→ **不要瞎猜**，把「五种候选都试过、真机日志会告诉我们」的现状写进交接，
-  并把「日志里找 `[vulkan-shader] 控制键 … 命中变体 …`」列成真机第一件事。
-- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`2c6f80b`）。
-- 需要写入的证据：反汇编片段与地址、结论、代码改动、`totk_preflight.py` 的完整输出与退出码、`ci_checks.py` 计分行、
-  构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。
-- 顺带记下（下一步之后要做）：① **真机推包与开机**（手机一回来就做，见 NA-036 的步骤）；② **更新包的 BKTR 补丁**；③ **Mac 侧的翻译链重建**。
+- 前置条件：HEAD 含 `9a26e94`；`dm/android/tools/totk_preflight.py --package D:\Switch\totk-work\package-totk\totk-package.zip --shaders D:\Switch\totk-work\package-totk\shaders` 的结论是「没有红项 → 可以推机」；
+  **一加 12 仍��断开**（这是唯一的阻塞：所有剩下的验证都要在真机上做）。
+- 动作：**手机一回来就做 NA-036（推包开机）**，按下面的顺序：
+  ① `python dm/android/tools/deploy_totk.py --package D:\Switch\totk-work\package-totk\totk-package.zip --profile totk`
+     （16.62 GiB，USB 上要一会儿；手机 /data 要有 ~50 GiB：zip 本身 17 GiB + 解开 ~34 GiB）；
+  ② 启动界面「导入数据包」→ 选这个 zip（手机端要解 31 万多个文件，可能十几分钟）；
+  ③ 启动界面「游戏」切到 **王国之泪**（写 `game_profile=totk` → 宿主选 c[2] 的合并句柄表）；
+  ④ 开机看 logcat，重点看四类行：
+     - 启动序列 `_init_libc0 → nnosInitialize → … → nnMain`（走到哪一步）；
+     - `【红】NVN 未实现被调用：名字`（还有哪些接口没实现）；
+     - `[vulkan-shader] 控制键 … 命中变体 …（机器码来自 0x…）` 与 `… 退回多数派变体（累计退回 N 次）`
+       （变体挑选通不通、通的是哪一处）；
+     - `UNIMPL <名字>`（客体调了宿主没实现的导入）。
+  ⑤ 把 logcat 存到 `D:\Switch\totk-work\device\` 下再分析。
+- 命令或编辑目标：`dm/android/tools/deploy_totk.py`；`dm/android/native/frontend_activity.c`（包目录约定）；
+  `dm/gfx/nvn/hle_fs.c`（`DM_ROMFS` 与多层 overlay）。
+- 成功判据：① 开机后日志走到 `nnMain`，或给出明确的缺导入 / 红桩清单；
+  ② 变体挑选的命中与退回计数出现在日志里（据此决定要不要改候选列表）；
+  ③ 画面能不能出（属于 M3/M4 的验收门，按阶段记）。
+- 失败判据：导入失败 → 先只推模块与着色器（几百 MB）验证游戏活动能起来，再单独解决大数据；
+  开机就崩 → 按日志分清是**数据缺失**（查路径与 BKTR）、**HLE 缺口**（`dm/tools/check_guest_imports.py` 复核）
+  还是**图形侧**（c[2] / 描述符集 / 子组 / 变体 / 合并句柄）。
+- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`9a26e94`）。
+- 需要写入的证据：推送用时与包大小、导入结果与三个目录的清单、logcat 的启动序列、变体命中/退回计数、
+  第一个缺导入 / 红桩、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。
+- 手机不在时可以接着做的（不阻塞主线）：① 把预检脚本的不带 `--quick` 那一档跑完（变体键链，约 5 分钟）；
+  ② 更新包的 BKTR 补丁（已排除三种可能，没有参考实现时解不开）；③ Mac 侧的翻译链重建（`dmsh_chain.h` 本来就过期）。
 
 ## 长操作两阶段日志
 
