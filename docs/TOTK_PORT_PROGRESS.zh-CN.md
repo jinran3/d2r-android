@@ -349,7 +349,7 @@ NA-029 按用户要求同步了上游 `jhaizhou-ops/d2r-mobile`：其 `main` 的
 | 驱动档位 | `adb shell run-as org.d2r.android.port cat files/temp/gpu-driver.conf` | 用内置 Turnip 时有 `subgroup_size=64` |
 | 模块齐不齐 | `adb shell run-as org.d2r.android.port ls files/d2r-package/game` | 3 个 `.so` + 6 个 `.tsv`（`main/sdk/subsdk0` × `fixups/gates`） |
 | 外部数据 | `adb shell ls /sdcard/Android/data/org.d2r.android.port/files/d2r-package/` | `manifest.json` + `romfs/` + `shaders/` |
-| 完成标记 | `adb shell run-as org.d2r.android.port cat /sdcard/Android/data/org.d2r.android.port/files/d2r-package/manifest.json` | `format=1`、`counts.romfs=304207` |
+| 完成标记 | `adb shell cat /sdcard/Android/data/org.d2r.android.port/files/d2r-package/manifest.json` | `format=1`、`counts.romfs=304207`（`run-as` 只对内部存储有效，外部存储要用 `adb shell cat`） |
 
 > ⚠️ **启动界面会覆盖 `game_profile`**：`LauncherActivity.startGame()` 用界面里选中的那一行重写
 > `game_profile`（`LauncherActivity.java:639`），`deploy_totk.py` 写进去的值会被覆盖。
