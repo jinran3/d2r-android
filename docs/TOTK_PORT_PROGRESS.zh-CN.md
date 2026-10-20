@@ -12,6 +12,25 @@
 
 ## 当前状态（继续开发先看这里）
 
+**2026-10-20（最新）：NA-033 —— SPH 解析完，§4.4 收口；顺带查出真机渲染的头号拦路虎是 c[2] 布局。**
+
+- **SPH 解析完**：图形着色器的 SPH 是 **0x50 字节**（在 0x30 字节 NVN 头之后；此前「前 0x30 字节是 SPH」的说法有误）。
+  字段按仓内 vendored Ryujinx 的 `Translation/ShaderHeader.cs` 逐位解出；**9,807 个着色器全部解析成功，
+  stage 字段与归档里的 kind 100% 一致**（vs 4,232 / ps 5,557 / cs 18）。
+- **SPH 里没有贴图维度类型、也没有图像格式**；NVN 着色器控制头里也没有按槽的描述符表
+  （9,807 个控制头只有 86 种固定布局）。
+- **但贴图维度多半本来就不需要事实表**：Ryujinx 自己的翻译器就是从机器码的贴图指令取维度
+  （TEX/TLD/TLD4/TMML/TXD 用第 28..30 位 `Dim`，TEXS/TLDS 用第 53..56 位 `Target`）；
+  `QuerySamplerType`（我们用事实表作答的那个）**只在 TXQ 纹理查询、buffer 贴图判定、bindless 三处被调用**。
+  实测 TotK **只有 26 个着色器用 TXQ**，且没有 1D / buffer 贴图 → **按缺省（2D）译出来的着色器库，维度本来就是对的**。
+- **从 SPH 真正拿到的新事实是顶点属性的分量类型**（`ImapTypes`：Constant = 整数属性）：
+  **4,206 个顶点着色器有属性事实，1,204 个属性槽是整数属性**（D2R 侧 PC 反射的比例是 7.8%，量级一致）。
+  新增工具 `dm/gfx/tools/totk_facts.py` 出表（表落仓库外：`D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv`）。
+- **★ 头号拦路虎（比事实表要紧）**：**TotK 与 D2R 的 c[2] 布局不同**，宿主把 D2R 的写死了 ——
+  D2R 用分离贴图 `c[2][0x168 + 8r]` + 分离采样器 `0x568 + 8r`；**TotK 用合并句柄，落在 `c[2][0x20 + 8r]`（32 槽）**。
+  宿主的 `nvn_vulkan_handles.inc` 只认 0x168/0x568/0x120 三段 → **TotK 的贴图句柄全读成 0，一个贴图都绑不上，画面必然是黑的**；
+  翻译器 `dmsh_xlate/Program.cs` 的 `TexSlot()` 也用死值 `TexBase = 0x168`，事实表槽号也算不对。
+
 **2026-10-20（最新）：§4.4 的最后一块补上了 —— 9,807 个 TotK 着色器全部翻成 SPIR-V，0 失败。**
 
 - **根因**：之前那 3 个 `IndexOutOfRangeException` 不是翻译器的 bug，是**喂进去的机器码漏了图形着色器开头 0x30 字节的 SPH（描述符头）**。同一个作业只换 `code` 字段：去掉 SPH → `0 成功 / 3 失败`；带上 SPH → `3 成功 / 0 失败`。D2R 侧早就写着同一条规则（`dmsh_build.py`：`code = code[0x30:]` 是「丢掉记录头、留下 SPH + 指令」）。**教训**：TotK 的作业必须直接指向 `totk_shaders.py` 产出的 `code/<键>.bin`。

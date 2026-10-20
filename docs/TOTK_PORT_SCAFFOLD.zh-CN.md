@@ -170,14 +170,77 @@ main (保留 D2R 可构建)
    ③ 其余（贴图维度类型 / 图像格式 / 属性与输出的分量类型）**仍按方案 A 走缺省**。
 2. **翻译链已全量跑通**：`dm/gfx/tools/totk_xlate.py`（新增）把「索引 → 事实 → 作业 → SPIR-V → 统计」串成一条命令，
    **9,807 个键 100% 翻译成功**（SPIR-V 539,816,056 字节），逐个校验魔数 `0x07230203` 全部合法。
-3. **一个必须记住的实现约定**：**图形机器码必须带开头 0x30 字节的 SPH（描述符头）**。漏了它，
-   翻译器会抛 `IndexOutOfRangeException`（实测 9,807 个键里挂 3 个）。D2R 侧同一规则写在 `dmsh_build.py` 里。
-4. **还欠一层**：SPH 本身**至今没有被解析**（线索见进度文档）。里面大概率没有贴图维度 / 图像格式
-   （D2R 那张表就是靠 PC 反射才有的），但**属性与输出的分量类型有可能在**。查完就能给 §4.4 画句号：
-   查得到 → 事实表出在仓库外、用 `--facts` 喂回；查不到 → 方案 A 收口，剩下的靠**运行期观测**（方案 B：
-   `nvnTextureBuilderSetDims` / `SetFormat`）补。
+3. **一个必须记住的实现约定**：**图形机器码必须带 SPH**（描述符头，在 NVN 头之后的 0x50 字节）。
+   漏了它，翻译器会抛 `IndexOutOfRangeException`（实测 9,807 个键里挂 3 个）。D2R 侧同一规则写在 `dmsh_build.py` 里。
+   ⚠️ **口径更正（NA-033）**：机器码区布局是 `0x30 字节 NVN 头（0x12345678） + 0x50 字节 SPH + 指令`；
+   「前 0x30 字节是 SPH」的说法有误 —— 0x30 是 NVN 头的大小。
+4. ~~**还欠一层**：SPH 至今没有被解析~~ —— **NA-033 已查完**（结论见下）：SPH 里**没有**贴图维度与图像格式，
+   **有**顶点属性的分量类型（ImapTypes）；贴图维度改由机器码的贴图指令给出，图像格式只能运行期观测。
 5. **事实表不进仓库**：仓库纪律是「游戏内容与由它生成的表不进仓库」，D2R 那张 `shader_facts.tsv` 是 PC 反射冻结的
    （不含游戏内容），TotK 的表是**从游戏归档派生的**，所以只留工具（`totk_xlate.py`）、表落仓库外。
+**NA-033 的实测结论（2026-10-20，SPH 已解析，§4.4 收口）**：
+
+1. **先纠正一个口径错误**：图形着色器的机器码区布局是 `0x30 字节 NVN 头（魔数 0x12345678） + 0x50 字节 SPH + 指令`。
+   之前写的「机器码前 0x30 字节是 SPH」是错的 —— **0x30 是 NVN 头的大小，SPH 本身是 0x50 字节**
+   （权威来源：仓内 vendored 的 Ryujinx `Translation/ShaderHeader.cs` 读的就是 0x50 字节；
+   我们自己的 `dm/gfx/tools/dmsh_xlate/Program.cs` 写的也是「graphics = 0x50-byte SPH + instructions」；
+   `dm/gfx/tools/maxwell_refs.py` 也写着「0x30 NVN 头（0x12345678）+ 0x50 SPH + 指令」）。
+   「少 SPH 会抛 `IndexOutOfRangeException`」的真正原因是**整段 SPH 都缺**，不是少了 0x30 字节。
+2. **SPH 的字段**（权威来源同上，20 个 u32）：
+   第 0 字 = sphType(0..4) / version(5..9) / **stage(10..13)** / mrt(14) / killsPixels(15) / doesGlobalStore(16) /
+   sassVersion(17..20) / gpPassthrough(24) / doesLoadOrStore(26) / **doesFp64(27)** / streamOutMask(28..31)；
+   第 1..4 字 = 局部内存大小、perPatchAttributeCount、threadsPerInputPrimitive、CRS 大小、outputTopology、
+   maxOutputVertexCount、storeReqStart/End；**第 6..13 字 = ImapTypes[32]**（顶点属性的输入映射类型，
+   每字 4 个属性、每属性 2 bit × 4 分量）；**第 18 字 = OmapTargets（片元输出数）**；第 19 字 = omap 标志位。
+3. **9,807 个着色器全量校验**：SPH 全部解析成功，**stage 字段与归档里的 kind 100% 一致**
+   （vs 4,232 / ps 5,557 / cs 18），word0 只有 21 种取值且全部落在合法字段组合内。
+   计算着色器的 SPH 与图形阶段同构（Ryujinx 里 stage=Compute 会被改写成 Vertex），ImapTypes 对它无意义，不取事实。
+4. **SPH 里没有贴图维度类型、也没有图像格式**：NVN 着色器控制头（魔数 0x98761234、长度 0x880）里同样
+   **没有按槽的描述符表** —— 9,807 个控制头只有 **86 种固定布局**，非零字集中在 0x0000 / 0x06f8 / 0x0700 /
+   0x0790 / 0x07d0 / 0x07f4 / 0x0804 等固定位置，与资源槽数无关。
+   → D2R 那张「PC 反射冻结」的 `tex` / `img` 事实**在 TotK 侧没有静态对应物**。
+5. **但贴图维度类型本来就多半不需要那张表**：Ryujinx 自己的翻译器是**从机器码的贴图指令取维度**的
+   （`Instructions/InstEmitTexture.cs` 的 `ConvertSamplerType(TexDim)`：TEX / TLD / TLD4 / TMML / TXD 用第 28..30 位的
+   `Dim`，TEXS / TLDS 用第 53..56 位的 `Target`）。我们用事实表作答的 `IGpuAccessor.QuerySamplerType`
+   **只在三处被调用**：① 纹理查询 TXQ ② buffer 型贴图判定 ③ bindless 路径。
+   实测：TotK 9,807 个着色器里**只有 26 个用 TXQ**（其中 12 个的贴图维度不是 2D），且**没有 1D / buffer 贴图**
+   （维度分布：2d 39,210 / 2darray 4,752 / 3d 3,205 / cube 1,482 / 2ds 2；同一槽出现两种维度的 **0** 个）。
+   → **按缺省（2D）翻译出来的着色器库，贴图维度本来就是对的**；「贴图维度」从「必须拿到的事实」降级为
+   「只有 TXQ 着色器需要」。
+6. **真正从 SPH 拿到的新事实是顶点属性的分量类型**：`ImapTypes[i].X == Constant(1)` 表示该属性是整数属性
+   （Perspective=2 / ScreenLinear=3 是浮点）。TotK 实测：**4,206 个顶点着色器有属性事实，其中 1,204 个属性槽是整数属性**
+   （D2R 侧 PC 反射给出的比例是 870/11,166 ≈ 7.8%，量级一致）。
+   这条事实之前一直按缺省 float 作答，**是 NA-033 里唯一真正改变 SPIR-V 的部分**。
+7. **图像格式只能运行期观测（方案 B）**：Ryujinx 的 `QueryTextureFormat` 问的是「当前绑定的贴图是什么格式」，
+   那是运行期属性而不是着色器静态属性；D2R 那边也只有 21 个图像槽用到，TotK 侧按缺省（R8G8B8A8Unorm）即可。
+
+**§4.4 收口后的结论**：
+
+- 事实表的三个来源全部落实：**计算着色器线程组 / 共享内存 ← 控制头 0x748**（NA-031 已有）；
+  **顶点属性分量类型 ← SPH 的 ImapTypes**（NA-033 新增，工具 `dm/gfx/tools/totk_facts.py`）；
+  **图像格式 ← 运行期观测（方案 B）**，静态不可得，按缺省即可（TotK 图像槽极少）。
+- **方案 A 收口成立**：贴图维度可从机器码反推（工具已能出表），且只有 26 个 TXQ 着色器真正依赖事实表作答。
+- **事实表仍不进仓库**：仓库纪律是「游戏内容与由它生成的表不进仓库」。新增工具 `dm/gfx/tools/totk_facts.py`，
+  表落仓库外（`D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv`）。
+
+**★ NA-033 顺带查出的、比事实表更要紧的一件事（真机渲染的直接拦路虎）**：
+
+TotK 与 D2R 的 **c[2] 驱动常量段布局不一样**，而我们的 Android 宿主把 D2R 的布局写死了：
+
+- D2R 的着色器用**分离**贴图：句柄在 `c[2][0x168 + 8r]`（贴图槽 r）与 `c[2][0x568 + 8r]`（采样器槽 r），各 128 槽；
+  图像句柄在 `c[2][0x120 + 8r]`（8 槽）。这三个值是 `dm/gfx/tools/dmsh_build.py` 全量实测出来的。
+- **TotK 的着色器用合并句柄**（handle type = 0，即纹理 ID 低 20 位 + 采样器 ID 第 20..31 位）：
+  实测 9,807 个着色器里全部贴图引用的 c[2] 字节偏移都落在 **0x20 + 8r，r = 0..31** ——
+  偏移集合是干净的 8 字节步进（0x20、0x28 … 0x118，共 32 个），没有一个越界；
+  0x120 正好是图像句柄表的起点（与 D2R 侧一致），所以合并贴图表 = `c[2][0x20 .. 0x120)`。
+- 宿主现状：`dm/android/native/nvn_vulkan_shader.inc` 把贴图句柄写在 `0x168 + 8i`，
+  `dm/android/native/nvn_vulkan_handles.inc` 的 `shader_handle_word()` 只认 `0x168..0x568` / `0x568..0x968` /
+  `0x120..0x168` 三段。
+  → **TotK 的贴图句柄偏移全部落在这三段之外，读出来是 0：一个贴图都绑不上，画面必然是黑的。**
+  同理 `dm/gfx/tools/dmsh_xlate/Program.cs` 的 `TexSlot()` 用死值 `TexBase = 0x168`，事实表的槽号也算不对。
+- 结论：**M2 / M3 的头号拦路虎不是事实表，而是 c[2] 布局**。下一步动作因此改成「把 c[2] 布局做成按规则集可选
+  （D2R 0x168 / TotK 0x20），宿主与翻译器两侧一起改」。
+
 
 ### 4.5 上游同步：哪些机制能直接搬
 
