@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-20T08:30:00+08:00
+updated_at: 2026-10-20T09:20:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: e3c7dbc
+observed_head: bd3d0b7
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: e3c7dbc
+origin_head_at_checkpoint: bd3d0b7
 code_worktree: CLEAN
-next_action_id: NA-030
+next_action_id: NA-031
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,21 +140,21 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-20 08:30（Asia/Shanghai）
-- 当前阶段：M0 勘察完成 → M1（模块装载）门口
+- 快照时间：2026-10-20 09:20（Asia/Shanghai）
+- 当前阶段：M0 勘察完成；M1（模块装载）已能出 TotK 模块库并通过宿主同款解析
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：见 frontmatter `observed_head`（NA-029 业务提交：上游 #55 预筛同步 + 解包断点续传）
+- 观测 HEAD：见 frontmatter `observed_head`（NA-030 业务提交：TotK 模块在 Android 上下文改写并打成 ELF 库 + 宿主同款解析核对）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b26`，17,725,903 字节）
-- 本次会话目标：NA-028（规则域接 TotK 真实构建号 + 首次改写 TotK 客体 + 宿主门面清单）与 NA-029（同步上游更新并评估对本项目的影响）。
+- 本次会话目标：NA-030（把 TotK 的三个模块接进 Android 宿主的装载链并核对）。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：把 TotK 的三个模块接进 Android 宿主并加载到 nnMain（NA-030，M1 第一步）；更新包 RomFS 的 BKTR 补丁应用；着色器事实表来源（§4.4 go/no-go）；M0 真机实测（一加 12 未接）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线 —— 注意 `dm/android/tools/build_shaders.py` 还 import `casc_overlay`，删它要一并改）。
-- 最近一次成功命令：`dm\android\tools\build.py --game-run --version trim-b26` exit 0（APK 17,725,903 字节）；`dm\android\tools\ci_checks.py` 10 项通过 / 0 项失败；`dm\android\tests\test_rewriter.py` exit 0（改写器等价性，unicorn 逐条比对）；`tools\agent_handoff_check.py --verify` exit 0；`DM_RULESET=totk-run-v1` 改写 TotK 四个模块全部 exit 0。
-- 最近一次失败命令及原因：① 改写器第一次跑 TotK 的 main 报 `AssertionError: branch into window a79c0` —— 根因是 TotK 把 x18 当普通寄存器用（见「已完成清单」NA-028），已按「TotK 规则域不做 x18 改写」解决；② `dm/android/tests/test_rewriter.py` 首次运行报 `FileNotFoundError` —— 是本机没设 `DM_ANDROID_TOOLS`（脚本按 `~/dm-work/tools/android` 找工具链），设上环境变量后 exit 0，不是代码问题。
-- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（`trim-b26`）；TotK 改写产物与门清单在仓库外 `D:\Switch\totk-work\patched\`（main / sdk / subsdk0 / rtld 的 patched.bin、gates.tsv、sites.tsv）
+- 未完成：宿主按规则域选用 TotK 模块的接线（NA-031）；真机上的实际装载与进 `nnMain`（一加 12 未接，`adb devices` 无设备）；更新包 RomFS 的 BKTR 补丁应用；着色器事实表来源（§4.4 go/no-go）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线 —— 注意 `dm/android/tools/build_shaders.py` 还 import `casc_overlay`，删它要一并改）。
+- 最近一次成功命令：`dm\android\tools\build.py --game-run --version trim-b26` exit 0（APK 17,725,903 字节）；`dm\android\tools\ci_checks.py` 10 项通过 / 0 项失败；`dm\android\tests\test_rewriter.py` exit 0；`tools\agent_handoff_check.py --verify` exit 0；`DM_RULESET=totk-run-v1 DM_TARGET=android` 改写 TotK 四个模块全部 exit 0；`guest_elf.py` 打包三个模块 exit 0。
+- 最近一次失败命令及原因：`dm/android/tests/test_rewriter.py` 首次运行报 `FileNotFoundError` —— 本机没设 `DM_ANDROID_TOOLS`（脚本按 `~/dm-work/tools/android` 找工具链），设上环境变量即 exit 0，不是代码问题。
+- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（`trim-b26`）；TotK 的 Android 上下文改写产物与 ELF 库在仓库外 `D:\Switch\totk-work\patched-android\` 与 `D:\Switch\totk-work\guest-so\`（`libdmguest_main.so` 61,817,600 / `libdmguest_sdk.so` 13,009,664 / `libdmguest_subsdk0.so` 6,767,368 字节）
 - 当前阻塞：一加 12 真机仍未接（`adb devices` 无设备）；着色器包（`*.bfsha.zs` / `*.sarc.zs`）是 zstd + 任天堂字典的编译包，本机没有那个字典，解不开。
 - 需要用户提供的材料：一加 12（开启 USB 调试）——游戏文件与 `prod.keys` 已由用户于 2026-10-20 提供。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
@@ -197,6 +197,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-027 TotK 文件准备 + M0 勘察（`becd40b`）：用户提供了 TotK v1.4.2 合并 XCI（17,677,626,368 字节，Title ID `0100F2C0115B6000`）与 `prod.keys`；本机原先没有 `hactool`，已从上游发布版取得 1.4.0 win-x64 到仓库外 `D:\Switch\.tools\hactool`。**hactool 1.4.0 解不开更新包的 NCA3 BKTR 补丁段**（`Invalid BKTR layout!`），因此新写了 `dm/tools/switch_nca.py`（纯 Python，按 hactool 的 NCA3 头 XTS / 段 CTR / PFS0 / RomFS 算法重写，只依赖 pycryptodome + numpy）与 `dm/tools/nso_stats.py`（NSO 段、MOD0 动态表、符号 / 重定位统计）。实测数据：更新包（v1.4.2）四个模块的构建号 = main `5cb42b1cf25469fb0635fd046453d843`、sdk `5cf080e800530a7f25bd528ec875c27b`、subsdk0 `3308c1d216f788397d1451c8345a16cd`、rtld `82a3cf78789f9d9858c52379d8d2d129`（本体 v1.0.0 的 main 是 `082ce09b06e33a123cb1e2770f5f9147`）；模块 = main 45,769,200 / sdk 6,693,520 / subsdk0 3,501,008 字节 text + rtld 9,536 字节；动态符号合计 33,858（导入 1,356）、重定位合计 36,747；NVN 取址函数 534 个（D2R 是 523），加载函数在 main 的 0xbbfa90，槽走间接指针表；RomFS = 304,207 个文件 / 15.87 GB。证据：`switch_nca.py info/exefs/romfs-list/romfs-extract` exit 0（本体 ExeFS 与 hactool 逐字节一致）、`nso_stats.py` exit 0、`build.py --game-run --version trim-b25` exit 0、APK 17,725,903 字节、`ci_checks.py` 10 / 0。**本批 NOT RUN**：更新包 RomFS 的 BKTR 补丁应用（还没实现）、着色器包解码（缺任天堂 zstd 字典）、真机（一加 12 未接）。
 - NA-028 规则域接 TotK（`a70f0ef`）：`dm/tools/patch_nso.py` 的 `DM_RULESET=totk-run-v1` 从「空表占位」改成**按 TotK 真实构建号取表**（TOTK_BUILDS = main `5cb42b1cf25469fb0635fd046453d843` / sdk `5cf080e800530a7f25bd528ec875c27b` / subsdk0 `3308c1d216f788397d1451c8345a16cd` / rtld `82a3cf78789f9d9858c52379d8d2d129`），构建号不符即中止；CUTS / OBS / PARAMS 给 TotK 的 main 登记空表（空表是当前正确状态）。**M1 前提修正**：实测 TotK 的 main 把 x18 当**普通寄存器**用（.text 里 24,204 条指令提到 x18、18,572 条提到 w18，例如 0x3f00 `add x18, x19, #0x260`、0xa761c `stxr w17, w18, [x10]`），D2R 那套「x18 = TLS 指针」的语义前提对 TotK 不成立；但上游的机制本质是**每线程把客体 x18 存进线程槽 K18**，对普通寄存器同样成立，而 Android 宿主本来就保全 x18（`dm/android/native/probe.c` 逐次检查宿主调用前后 x18 不变；Linux AArch64 ABI 不用 x18），所以 **TotK 规则域不做 x18 改写、宿主侧也不用改** —— D2R 的行为一字未动。证据：`DM_RULESET=totk-run-v1` 对四个模块全部 exit 0，产出第一份 TotK 改写映像（main 61,760,960 / sdk 12,984,320 / subsdk0 6,750,208 / rtld 66,136 字节）与门清单：**sdk 58 个不同 svc 号 + 42 个计时器门 + 124 处 TLS 区读 + 2 处 TLS 读 + 3 处 TLS 写，main 814 处 TLS 读，rtld 5 个 svc（与 sdk 重叠）**；`ci_checks.py` 10 / 0；`build.py --game-run --version trim-b26` exit 0。
 - NA-029 上游同步（见下面日志条目）：上游 `jhaizhou-ops/d2r-mobile` 的 main 已比本 fork 新（其 `dm/tools/patch_nso.py` 88,578 字节 vs 我们 72,377，283 行差异）。差异分三类：① D2R 玩法剪口（我们裁剪批次已删）② Android 宿主改造（我们独有）③ **可直接用的上游改进**。采纳了第三类里的 **#55 寄存器字段预筛**（扫描时先看四个寄存器字段有没有 18，命中才反汇编；上游口径 7,201,192 → 189,399 个候选、三个模块一趟 78.5s → 20.2s）。验证：① 按上游口径在 TotK 的 main 上独立复核 —— 11,442,300 字 → 322,813 候选（2.82%）→ 42,776 处 x18/w18，**漏 0、多 0**；② 仓库自带 `dm/android/tests/test_rewriter.py`（unicorn 逐条比对原指令与改写后语义，含 ldxr/stxr 独占窗口用例）**exit 0**。未采纳并说明理由：上游的西班牙语界面、社区修复（Mac 悬停提示 / iCloud 启动 / 快速操作 / Xcode 26.2）、loader 空弱引用修复等都是 D2R 产品侧改动，与 TotK 移植无直接关系；其中「Mac 着色器反射 JSON 按目录拷贝」（#60）与 §4.4 相关，列入待查。
+- NA-030 TotK 模块进 Android 装载链（见下面日志条目）：用 `DM_RULESET=totk-run-v1 DM_TARGET=android` 重跑改写器（四个模块全部 exit 0），再用 `dm/android/tools/guest_elf.py` 把 main / sdk / subsdk0 打成 `libdmguest_*.so`（61,817,600 / 13,009,664 / 6,767,368 字节，`.target` = `android-context-v1` ✓）；再照 `dm/android/native/game_modules.c` 的 `parse()` 复刻宿主解析，三个模块全部读出：符号 706 / 23,039 / 10,110（合计 33,855）、重定位 2,070 / 19,027 / 15,648（合计 36,745）、导入 680 / 9 / 664（合计 1,353），与 NA-027 的离线统计对得上。**跨模块未解析只剩 9 个符号，且全是 `glslc*`**（NVIDIA 的运行时 GLSL 编译器 API：`glslcInitialize` / `glslcCompile` / `glslcCompilePreSpecialized` / `glslcCompileSpecialized` / `glslcFinalize` / `glslcGetDefaultOptions` / `glslcGetVersion` / `glslcSetAllocator`）——D2R 没有这个需求。宿主的 `resolve_import`（`dm/host/hle.c`）对模块外导入有**未实现桩兜底**，所以这 9 个不会挡住装载，只会在 HLE 审计里记成 STUB（真机跑起来后用 `DM_HLECOUNT` 看有没有被调用过）。**本批 NOT RUN**：真机上的实际装载与进 `nnMain`（一加 12 未接）。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
@@ -206,16 +207,16 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-030
+- ID：NA-031
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：HEAD / origin 均为 NA-029 的业务提交（见 frontmatter）；代码工作区干净；TotK 的三个模块已能改写（`DM_RULESET=totk-run-v1` exit 0，产物在 `D:\Switch\totk-work\patched\`）。
-- 动作：M1 第一步 —— 把 TotK 的 main / sdk / subsdk0 接进 Android 宿主并加载到 `nnMain`：先读清宿主的模块装载链（`dm/android/native/game_modules.c` 的模块表与 MOD0 解析、`dm/android/tools/guest_elf.py` 怎么把 NSO 装进 ELF 库、`dm/android/tools/make_package.py` 的 `game/` 目录形态与 `dm/android/native/runtime.c` 的装载入口），再做**最小可跑**：用 TotK 的改写映像替换 D2R 的模块，跑一次装载，看宿主能不能把三个模块装起来并进到 `nnMain`（先不碰图形）。
-- 命令或编辑目标：先 `git grep -n -e game_modules -e MOD0 -e guest_elf -- dm/android` 复核装载链，再写一个最小的「TotK 模块装载」路径（宿主侧加一个按规则域选模块表的开关，模块来源指向仓库外的 `D:\Switch\totk-work\patched`），随后跑 `ci_checks.py`、`build.py --game-run --version trim-b27`，并用宿主自带的装载诊断（`game_modules.c` 的 report 输出 / `probe`）取证。
-- 成功判据：宿主能把 TotK 的三个模块装起来并报告出模块数 / 符号数 / 重定位数（与 NA-027 实测的 33,858 / 36,747 对得上），装载阶段无未定义符号报错；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b27` exit 0 且产出 APK；改动有注释说明「模块来源与规则域的关系」。
-- 失败判据：装载阶段缺符号 / 段布局不兼容（`guest_elf.py` 的 16K 对齐假设与 TotK 的段不符）/ 宿主报未实现符号 —— 此时如实记录报错原文与所差符号清单，回到分析而不是硬改。
+- 前置条件：HEAD / origin 均为 NA-030 的业务提交（见 frontmatter）；代码工作区干净；TotK 的三个模块已能改写并打成 ELF 库（`D:\Switch\totk-work\guest-so\libdmguest_{main,sdk,subsdk0}.so`）。
+- 动作：把「用哪套模块」接到规则域上 —— 让宿主 / 打包链按 `DM_RULESET` 选模块来源：D2R 用现成的包内 `game/` 目录，TotK 用 `D:\Switch\totk-work\guest-so\`（仓库外，运行时按环境变量或包内目录切换）；同时把 TotK 的 `game/` 目录形态与 `make_package.py` 的 `build_package.py assemble` 步骤对齐（模块库 + `*.fixups.tsv` 布局表 + 派生表 + 着色器），使「一加 12 上装上包 → 启动界面 → 装载 TotK 模块」这条路在**没有真机**时也能在宿主侧离线核对（包内容清单、模块库可被宿主解析、门与槽的登记表齐备）。
+- 命令或编辑目标：先读 `dm/android/tools/make_package.py` 与 `dm/android/tools/build_package.py` 里 `game/` 目录的组装方式与 `dm/host/loader.c` 取模块的路径（`DM_GAME_DIR` 之类），再改这两处 + 宿主取模块处，让模块来源随规则域切换；随后跑 `ci_checks.py`、`build.py --game-run --version trim-b28`，并用宿主同款解析脚本对新产物再核对一遍。
+- 成功判据：规则域切换后，包内 `game/` 目录里是 TotK 的三个模块库与对应布局表，宿主同款解析读出的符号 / 重定位数与 NA-030 一致（33,855 / 36,745）；D2R 侧（`touch-run-v4` / `native`）的包内容与行为一字未变；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b28` exit 0 且产出 APK。
+- 失败判据：切换后 D2R 路径受影响（包内容或模块选择变了）、TotK 模块库装不进包或解析读不出、任一验证命令非零 —— 此时回滚本批并把差异写进日志。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
-- 需要写入的证据：装载链的代码引用（文件 + 行）、装载诊断的原始输出、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。**本机 NOT RUN 的部分**：iOS / macOS 侧编译（无 Xcode / macOS）、真机（一加 12 未接，`adb devices` 无设备）—— 装载验证先在宿主的离线诊断里做。
+- 需要写入的证据：模块来源切换的代码引用（文件 + 行）、新包的内容清单（`game/` 目录列表）、宿主同款解析的输出、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。**本机 NOT RUN 的部分**：真机上的装载与进 `nnMain`（一加 12 未接）、iOS / macOS 侧编译（无 Xcode / macOS）。
 
 ## 长操作两阶段日志
 

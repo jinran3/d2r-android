@@ -3,6 +3,34 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 09:20 Asia/Shanghai — [TOTK] NA-030 TotK 模块进 Android 装载链
+
+- 会话目标：把 TotK 的三个模块接进 Android 宿主的装载链，并在本机用宿主同款解析核对（M1 第一步，不碰图形）。
+- 结果：改写 → ELF 库 → 宿主同款解析三步都跑通；**跨模块未解析只剩 9 个符号，且全是 `glslc*`**（NVIDIA 运行时 GLSL 编译器 API）——宿主的未实现桩能兜住，不挡装载。
+
+[BEGIN] na-030-totk-modules
+
+- 命令：`DM_RULESET=totk-run-v1 DM_TARGET=android python dm/tools/patch_nso.py <ExeFS/模块> <work> <模块名>`（四个模块各一次）→ `python dm/android/tools/guest_elf.py <work> <work> main sdk subsdk0` → 用 `dm/android/tools/totk_modules.py` 照 `dm/android/native/game_modules.c` 的 `parse()` 复刻宿主解析。
+- 工作目录：`D:\Switch\d2r-android`（产物落在仓库外 `D:\Switch\totk-work`）
+- 预期结果：三个模块库产出、宿主解析读出符号 / 重定位 / 导入数、未解析导入清单拿到。
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`e3c7dbc`
+
+[END] na-030-totk-modules
+
+- 退出码：四个模块的 Android 上下文改写全部 exit 0；`guest_elf.py` exit 0；`totk_modules.py` exit 0。
+- 产物：`D:\Switch\totk-work\patched-android\`（改写映像 + 布局表 + `.target` = `android-context-v1`）与 `D:\Switch\totk-work\guest-so\libdmguest_{main,sdk,subsdk0}.so`（61,817,600 / 13,009,664 / 6,767,368 字节）；仓库内新增 `dm/android/tools/totk_modules.py`（提交 `bd3d0b7`）。
+- 结果：SUCCESS
+- 备注：**真机上的实际装载与进 `nnMain` 本批 NOT RUN**（一加 12 未接，`adb devices` 无设备）；iOS / macOS 侧编译 NOT RUN。
+
+证据（本条目对应的命令与退出码）：
+
+- 改写结果（Android 上下文，与苹果上下文的差别只在 `thread_base()` 走宿主上下文入口）：`main {'tpidr_r': 814} cuts 0 obs 0 patch 52096`；`sdk {'tpidr_r': 2, 'tpidrro_r': 124, 'tpidr_w': 3, 'cntpct': 43, 'svc': 58} cuts 0 obs 0`（门 101）；`subsdk0 {} cuts 0 obs 0`；`rtld {'svc': 6} cuts 0 obs 0`（门 6）。
+- 宿主同款解析（`game_modules.c` 的 `parse()` 复刻，作用在同一批 `.so` 的 `.image` 段上）：main 符号 706 / 重定位 2,070（RELA 1,421 + PLT 649）/ 导入 680；sdk 23,039 / 19,027（11,214 + 7,813）/ 9；subsdk0 10,110 / 15,648（11,832 + 3,816）/ 664；**合计 33,855 符号 / 36,745 重定位 / 1,353 导入**（与 NA-027 的离线统计 33,858 / 36,747 / 1,356 的差是宿主公式 `(STRTAB-SYMTAB)/24` 与 DT_HASH nchain 对空符号的计数差 1~3，可解释）。
+- **跨模块未解析的导入 9 个**（来自 main）：`glslcCompile`、`glslcCompilePreSpecialized`、`glslcCompileSpecialized`、`glslcFinalize`、`glslcGetDefaultOptions`、`glslcGetVersion`、`glslcInitialize`、`glslcSetAllocator`（另有一个空名符号）。这是 NVIDIA 的运行时 GLSL 编译器 API —— **D2R 没有这个需求**，是 TotK 特有的。若游戏真去调用它们，宿主的「未实现桩」会命中（`dm/host/hle.c` 的 `resolve_import` → STUB），真机上用 `DM_HLECOUNT` 能看出调用次数；这是 §4.4 着色器事实表的一个旁证（TotK 侧存在运行时 GLSL 编译路径的痕迹，但主流程用的是预编译包 `*.bfsha.zs`）。
+- 新增工具 `dm/android/tools/totk_modules.py`：一条命令跑完「改写 → 打包 ELF 库 → 宿主同款解析 → 未解析导入清单」，`--reuse` 可复用已有改写产物；游戏文件与密钥只在本机读，产物在仓库外。
+- 下一步：NA-031 —— 把「用哪套模块」接到规则域（D2R 用包内 `game/`，TotK 用仓库外的 `guest-so/`），并把 TotK 的 `game/` 目录形态与 `make_package.py` / `build_package.py` 对齐，使真机装载这条路在没有设备时也能在宿主侧离线核对。
+
 ## 2026-10-20 08:30 Asia/Shanghai — [TOTK] NA-028 规则域接 TotK + NA-029 上游同步完成
 
 - 会话目标：把 `patch_nso.py` 的 `totk-run-v1` 规则域接到 TotK 真实构建号并跑出第一份 TotK 改写映像与宿主门清单；按用户要求核对上游仓库的更新与 issue，判断对本项目有没有用，并把这条规则写进 AGENTS.md。
