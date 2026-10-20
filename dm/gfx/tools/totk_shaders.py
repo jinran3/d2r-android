@@ -79,6 +79,13 @@ def _stage(control: bytes, code: bytes) -> dict:
     c1 = _span(code, c1_offset, total - c1_offset)   # c1 = 指令区里 c1 偏移处到指令区末尾这一段（与 D2R 侧同一布局：+0x700 是 c1 相对指令区起点的偏移、+0x704 是指令区总长） | the c1 block runs from the c1 offset to the end of the instruction area (same layout as the D2R side: +0x700 c1 offset, +0x704 instruction-area length)
     result = {
         "key": hashlib.sha256(control + program + c1).hexdigest()[:16],
+        # 宿主口径的键：运行期宿主拿到的是控制段指针，按**控制段前 0x880 字节**哈希
+        # （dm/android/native/nvn_vulkan_shader.inc 的 shader_get）。TotK 的同一个控制段
+        # 会被多个机器码变体共用，所以这个键可能对应多个变体 —— 由打包工具消歧并出报告。
+        # The host-side key: at run time the host has the control pointer and hashes the first
+        # 0x880 bytes of it. TotK shares one control header across several machine-code variants,
+        # so this key can map to more than one variant; the packaging tool disambiguates and reports.
+        "host_key": hashlib.sha256(control[:0x880]).hexdigest()[:16],
         "stage": STAGES[kind],
         "control_bytes": len(control),
         "program_bytes": len(program),
@@ -203,13 +210,13 @@ def main():
             records[key] = dict(info, source=path.name)
             (code_dir / (key + ".bin")).write_bytes(program)
     with (args.output / "shader_index.tsv").open("w", encoding="utf-8") as f:
-        f.write("key\tstage\tsource\tcontrol_bytes\tprogram_bytes\tc1_bytes\tlocal\tshared\tc1\n")
+        f.write("key\tstage\tsource\tcontrol_bytes\tprogram_bytes\tc1_bytes\tlocal\tshared\tc1\thost_key\n")
         for key in sorted(records):
             r = records[key]
             local = "x".join(str(v) for v in r["local"]) if "local" in r else "-"
-            f.write("%s\t%s\t%s\t%d\t%d\t%d\t%s\t%d\t%s\n" % (
+            f.write("%s\t%s\t%s\t%d\t%d\t%d\t%s\t%d\t%s\t%s\n" % (
                 key, r["stage"], r["source"], r["control_bytes"], r["program_bytes"], r["c1_bytes"],
-                local, r.get("shared", 0), r["c1"]))
+                local, r.get("shared", 0), r["c1"], r["host_key"]))
     compute = [r for r in records.values() if r["stage"] == "cs"]
     stages = {}
     for r in records.values():
