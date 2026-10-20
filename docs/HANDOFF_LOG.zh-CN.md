@@ -3,6 +3,37 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 05:05 Asia/Shanghai — [VERIFY] 完整预检全绿：可以推机
+
+- 会话目标：把预检里唯一的黄项（变体键链要重解析归档）补跑掉，拿到「全绿」的结论。
+- 结果：**7 条闸门全绿 → 结论「全绿 → 可以推机」**；一加 12 仍然断开（`adb devices` 空）。
+
+[BEGIN] na-044-full-preflight
+
+- 命令：`python dm/android/tools/totk_preflight.py --package D:\Switch\totk-work\package-totk\totk-package.zip --shaders D:\Switch\totk-work\package-totk\shaders --code D:\Switch\totk-work\shaders-index5\code --bfsha D:\Switch\totk-work\shaders-out --index D:\Switch\totk-work\shaders-index5\shader_index.tsv`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：全部闸门绿，结论为「可以推机」。
+- 日志路径：无
+- 回滚点：`633e60a`
+
+[END] na-044-full-preflight
+
+- 退出码：预检脚本 exit 0，结论「全绿 → 可以推机」。
+- 产物：无新产物（只跑检查）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机 NOT RUN**（手机断开）。这是本会话能离线做到的最后一步。
+
+证据（本条目对应的命令与退出码）：
+
+- APK 绿（17,873,359 字节，03:53 构建）；数据包清单绿（game 9 / romfs 304,207 / shaders 24,535；
+  game 81,598,218 字节 / romfs 17,043,238,905 字节 / shaders 646,871,659 字节）。
+- 着色器包绿（11,447 个 meta；c[2] 偏移全落在 [0x20,0x120)；1,640 份变体名单里的文件齐全）。
+- 变体键链绿（归档里核对 **47,260** 个着色器：宿主口径完整键不一致 0 个、c1 不一致 0 个、控制段长度不一致 0 个；
+  5,913 个变体键缺文件 0 个、不在索引里 0 个）。
+- NVN 接口覆盖绿（取址缺口 0 / 空实现 0 / 缺实现 0 —— TotK 调用的 213 个接口宿主全部有实现）。
+- `ci_checks.py` 绿（14/0）；`agent_handoff_check.py --verify` 绿。
+- 设备：`adb devices` 为空 —— **剩下的每一步都要在真机上做**（推包 → 导入 → 切档位 → 开机看日志）。
+
 ## 2026-10-21 04:45 Asia/Shanghai — [TOTK] NA-043：变体挑选的运行期假设写清 + 命中/退回计数
 
 - 会话目标：把「运行期机器码地址在哪」这个唯一未知假设落到代码注释与文档里，并让真机日志能直接回答它。
