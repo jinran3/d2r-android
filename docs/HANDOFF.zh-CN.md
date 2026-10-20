@@ -1,10 +1,10 @@
 ---
 protocol: 1
-updated_at: 2026-10-20T22:10:00+08:00
+updated_at: 2026-10-20T23:40:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 56c6c2f
+observed_head: dcd73cc
 origin_ref: origin/totk/scaffold
 origin_head_at_checkpoint: 45d5254fc9d8f03543194fbd0a0b625dd85d39db
 code_worktree: CLEAN
@@ -140,22 +140,22 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-20 22:10（Asia/Shanghai）
-- 当前阶段：M0 勘察完成；**NA-034 已收口并在一加 12 真机上验证**；**NA-035 做出第一版：TotK 着色器包已按宿主口径打好（5,534 个宿主键 / 1,640 个歧义控制键有报告）**；下一步转入**TotK 数据与真机装载**
+- 快照时间：2026-10-20 23:40（Asia/Shanghai）
+- 当前阶段：M0 勘察完成；NA-033/034/035 全部收口；**NA-036 进行中：TotK 数据管线打通（RomFS 映像 → 数据包 zip），正在打包**；下一步是推到一加 12 并走 M1 的「装载 → `nnMain`」
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：见 frontmatter `observed_head`（NA-034 业务提交 `2a140a8`：c[2] 布局按档位 + 真机 Vulkan 探针 + 三处既有真机测试缺陷修正）
+- 观测 HEAD：见 frontmatter `observed_head`（数据管线提交 `dcd73cc`：RomFS 映像导出 + 直接出包 + 部署脚本）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b29`，17,725,903 字节）
-- 本次会话目标：NA-034 收口（c[2] 布局按档位 + 驱动选型实测）+ NA-035 第一版（TotK 着色器包按宿主口径打包）。
+- 本次会话目标：NA-036 第一阶段：把 TotK 的数据变成能推到手机上的东西（RomFS 映像 → 数据包 zip → 部署脚本）。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：**★ TotK 数据与真机装载**（NA-036）：本体 RomFS（15.87 GB）要装进手机（`/data` 尚有 149 GB ✓）；更新包 RomFS 的 **BKTR 补丁**还没解（最终数据集差这层）；宿主的数据包导入要能装 TotK 的 `shaders/` + `romfs/` + 三个模块；启动界面还没有「游戏档位」这一项（native 侧已支持 `game_profile`，界面与数据包流程还没接）。**歧义控制键的取舍**（1,640 个控制键对应多种机器码，本包按「出现次数最多」选一个；游戏若用别的变体，渲染会错 —— 需要真机跑起来才能定）。**改写器的 x18 适配**；**翻译器侧的 c[2] 基址**（`TexSlot` 写死 0x168，改它要动翻译链版本并重出 Mac 侧 B 库）。
-- 最近一次成功命令：`totk_shaders.py` 重出索引 exit 0（9,807 变体键 + **5,534 个宿主键**）；`totk_shader_package.py` 打包 exit 0（**5,534 个宿主键，缺翻译结果 0**），逐个按宿主校验规则核对：**meta 全部合规（0 不合规）、SPIR-V 魔数全部正确**；`test_totk_shader_package.py` exit 0；`ci_checks.py` 11 项通过 / 0 失败（交接控制面一项待本条更新后重跑）；真机 `vulkan-test` exit 0；真机 `launch-settings-test` PASS（58 cases）。
-- 最近一次失败命令及原因：① 第一次重译用错了翻译器 dll（缺 `runtimeconfig.json`），改用 `D:\Switch\totk-work\tools\xlate\dmsh_xlate.dll` 即通过；② 真机 `vulkan-test` 起初在 `uniform_arena_test.inc:27` 失败 —— **未改动的基线代码在同一处同样失败**（用 stash 对比实测），是这台机器上本来就有的缺陷，不是本批引入；③ `ci_checks.py` 的「Agent 交接控制面」一项失败 —— HANDOFF 快照过期（本次已更新，重跑即过）；④ `launch-settings-test` 在 Android 上创建 FIFO 被 SELinux 拦（errno 13）—— 已按「如实标跳过」处理。
-- 已验证产物路径：仓库外：`D:\Switch\totk-work\package-totk\shaders\`（**5,534 个宿主键的 `.spv` + `.meta`**，已逐个按宿主规则校验）、`D:\Switch\totk-work\package-totk\ambiguity.tsv`（1,640 个歧义控制键的候选变体）、`D:\Switch\totk-work\shaders-index5\shader_index.tsv`（带宿主键的索引）、`xlate-full\shader_facts_totk_v2.tsv`、`xlate-facts2b\out0..5\`（重译 SPIR-V）、`probe\sph\`（SPH / 控制头勘察表）；仓库内新增 `dm/gfx/tools/totk_shader_package.py`、`dm/gfx/tools/test_totk_shader_package.py`，修改 `dm/gfx/tools/totk_shaders.py`（索引多一列宿主键）。
-- 当前阻塞：**没有外部阻塞**：一加 12 已接上并可跑真机测试。**头号待办是 TotK 数据**（本体 15.87 GB + 更新包的 BKTR 补丁）—— 数据装进去之前，游戏连 `nnMain` 之前都走不到。**c[2] 布局与着色器包口径都已解决**；**驱动这条已收口**（系统驱动就是 Adreno 750，subgroup 64）。
+- 未完成：**★ 更新包的 RomFS 补丁（BKTR）** —— 合并包里的 `d214ebdad75878d540c13f3155640f39.nca`（499.5 MB）的 romfs 段是 `crypt: bktr`，而 `dm/tools/switch_nca.py` 的 `read_section` 只支持 CTR 段 → **更新包的数据补丁解不开**（最终数据集因此只差这一层；本体数据已完整可用）。**真机装载与进 `nnMain`**（数据包在打包中；手机本会话掉线了）。**歧义控制键的取舍**（1,640 个控制键对应多种机器码，当前按「出现次数最多」选）。**改写器的 x18 适配**；**翻译器侧的 c[2] 基址**（`TexSlot` 写死 0x168，影响 26 个 TXQ 着色器；改它会动翻译链版本并要重出 Mac 侧 B 库）。**启动界面的游戏档位**（native 侧已支持 `game_profile`，界面还没有这一项）。
+- 最近一次成功命令：`switch_nca.py romfs-export` exit 0（**15.93 GiB 映像 + IVFC 头，304,207 个文件**，2.5 分钟）；映像与已解出的目录**抽样逐字节比对：8 个一致、0 个不一致**；`totk_package.py` 正在出包（304,207 个条目，zip64）；`ci_checks.py` 12 项通过 / 0 项失败；真机 `vulkan-test` exit 0；真机 `launch-settings-test` PASS（58 cases）。
+- 最近一次失败命令及原因：① 逐文件解包本体 RomFS 太慢：这台机器上解 30 多万个小文件要几十小时（NTFS + Defender），而且 adb 推不了目录 → 改成「导出解密后的 RomFS 映像，一个文件」；② 手机在会话中途掉线（`adb devices` 空），真机验证只能做前半段；③ 第一次重译用错了翻译器 dll（缺 `runtimeconfig.json`）。
+- 已验证产物路径：仓库外：`D:\Switch\totk-work\base\romfs.img`（**15.93 GiB 的解密 RomFS 映像**）与 `romfs.img.ivfc`（IVFC 头，读取方靠它定位 RomFS 头与各级偏移）、`D:\Switch\totk-work\package-totk\totk-package.zip`（打包中）、`D:\Switch\totk-work\package-totk\shaders\`（5,534 套宿主键的 `.spv` + `.meta` + `host-subgroup-size.txt`=64）、`D:\Switch\totk-work\pack-totk\produce\game\`（改写后的三个模块与布局表）、`D:\Switch\totk-work\base\RomFS\`（已解出 279,825 个文件的目录树，留作对照）；仓库内新增 `dm/android/tools/totk_package.py`、`dm/android/tools/deploy_totk.py`、`dm/android/tests/test_package_layout.py`，修改 `dm/tools/switch_nca.py`（`romfs-export`）。
+- 当前阻塞：**手机掉线了**（用户插上后又掉，`adb devices` 为空；交接文档提过这台机器上设备会掉）—— 真机部署与开机验证要等设备回来。**数据侧只差更新包的 BKTR 补丁**（本体数据已完整且逐字节验证过）。c[2] 布局、着色器键口径、驱动（系统 Adreno 750，subgroup 64）这三件事都已解决。
 - 需要用户提供的材料：**无阻塞项**（TotK v1.4.2 合并 XCI、`prod.keys`、一加 12 均已到位）。后续若要真机跑起来，需要把 TotK 数据装进手机（下一步由宿主的「导入数据包」流程完成）。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据；**外部项目的代码不要直接搬进来**（`OJZen/totk-mobile` 是 Apache-2.0，本仓库是 MIT；只读思路与格式事实，代码自己写；Ryujinx 是 MIT，可用但要保留声明）。
@@ -216,18 +216,18 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - ID：NA-036
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：HEAD 含 NA-034/NA-035 的提交；一加 12 已接上；`D:\Switch\totk-work\package-totk\shaders\` 里已有 5,534 个宿主键的着色器包（`.spv` + `.meta`）。
-- 动作：**把 TotK 的数据装进一加 12，走 M1 的「装载 → `nnMain`」**。宿主与着色器这两侧的准备工作已经做完（c[2] 布局按档位 ✓、着色器包按宿主口径 ✓、驱动走系统 Adreno 750 ✓），剩下的是数据与装载流程：
-  ① **本体 RomFS**（15.87 GB，`D:\Switch\totk-work\base` 里已解出约 24 万个文件，可断点续跑：`dm/tools/switch_nca.py romfs-extract`）；
-  ② **更新包 RomFS 的 BKTR 补丁**（最终数据集差这层 —— 更新包的 RomFS 文件是 BKTR 容器，要解出来并按补丁重写；先查清楚 BKTR 的格式，必要时按 §4.4 的路子从游戏数据反推）；
-  ③ **数据包打包**：宿主的数据包导入（`dm/android/java/org/d2r/android/port/PackageArchive.java`）要能装 TotK 的 `shaders/`（**用宿主键命名的 `.spv` + `.meta`**，不是变体键）、`romfs/` 与三个改写后的模块；
-  ④ **启动界面的游戏档位**：native 侧已支持 `launch-settings.conf` 的 `game_profile=d2r|totk`（`DM_GAME_PROFILE`），启动界面还要加这一项，并让导入的数据包与档位对应。
-- 命令或编辑目标：先看 `D:\Switch\totk-work\base` 与 `upd-exefs` 的现状，估出本体 RomFS 解包要多久、BKTR 补丁的格式从哪查（`dm/tools/` 里有没有现成的容器解析）；再按 ①→②→③→④ 的顺序做，每步都留下可回滚的中间产物。
-- 成功判据：① 本体 RomFS 解完（`dm/tools/switch_nca.py romfs-extract` exit 0，文件数与 §3 的表一致）；② 更新包的 RomFS 文件全部解出并按补丁重写（能逐个读出内容，抽样与本体同路径文件对照能说明差异）；③ 打包出的数据包能通过 `dm/android/tests/PackageArchiveTest.java` 的规则；④ 真机上启动界面能选「TotK」，导入数据包后游戏活动能起来并把日志走到 `nnMain`（或给出明确的缺哪个导入清单）。
-- 失败判据：BKTR 格式在本机解不开且短时间找不到可行路线 → 先把本体的部分装上去，走到能出日志的最远一步，把 BKTR 留成单独一条；数据包格式对不上 → 先改打包器（不改编译器与宿主）。
-- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
-- 需要写入的证据：RomFS 解包的命令与退出码、文件数与字节数、BKTR 解码的样本与规则、数据包的结构清单（`shaders/` 条目数与 `.spv`/`.meta` 命名核对）、真机上的启动日志与 `nnMain` 判据、`ci_checks.py` 计分行、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。**本批 NOT RUN 的部分**：真机出图（画面正确与否要等数据装上才有得看）。
-- 顺带记下（下一步之后要做）：① **歧义控制键**（1,640 个）——真机跑起来后若发现某些着色器不对，就要按游戏实际用的变体调整打包工具的取舍规则（当前是「出现次数最多」）；② **翻译器侧的 c[2] 基址**（`dmsh_xlate/Program.cs` 的 `TexSlot` 写死 `TexBase = 0x168`，TotK 要 0x20）——改它会动翻译链版本 `dm/gfx/nvn/dmsh_chain.h`，必须连带重出 Mac 侧 B 库并跑 `dmsh_chain.py --update-lock`；影响面只有 26 个 TXQ 着色器。③ **改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」与 `blr x18` 两种 D2R 没有的形态；参考 `OJZen/totk-mobile` 的 `tools/patch_module.py` + `tools/exclusive.py`，Apache-2.0，只读思路、代码自己写）。④ **驱动**：一加 12 走系统 Adreno 750（实测 Vulkan 1.3.128、subgroup 64）；内置 Turnip 在这台机器上装不上（`.so` 没有 `vk*` 导出），启动界面应保持「系统驱动」。
+- 前置条件：HEAD 含 `dcd73cc`（数据管线）；`D:\Switch\totk-work\package-totk\totk-package.zip` 打包完成（后台日志 `D:\Switch\totk-work\cache\package-totk.log`）；一加 12 已接上（`adb devices` → `3b864e51 device PJD110`）。
+- 动作：**把 TotK 的数据包推上一加 12，走 M1 的「装载 → `nnMain`」**。数据侧只剩更新包的 BKTR 补丁这一层（本体数据已完整可用），所以先按「本体数据 + v1.4.2 的模块」跑一遍，看能走到哪一步：
+  ① **打包**：`totk_package.py` 从 RomFS 映像直接出包（已在后台跑）；出完先 `build_package.py inspect` 读清单核对条目数。
+  ② **推送**：`deploy_totk.py --romfs-image … --shaders … --game …` 把模块推到**内部**存储（外部存储是 noexec 挂载，dlopen 会失败）、资源与着色器推到外部存储、写 `manifest.json`（宿主看到它才走导入包那条路）、并把 `game_profile=totk` 写进 `launch-settings.conf`（native 据此选 c[2] 的合并句柄布局）。
+  ③ **导入**：包的 zip 用启动界面的「导入数据包」解开（手机端把 30 多万个文件落到外部存储，这一步可能要十几分钟）。
+  ④ **开机**：启动游戏活动，从 logcat 看走到哪一步（`nnMain` 判据：`_init_libc0 → nnosInitialize → _init_libc1 → nninitInitializeSdkModule → nninitStartup → _init_libc2 → 构造 → nnMain`）；把**第一个缺哪个导入**的清单记下来。
+- 命令或编辑目标：`dm/android/tools/deploy_totk.py`（已写好）；`dm/android/native/frontend_activity.c` 的包目录约定（`d2r-package/{game,romfs,shaders}`）；`dm/gfx/nvn/hle_fs.c` 的 `DM_ROMFS` 与 overlay（多层、冒号分隔 ✓）。
+- 成功判据：① 包清单里的条目数与实际一致（RomFS 304,207、着色器 5,534×2、模块 3+6）；② 真机上 `d2r-package/` 下三个目录齐了、`manifest.json` 在；③ 游戏活动起来并把日志走到 `nnMain`，或给出明确的缺导入清单；④ `ci_checks.py` 全绿、`build.py --game-run --version trim-b30` exit 0。
+- 失败判据：包推不过去（外部存储空间/导入失败）→ 先只推模块与着色器（几 MB）验证游戏活动能起来，再单独解决大数据；开机就崩 → 先按日志定位是**数据缺失**还是**宿主缺 HLE**，两者的下一步完全不同（前者查 BKTR/文件路径，后者补 HLE）。
+- 回滚点：见 frontmatter `observed_head` / `totk/scaffold`（`dcd73cc`）。
+- 需要写入的证据：包的清单与大小、推送用时、手机上 `d2r-package/` 的目录清单、logcat 里的启动序列、第一个缺导入的清单、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。**本批 NOT RUN 的部分**：真机出图（画面正确与否要等图形阶段）。
+- 顺带记下（下一步之后要做）：① **更新包的 BKTR 补丁**（`d214ebd….nca` 的 romfs 段是 `crypt: bktr`；`switch_nca.py` 的 `read_section` 只支持 CTR —— 要么实现 BKTR 解码，要么改宿主用 overlay 读第二个 RomFS 映像）；② **歧义控制键**（1,640 个控制键对应多种机器码，当前按「出现次数最多」选，真机跑起来后按画面定）；③ **改写器的 x18 适配**（参考 `OJZen/totk-mobile` 的 `tools/patch_module.py` + `tools/exclusive.py`，Apache-2.0，只读思路）；④ **翻译器侧的 c[2] 基址**（`dmsh_xlate/Program.cs` 的 `TexSlot` 写死 `TexBase = 0x168`，TotK 要 0x20 —— 改它会动 `dm/gfx/nvn/dmsh_chain.h` 的翻译链版本，必须连带重出 Mac 侧 B 库并跑 `dmsh_chain.py --update-lock`）；⑤ **启动界面的游戏档位**（native 侧已支持 `game_profile`，界面与数据包导入还没接）。
 
 ## 长操作两阶段日志
 

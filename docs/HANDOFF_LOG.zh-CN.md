@@ -3,6 +3,52 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 23:40 Asia/Shanghai — [TOTK] NA-036 第一阶段：TotK 数据管线打通（RomFS 映像 → 数据包 zip）
+
+- 会话目标：把 TotK 的数据变成**能推到手机上**的东西。
+- 结果：**本体数据完整可用**（解密后的 RomFS 映像 15.93 GiB、304,207 个文件，逐字节抽样验证过），数据包正在出；**更新包的 BKTR 补丁是唯一还差的数据层**。真机部署因设备掉线顺延。
+
+[BEGIN] na-036-totk-data-pipeline
+
+- 命令：
+  1. `D:\Switch\.tools\venv\Scripts\python.exe dm\tools\switch_nca.py --prod-keys … romfs-export <NCA> --out D:\Switch\totk-work\base\romfs.img`
+  2. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\totk_package.py --romfs-image … --ivfc … --shaders … --game … --output …`
+  3. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\deploy_totk.py --romfs-image … --shaders … --game …`
+- 工作目录：`D:\Switch\d2r-android`（产物落在仓库外 `D:\Switch\totk-work\`）
+- 预期结果：包里 RomFS 条目数与映像一致；推到手机后游戏活动能起来。
+- 日志路径：`D:\Switch\totk-work\cache\package-totk.log`
+- 回滚点：`dcd73cc`（数据管线提交）
+
+[END] na-036-totk-data-pipeline
+
+- 退出码：`romfs-export` exit 0（15.93 GiB / 304,207 个文件 / 2.5 分钟）；抽样比对 8 个一致、0 个不一致；`totk_package.py` 出包中；`ci_checks.py` 12 项通过 / 0 项失败。
+- 产物：`D:\Switch\totk-work\base\romfs.img` + `romfs.img.ivfc`、`D:\Switch\totk-work\package-totk\totk-package.zip`（打包中）；仓库内新增 `dm/android/tools/totk_package.py`、`dm/android/tools/deploy_totk.py`、`dm/android/tests/test_package_layout.py`，修改 `dm/tools/switch_nca.py`。
+- 结果：SUCCESS（数据侧第一阶段）
+- 备注：**真机部署与开机本批 NOT RUN**（手机在会话中途掉线）。
+
+证据（本条目对应的命令与退出码）：
+
+- **为什么换路线**：TotK 的 RomFS 是 304,207 个文件（15.93 GiB）的深目录树。逐个解到盘上在这台机器上要几十小时
+  （NTFS 小文件 + Defender，日志实测约 10,000 个/2.5 小时），而且 adb 没有推目录的本事（只能一个文件一个文件推）。
+  → 改成**导出解密后的整段 RomFS 映像**（一个文件），再从映像直接出包。
+- **导出**：`dm/tools/switch_nca.py romfs-export` 把 NCA 的 RomFS 段按 CTR 解密后顺序写出（15.93 GiB，2.5 分钟），
+  并把 **IVFC 头**另存为 `romfs.img.ivfc` —— IVFC 头本来在 NCA 的头区（不在段数据里），
+  读取方靠它才知道 RomFS 头在哪、各级偏移是多少。
+- **验证**：从映像里按路径读出 8 个抽样文件，与先前解出的目录树**逐字节一致**（0 个不一致；另 5 个抽样当时还没解出来 ✓）。
+- **出包**：`dm/android/tools/totk_package.py` 直接在映像上走目录树（304,207 个条目 ✓），把每个文件按**真实相对路径**
+  写进 zip（`romfs/<路径>`），连同模块与着色器包一起打成启动界面能导入的数据包（zip64 ✓）。
+  包内结构与 D2R 侧一致（`manifest.json` / `game/` / `romfs/` / `shaders/`）。
+- **打包器的 TotK 布局**：`dm/android/tools/build_package.py` 新增 `--romfs-layout data|root` ——
+  `data` 是 D2R 的老行为（`romfs/data/<名字>`，一字未动），`root` 保留整棵树的相对路径。
+  新闸门 `dm/android/tests/test_package_layout.py` 用两棵合成目录各打一个包，核对包内路径、模块与分组档位文件。
+- **部署脚本**：`dm/android/tools/deploy_totk.py` —— 模块推到**内部**存储（外部存储是 noexec 挂载，dlopen 会失败），
+  资源与着色器推到外部存储，写 `manifest.json`（宿主看到它才走导入包那条路），
+  并把 `game_profile=totk` 写进 `launch-settings.conf`（native 据此选 c[2] 的合并句柄布局；启动界面重写该文件时保留别人的键 ✓）。
+- **还差的数据层**：合并包里的 `d214ebdad75878d540c13f3155640f39.nca`（499.5 MB）romfs 段是 **`crypt: bktr`**，
+  而 `switch_nca.py` 的 `read_section` 只支持 CTR 段 → **更新包的数据补丁解不开**（上游 hactool 1.4.0 同样报
+  "Invalid BKTR layout!"）。本体数据已完整可用，所以先按「本体数据 + v1.4.2 的模块」跑一遍。
+- 下一步：**NA-036** —— 把包推上一加 12，走 M1 的「装载 → `nnMain`」。
+
 ## 2026-10-20 22:10 Asia/Shanghai — [TOTK] NA-035 第一版：TotK 着色器包按宿主口径打好（5,534 个宿主键）
 
 - 会话目标：接着 NA-034 往下推 —— 让 TotK 的着色器**真的能被宿主按名找到**（此前两边键口径不同，宿主一个也找不到）。
