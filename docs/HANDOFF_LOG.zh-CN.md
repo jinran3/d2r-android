@@ -3,6 +3,82 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 06:10 Asia/Shanghai — [TOTK] 客体导入符号的落地核对：1,350 个导入全部有提供者
+
+- 会话目标：在等手机的这段时间里，把"开机第一道门"先验掉。
+- 结果：TotK 三个模块的导入符号**全部有提供者**（160 个来自宿主 HLE、1,182 个来自 sdk/subsdk0 两个模块本身、只有 8 个 `glslc*` 无人提供而那 8 个本就不该被调用）—— 符号解析这一关是通的，真机开机不会因为"少一个符号"直接死掉。
+
+[BEGIN] na-036-guest-imports
+
+- 命令：`D:\Switch\.tools\venv\Scripts\python.exe dm\tools\check_guest_imports.py --modules D:\Switch\totk-work\upd-exefs --inventory D:\Switch\handoff-hle-inventory.tsv`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：每个导入都有提供者（宿主 HLE 或别的模块），否则列出并以非零码退出。
+- 日志路径：无（只读核对）
+- 回滚点：`36807df`
+
+[END] na-036-guest-imports
+
+- 退出码：exit 0 ✓；数据包清单核对 exit 0 ✓；`ci_checks.py` 13 项通过 / 0 失败 ✓。
+- 产物：仓库内新增 `dm/tools/check_guest_imports.py`（提交 `36807df`）；仓库外：重出的数据包 `D:\Switch\totk-work\package-totk\totk-package.zip`（16.31 GiB，着色器已是按 Android 口径重译的 ✓）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机断开）。
+
+证据（本条目对应的命令与退出码）：
+
+- **数字**：main 导入 679 / 导出 26，sdk 导入 8 / 导出 23,030，subsdk0 导入 663 / 导出 9,446；
+  合计 1,350 个导入 —— 宿主 HLE 提供 160，其它模块提供 1,182，**无人提供 0**（只有 8 个 `glslc*`：NVIDIA 的运行时 GLSL 编译器，
+  着色器已离线预译，游戏不会调它 ✓）。
+- **一处自我纠错**：我第一次只拿「宿主 HLE 表」去比，得出"缺 575 个"的结论 —— 那是**比错了对象**：
+  nn::os / nn::util / nn::prepo 这些是 **sdk 与 subsdk0 自己导出的**（sdk 导出 23,030 个 ✓），不是宿主的活。
+  宿主与模块之间的符号解析本来就该按「HLE ∪ 其它模块的导出」判定，这正是新工具采用的口径 ✓。
+- **工具**：`dm/tools/check_guest_imports.py` 按装载器的口径解析（`dm/tools/nso_stats.py` 的 NSO 读取 ✓），
+  逐个模块列出导入/导出，再用 HLE 清单（`dm/tools/hle_inventory.py` 的产物 ✓）判定落地；
+  `--allow-prefix` 默认放行 `glslc` 前缀 ✓。
+- **数据包已重出**：清单为 game 9 / romfs 304,207 / shaders 11,069，着色器 314,580,877 字节
+  （上一版是 314,730,665 ✓ —— 差值正是按 Android 口径重译的结果 ✓）。
+- **BKTR 的排查结果**：更新包那个段的 fs_header 与本体同构（只有 media type 是 4 而不是 3），逻辑大小 17 GB 而物理 456 MiB；
+  依次试过：明文 Brotli ✗、按其它段同样的 CTR 解密后 Brotli ✗、XTS+头密钥后 Brotli ✗ → 都不是 Brotli 流，
+  只能逆向或等一份参考实现。
+- 下一步：**NA-036** —— 手机回来后推包、导入、开机看日志。
+
+## 2026-10-21 06:10 Asia/Shanghai — [TOTK] 客体导入符号的落地核对：1,350 个导入全部有提供者
+
+- 会话目标：在等手机的这段时间里，把"开机第一道门"先验掉。
+- 结果：TotK 三个模块的导入符号**全部有提供者**（160 个来自宿主 HLE、1,182 个来自 sdk/subsdk0 两个模块本身、只有 8 个 `glslc*` 无人提供而那 8 个本就不该被调用）—— 符号解析这一关是通的，真机开机不会因为"少一个符号"直接死掉。
+
+[BEGIN] na-036-guest-imports
+
+- 命令：`D:\Switch\.tools\venv\Scripts\python.exe dm\tools\check_guest_imports.py --modules D:\Switch\totk-work\upd-exefs --inventory D:\Switch\handoff-hle-inventory.tsv`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：每个导入都有提供者（宿主 HLE 或别的模块），否则列出并以非零码退出。
+- 日志路径：无（只读核对）
+- 回滚点：`36807df`
+
+[END] na-036-guest-imports
+
+- 退出码：exit 0 ✓；数据包清单核对 exit 0 ✓；`ci_checks.py` 13 项通过 / 0 失败 ✓。
+- 产物：仓库内新增 `dm/tools/check_guest_imports.py`（提交 `36807df`）；仓库外：重出的数据包 `D:\Switch\totk-work\package-totk\totk-package.zip`（16.31 GiB，着色器已是按 Android 口径重译的 ✓）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机断开）。
+
+证据（本条目对应的命令与退出码）：
+
+- **数字**：main 导入 679 / 导出 26，sdk 导入 8 / 导出 23,030，subsdk0 导入 663 / 导出 9,446；
+  合计 1,350 个导入 —— 宿主 HLE 提供 160，其它模块提供 1,182，**无人提供 0**（只有 8 个 `glslc*`：NVIDIA 的运行时 GLSL 编译器，
+  着色器已离线预译，游戏不会调它 ✓）。
+- **一处自我纠错**：我第一次只拿「宿主 HLE 表」去比，得出"缺 575 个"的结论 —— 那是**比错了对象**：
+  nn::os / nn::util / nn::prepo 这些是 **sdk 与 subsdk0 自己导出的**（sdk 导出 23,030 个 ✓），不是宿主的活。
+  宿主与模块之间的符号解析本来就该按「HLE ∪ 其它模块的导出」判定，这正是新工具采用的口径 ✓。
+- **工具**：`dm/tools/check_guest_imports.py` 按装载器的口径解析（`dm/tools/nso_stats.py` 的 NSO 读取 ✓），
+  逐个模块列出导入/导出，再用 HLE 清单（`dm/tools/hle_inventory.py` 的产物 ✓）判定落地；
+  `--allow-prefix` 默认放行 `glslc` 前缀 ✓。
+- **数据包已重出**：清单为 game 9 / romfs 304,207 / shaders 11,069，着色器 314,580,877 字节
+  （上一版是 314,730,665 ✓ —— 差值正是按 Android 口径重译的结果 ✓）。
+- **BKTR 的排查结果**：更新包那个段的 fs_header 与本体同构（只有 media type 是 4 而不是 3），逻辑大小 17 GB 而物理 456 MiB；
+  依次试过：明文 Brotli ✗、按其它段同样的 CTR 解密后 Brotli ✗、XTS+头密钥后 Brotli ✗ → 都不是 Brotli 流，
+  只能逆向或等一份参考实现。
+- 下一步：**NA-036** —— 手机回来后推包、导入、开机看日志。
+
 ## 2026-10-21 04:40 Asia/Shanghai — [TOTK] 着色器按 Android 口径重译：修掉「32 子组 + 描述符集撞车」
 
 - 会话目标：把不依赖手机的事做完，并核实上一轮「已验证」的说法。
