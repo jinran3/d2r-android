@@ -269,7 +269,9 @@ NVN(nvnTextureInitialize, NVNboolean, NVNtexture *t, const NVNtextureBuilder *b)
     o->magic = MAGIC('T', 'E', 'X', 0); o->d = s->d; o->pool = s->pool; o->off = s->off;
     o->has_layout = s->has_layout; memcpy(o->layout, s->layout, 8);
     nvn_tex_layout(&o->d, &o->L);
-    o->mem = s->pool && s->pool->mem ? s->pool->mem + s->off : NULL;
+    // 预排布数据优先：游戏给的是指针，不是池里的偏移。
+    // The packaged data wins: the game gives a pointer, not an offset into the pool.
+    o->mem = s->pkg_data ? (const void *)s->pkg_data : (s->pool && s->pool->mem ? s->pool->mem + s->off : NULL);
     o->serial = nvn_new_serial();
     OLOG("Texture %p %ux%ux%u lv%u fmt=%#x tgt=%d flags=%#x size=%#llx", (void *)t, o->d.width, o->d.height, o->d.depth,
          o->d.levels, o->d.format, o->d.target, o->d.flags, o->L.size);
@@ -985,9 +987,13 @@ NVN(nvnTextureBuilderSetSize3D, void, NVNtextureBuilder *b, int w, int h, int d)
 NVN(nvnTextureBuilderSetSwizzle, void, NVNtextureBuilder *b, NVNtextureSwizzle r, NVNtextureSwizzle g, NVNtextureSwizzle bl, NVNtextureSwizzle a) { (void)b; (void)r; (void)g; (void)bl; (void)a; }
 // 预排布贴图数据：宿主还没接这条上传路径 → 记下来并报红（贴图会是空的）。
 // Packaged texture data: the host has no upload path for it yet → remember it and report.
+// 预排布贴图：游戏直接给一份已经排好布的数据（指针在客体内存里）。
+// Packaged texture: the game hands over a pointer to data that is already laid out (in guest memory).
+// 上传路径与「池内存里的预排布数据」同一条（读内存 → 解排布 → 上传），所以这里只要记住指针。
+// The upload path is the same as for packaged data living in pool memory (read → deswizzle → upload),
+// so it is enough to remember the pointer here.
 NVN(nvnTextureBuilderSetPackagedTextureData, void, NVNtextureBuilder *b, const void *data) {
-    (void)b; (void)data;
-    static int reported; if (!reported++) LOG("【红】TextureBuilderSetPackagedTextureData：宿主未接预排布贴图上传 | packaged texture upload unsupported");
+    TB(b)->pkg_data = data;
 }
 NVN(nvnTextureBuilderSetGLTextureName, void, NVNtextureBuilder *b, uint32_t name) { (void)b; (void)name; }
 NVN(nvnTextureBuilderGetTarget, NVNtextureTarget, const NVNtextureBuilder *b) { return (NVNtextureTarget)TB(b)->d.target; }

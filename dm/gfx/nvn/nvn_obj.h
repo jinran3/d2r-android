@@ -34,6 +34,7 @@ FITS(dpool_t, NVNtexturePool); FITS(dpool_t, NVNsamplerPool);
 typedef struct {
     NVNdevice *dev; nvn_texdesc d; pool_t *pool; int64_t off;
     uint8_t has_layout, layout[8];
+    const void *pkg_data;   // 预排布贴图数据（游戏直接给的指针）| packaged texture data (a pointer the game passes directly)
 } tex_builder_t;                                                                             FITS(tex_builder_t, NVNtextureBuilder);
 typedef struct {
     uint32_t magic; nvn_texdesc d; nvn_texlayout L; uint8_t *mem; pool_t *pool; int64_t off; uint8_t has_layout, layout[8];
