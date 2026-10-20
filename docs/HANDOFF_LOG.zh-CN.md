@@ -3,6 +3,92 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 21:40 Asia/Shanghai — [TOTK] NA-033 收口：SPH 解析完、事实表坐实，并查出真机渲染的头号拦路虎（c[2] 布局）
+
+- 会话目标：按交接文档执行 NA-033 —— 把「贴图维度 / 图像格式 / 属性分量类型」这三项事实的来源查清楚（SPH 里到底有什么），据此给计划 §4.4 画句号；同时把 TotK 往真机（一加 12）推。
+- 结果：**§4.4 收口**（三类事实的来源全部落实）；**并查出一个比事实表更要紧的问题**：TotK 与 D2R 的 **c[2] 布局不同**，宿主把 D2R 的写死了 → **TotK 上一个贴图都绑不上，画面必然是黑的**。下一步动作因此从「继续查事实」改成「改 c[2] 布局」（NA-034）。
+- 用户侧：一加 12 **本会话没有接上**（`adb devices` 返回空列表），真机部分顺延到 NA-034 之后；本会话的活全是本机可完成的。
+
+[BEGIN] na-033-sph-facts
+
+- 命令：
+  1. `D:\Switch\.tools\venv\Scripts\python.exe dm\gfx\tools\totk_facts.py --index D:\Switch\totk-work\shaders-index4\shader_index.tsv --code D:\Switch\totk-work\shaders-index4\code --out D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv`
+  2. `D:\Switch\.tools\venv\Scripts\python.exe dm\gfx\tools\totk_xlate.py --index D:\Switch\totk-work\xlate-full\changed_index.tsv --code D:\Switch\totk-work\shaders-index4\code --work D:\Switch\totk-work\xlate-facts2b --facts D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv --xlate D:\Switch\totk-work\tools\xlate\dmsh_xlate.dll --dotnet D:\Switch\totk-work\tools\dotnet\dotnet.exe --shards 6`
+  3. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\ci_checks.py`
+  4. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\build.py --game-run --version trim-b29`
+  5. `D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify`
+- 工作目录：`D:\Switch\d2r-android`（产物落在仓库外 `D:\Switch\totk-work\`）
+- 预期结果：事实表 9,807 键；重译 4,778 个受影响键全部成功；ci_checks 全绿；build exit 0；--verify exit 0。
+- 日志路径：`D:\Switch\totk-work\xlate-facts2b.log`、`D:\Switch\totk-work\build-trim-b29.log`
+- 回滚点：`45d5254`（NA-033 业务提交）
+
+[END] na-033-sph-facts
+
+- 退出码：事实表 exit 0；重译 exit 0（4,778 成功 / 0 失败）；`ci_checks.py` 10 通过 / 0 失败；`build.py --game-run --version trim-b29` exit 0；`agent_handoff_check.py --verify` exit 0。
+- 产物：`D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv`（9,807 键的新事实表，仓库外）；`D:\Switch\totk-work\xlate-full\changed_index.tsv`（4,778 个受影响键）；`D:\Switch\totk-work\xlate-facts2b\out0..5\`（4,778 个新 SPIR-V + res.json）；`D:\Switch\totk-work\probe\sph\sph.tsv` 与 `sph\ctrl\`（9,807 个着色器的 SPH / 控制头勘察表）；仓库内新增 `dm/gfx/tools/totk_facts.py`（提交 `45d5254`）。
+- 结果：SUCCESS
+- 备注：**真机上的实际出图与进 `nnMain` 本批 NOT RUN**（一加 12 本会话未接上）；iOS / macOS 侧编译 NOT RUN。
+
+证据（本条目对应的命令与退出码）：
+
+- **SPH 的口径更正**：图形着色器的机器码区布局是 `0x30 字节 NVN 头（魔数 0x12345678） + 0x50 字节 SPH + 指令`。
+  之前交接里写的「机器码前 0x30 字节是 SPH」**是错的** —— 0x30 是 NVN 头的大小，**SPH 是 0x50 字节**。
+  权威来源是仓内 vendored 的 Ryujinx `Translation/ShaderHeader.cs`（`gpuAccessor.GetCode(address, 0x50)`），
+  我们自己的 `dm/gfx/tools/dmsh_xlate/Program.cs` 写的也是「graphics = 0x50-byte SPH + instructions」，
+  `dm/gfx/tools/maxwell_refs.py` 也写着「0x30 NVN 头（0x12345678）+ 0x50 SPH + 指令」。
+  「少 SPH 会抛 `IndexOutOfRangeException`」的真正原因是**整段 SPH 都缺**。
+- **SPH 的字段**（20 个 u32，按 `ShaderHeader.cs` 逐位解）：第 0 字 = sphType(0..4) / version(5..9) /
+  **stage(10..13)** / mrt(14) / killsPixels(15) / doesGlobalStore(16) / sassVersion(17..20) / gpPassthrough(24) /
+  doesLoadOrStore(26) / **doesFp64(27)** / streamOutMask(28..31)；第 1..4 字 = 局部内存大小 / perPatchAttributeCount /
+  threadsPerInputPrimitive / CRS 大小 / outputTopology / maxOutputVertexCount / storeReqStart / storeReqEnd；
+  **第 6..13 字 = ImapTypes[32]**（顶点属性的输入映射类型，每字 4 个属性、每属性 2 bit × 4 分量）；
+  **第 18 字 = OmapTargets（片元输出数）**；第 19 字 = omap 标志位。
+- **9,807 个着色器全量校验通过**：SPH 全部解析成功，**stage 字段与归档里的 kind 100% 一致**
+  （idx=vs / sph=1：4,232；idx=ps / sph=5：5,557；idx=cs：18），word0 只有 21 种取值且全部落在合法字段组合内
+  （例如 `0x02060461` = sphType 1 / version 3 / stage 1 / sass 3）。
+  勘察表在 `D:\Switch\totk-work\probe\sph\sph.tsv`（含每个键的 SPH 全字段与控制头的全部非零字）。
+- **SPH 里没有贴图维度类型、也没有图像格式**：NVN 着色器控制头（魔数 0x98761234、长度 0x880）里同样
+  **没有按槽的描述符表** —— 9,807 个控制头只有 **86 种固定布局**，非零字集中在 0x0000 / 0x0014 / 0x0020 /
+  0x06f0 / 0x06f8 / 0x0700 / 0x0790 / 0x07d0 / 0x07f4 / 0x0804 等固定位置，与该着色器用到的资源槽数无关。
+  → D2R 那张「PC 反射冻结」的 `tex` / `img` 事实**在 TotK 侧没有静态对应物**。
+- **贴图维度多半本来就不需要事实表**（这是本条目最重要的结论之一）：Ryujinx 自己的翻译器就是**从机器码的贴图指令取维度**
+  的 —— `Instructions/InstEmitTexture.cs` 的 `ConvertSamplerType(TexDim)`：TEX / TLD / TLD4 / TMML / TXD 用第 28..30 位的
+  `Dim`，TEXS / TLDS 用第 53..56 位的 `Target`（`TexsTarget` / `TldsTarget`）。
+  我们用事实表作答的 `IGpuAccessor.QuerySamplerType` **只在三处被调用**：① 纹理查询 TXQ ② buffer 型贴图判定
+  ③ bindless 路径（全仓 grep 只有 `InstEmitTexture.cs` 三处 + `BindlessElimination.cs` 一处）。
+  实测：TotK 9,807 个着色器里**只有 26 个用 TXQ**（其中 12 个的贴图维度不是 2D）；**没有 1D / buffer 贴图**
+  （维度分布 2d 39,210 / 2darray 4,752 / 3d 3,205 / cube 1,482 / 2ds 2；**同一槽出现两种维度的 0 个**，反证解码正确）。
+  → **按缺省（2D）译出来的着色器库，贴图维度本来就是对的**；「贴图维度」从「必须拿到的事实」降级为「只有 TXQ 着色器需要」。
+- **真正的新事实是顶点属性的分量类型**：`ImapTypes[i].X == Constant(1)` = 整数属性（Perspective=2 / ScreenLinear=3 = 浮点）。
+  TotK 实测：**4,206 个顶点着色器有属性事实，其中 1,204 个属性槽是整数属性**
+  （D2R 侧 PC 反射给的比例是 870/11,166 ≈ 7.8%，量级一致）。这条事实之前一直按缺省 float 作答。
+  片元阶段的 ImapTypes 描述的是插值输入、计算阶段没有 SPH，都不取。
+- **重译与比对（证据链）**：4,778 个受影响键（3,652 个只改贴图事实、1,126 个只改属性事实）用新事实表重译，
+  **4,778 成功 / 0 失败**；与上一版逐字节比对：**267 个键的 SPIR-V 变了，4,511 个逐字节相同**。
+  变的 267 个**全部**带属性事实（带贴图事实但没变的 6,787 个，反证贴图事实确实不进 SPIR-V）。
+  抽样 `002d9a7925fc2af1`（属性 6 = 整数）：新版 SPIR-V 多出 `OpTypeVector(uvec4)`（分量类型是 32 位**无符号** int），
+  旧版只有 float4 —— 属性分量类型确实按 SPH 改了。
+  顺带解释「为什么 1,126 个带属性事实的键里只变了 267 个」：SPH 的 ImapTypes 覆盖 32 个属性号，
+  多数键声明的属性并没有真被这个着色器用上，所以声明不变。
+- **★ 头号拦路虎（NA-034 的由来）**：**TotK 与 D2R 的 c[2] 驱动常量段布局不同**。
+  D2R 用**分离**贴图：句柄在 `c[2][0x168 + 8r]`（贴图槽）与 `c[2][0x568 + 8r]`（采样器槽），各 128 槽；
+  图像句柄在 `c[2][0x120 + 8r]`（8 槽）—— 这三个值是 `dm/gfx/tools/dmsh_build.py` 全量实测出来的。
+  **TotK 用合并句柄**（handle type = 0：纹理 ID 低 20 位 + 采样器 ID 第 20..31 位）：
+  实测 9,807 个着色器里全部贴图引用的 c[2] 字节偏移都落在 **`0x20 + 8r`，r = 0..31**
+  （偏移集合 0x20、0x28 … 0x118 共 32 个，干净的 8 字节步进，没有一个越界；0x120 正好是图像句柄表的起点，
+  与 D2R 侧一致，所以合并贴图表 = `c[2][0x20 .. 0x120)`）。
+  宿主现状：`dm/android/native/nvn_vulkan_shader.inc` 把贴图句柄写在 `0x168 + 8i`，
+  `dm/android/native/nvn_vulkan_handles.inc` 的 `shader_handle_word()` 只认 `0x168..0x568` / `0x568..0x968` /
+  `0x120..0x168` 三段 → **TotK 的贴图句柄偏移全部落在三段之外，读出来是 0：一个贴图都绑不上，画面必然是黑的**。
+  翻译器侧同理：`dm/gfx/tools/dmsh_xlate/Program.cs` 的 `TexSlot()` 用死值 `TexBase = 0x168`，
+  事实表里的贴图维度因此查不到（这也是那 12 个 TXQ 键的 SPIR-V 至今没变的原因）。
+- **事实表不进仓库**：仓库纪律是「游戏内容与由它生成的表不进仓库」。新工具 `dm/gfx/tools/totk_facts.py` 入仓，
+  表落仓库外（`D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv`）。
+- **本会话的一次操作错误（已改）**：第一次重译用的是 `dm/gfx/tools/dmsh_xlate/obj/Release/net10.0/dmsh_xlate.dll`
+  （缺 `dmsh_xlate.runtimeconfig.json`），6 个分片全部退出码 2147516547；换成上次成功的构建输出
+  `D:\Switch\totk-work\tools\xlate\dmsh_xlate.dll` + `D:\Switch\totk-work\tools\dotnet\dotnet.exe` 即通过。
+- 下一步：**NA-034** —— 把 c[2] 布局做成按规则集可选，宿主与翻译器两侧一起改（D2R 路径逐字节不变）。
+
 ## 2026-10-20 18:45 Asia/Shanghai — [TOTK] NA-032 收口：9,807 个着色器全部翻成 SPIR-V
 
 - 会话目标：把 NA-032 收口 —— 翻译作业流水线入仓、**全部 9,807 个 TotK 着色器翻成 SPIR-V**、把那 3 个 `IndexOutOfRangeException` 查因修掉；顺手把一加 12 接入的实况写进快照。
