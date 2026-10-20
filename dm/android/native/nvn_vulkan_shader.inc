@@ -205,11 +205,13 @@ static shader_entry *shader_get(const void *control, NVNbufferAddress data) {
         uint32_t co,tt,of;
         if(shader_code_layout(control,&co,&tt,&of)){
             uint32_t plen=co-of,clen=tt-co,total=plen+clen;
-            uint64_t starts[5];unsigned nstarts=0;
+            uint64_t starts[6];unsigned nstarts=0;
+            uint64_t control_addr=(uint64_t)(uintptr_t)control;
             starts[nstarts++]=data;                       // 客体给的数据地址可能就是程序起点 | the guest's data address may be the program start
-            if(data>=of)starts[nstarts++]=data-of;        // 或者是代码区起点 | or the start of the code area
-            starts[nstarts++]=(uint64_t)(uintptr_t)control+0x880;   // 或者程序紧跟在控制段后面 | or the program directly follows the control block
-            if((uint64_t)(uintptr_t)control+0x880+of>=(uint64_t)(uintptr_t)control+0x880)starts[nstarts++]=(uint64_t)(uintptr_t)control+0x880+of;
+            if(data>=of)starts[nstarts++]=data-of;        // 或者它指的是代码区起点（程序在偏移之后）| or it is the start of the code area (the program is at the offset)
+            starts[nstarts++]=data+of;                    // 或者它指的是程序起点之前（代码区头在前面）| or the program starts after it (the code-area header is in front)
+            starts[nstarts++]=control_addr+0x880;         // 或者程序紧跟在控制段后面 | or the program directly follows the control block
+            starts[nstarts++]=control_addr+0x880+of;      // 或者控制段后面还有代码区头 | or a code-area header follows the control block
             uint8_t *buf=(uint8_t *)malloc(total);
             if(buf){
                 for(unsigned i=0;i<nstarts;i++){
