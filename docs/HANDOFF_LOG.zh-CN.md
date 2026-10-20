@@ -3,6 +3,54 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 01:32 Asia/Shanghai — [TOTK] NA-037：TotK 的 NVN 接口面对齐（查出会直接崩的取址缺口 + 补 13 个接口 + 103 个缺口清单）
+
+- 会话目标：手机断开期间，把 TotK 的 **NVN 接口面**查清并对齐到宿主（这是 M2「NVN 接管」的前置）。
+- 结果：① **查出一个会直接崩的坑**：TotK 取址 **534** 个 NVN 名，其中 **13 个宿主的名字表里没有** → `nvn_lookup` 返回 NULL → 客体拿到空函数指针；② 名字表补到 536（D2R 的 523 个顺序不动 → 槽索引不变 → D2R 行为逐字节不变），13 个新接口落地；③ 静态扫描出 TotK 真正调用的 **213** 个接口，宿主已实现 **110** 个，**还缺 103 个**（M2 的工作清单）。
+
+[BEGIN] na-037-nvn-surface
+
+- 命令：`dm/gfx/tools/nvn_slots_auto.py`、`dm/gfx/tools/nvn_table.py`、`dm/gfx/tools/nvn_coverage.py`、`dm/android/tools/build.py --game-run --version trim-b31`、`dm/android/tools/ci_checks.py`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：名字表覆盖 TotK 的全部取址名；13 个新接口有实现；缺口清单可复查。
+- 日志路径：无（只读核对 + 构建）
+- 回滚点：`0dab668`
+
+[END] na-037-nvn-surface
+
+- 退出码：`build.py --game-run --version trim-b31` exit 0；`nvn_table.py --check` exit 0；`nvn_coverage.py` exit 0（取址缺口 0 / 实现缺口 103）。
+- 产物：仓库内 `dm/gfx/tools/nvn_slots_auto.py`、`dm/gfx/tools/nvn_table.py`、`dm/gfx/tools/nvn_coverage.py`、`dm/gfx/nvn/nvn_names_totk.txt`、`dm/gfx/nvn/nvn_calls_totk.tsv`；改动 `dm/gfx/nvn/names.txt`（523→536）、`nvn_thunks.S`、`nvn_count.h`、`nvn_protos.h`、`hle_nvn.c`；APK `dm/android/build/D2R-Android-port.apk`（trim-b31）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机断开）。合并句柄拆分只有静态依据，待真机出图确认。
+
+证据（本条目对应的命令与退出码）：
+
+- **取址缺口（会崩）**：`nvn_slots_auto.py` 在 `D:\Switch\totk-work\nso\upd_main.img`（.text 尾 `0x2ba61f0`）自动定位到取址函数 `0xbbfac0`，
+  解析出 **534** 个名字（TotK 的加载函数形态是 `adrp 槽页; ldr x8,[x8,#off]; str x0,[x8]` 的二次间接，与 D2R 的直接存储不同，
+  工具两种都认）。与 `dm/gfx/nvn/names.txt` 比对：**13 个名字宿主的表里没有**
+  （`nvnTextureBuilderGetViewOffset`、`nvnProgramGetSubtileSize`、`nvnCommandBufferSetControlMemoryCallbackEnabled`、
+  6 个 `…Deferred`、`nvnCommandBufferOverrideSubtileSize`、`nvnCommandBufferSetZCullZF32CompressionEnable`、
+  `nvnCommandBufferSetProvokingVertexMode`、`nvnDeviceSetAutomaticCheckpointsMask`）
+  → `hle_nvn.c` 的 `nvn_lookup` 查不到就返回 NULL → 客体拿到空函数指针。
+- **名字表扩展可复现**：`nvn_table.py` 先在改动前跑 `--check`，能把 `nvn_thunks.S` / `nvn_count.h` / `nvn_protos.h`
+  **逐字节复现**（exit 0），再 `--merge` TotK 名字表 → 追加 13 个名字、重生成三张表（536）。
+  `gen_protos.py` 需要仓外的 Nintendo `nvn.h`，所以新工具只依赖名字表。
+- **13 个新接口的实现依据**：从 TotK 二进制里读出实际调用形态（例：`nvnCommandBufferSetControlMemoryCallbackEnabled`
+  在 `0xd8960` 处是 `x0=cmdbuf; w1=0` 两参）；6 个延迟绑定转调对应的普通绑定（同参同义，把「延后生效」改成「即时生效」）；
+  两个查询（视图偏移 / 子块尺寸）**不写出参**，避免写错地址。
+- **合并贴图绑定**：`nvnCommandBufferBindTextures` 此前是报红桩（D2R 不调；TotK 调 **260** 次）→
+  按合并句柄（纹理 ID 低 20 位 + 采样器 ID 第 20..31 位，与 `dm/android/native/nvn_c2_layout.h` 的 TotK 档位一致）
+  拆成贴图 / 采样器两条绑定记录，后端在合并档位下正好用这两个数组重新打包。
+- **调用面清单**：静态扫描 TotK main 的 .text 里 `adrp 槽页; ldr [xN,#off]; ldr [xN]; blr xN` 这种间接调用
+  → **213** 个接口被调用、**2,946** 个调用点（`dm/gfx/nvn/nvn_calls_totk.tsv`）。
+  与宿主实现表比对（`nvn_coverage.py`）：**缺 103 个**，缺口最大的依次是
+  `nvnBufferFlushMappedRange`(132)、`nvnCommandBufferDrawElementsBaseVertex`(103)、`nvnDeviceGetTexelFetchHandle`(103)、
+  `nvnCommandBufferWaitSync`(98)、`nvnCommandBufferSetRenderEnableConditional`(60)、`nvnMemoryPoolInvalidateMappedRange`(55)、
+  `nvnCommandBufferClearColori`(39)、`nvnCommandBufferBindImage`(29)。
+- **D2R 不变**：名字表前 523 个名字顺序未动 → 槽索引未动；新增的 13 个接口 D2R 不调用；
+  `nvnCommandBufferBindTextures` D2R 也不调用（D2R 走分离贴图）。D2R 路径逐字节不变。
+- 下一步：**NA-038** —— 按调用点数从高到低补齐那 103 个接口（不需要手机）。
+
 ## 2026-10-21 07:40 Asia/Shanghai — [TOTK] 收口三件事：x18 那条其实是空谈、D2R 的 Android 翻译器是上一轮改坏的、数据路径对得上
 
 - 会话目标：把交接清单里剩下的、能在本机查清的三条查清。

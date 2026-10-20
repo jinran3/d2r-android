@@ -12,6 +12,30 @@
 
 ## 当前状态（继续开发先看这里）
 
+**2026-10-21（最新）：NA-037 —— TotK 的 NVN 接口面对齐：查出会直接崩的取址缺口、补 13 个新接口、给出 103 个实现缺口清单。**
+
+- **★ 查出一个会直接崩的坑**：TotK 的 main 取址 **534 个** NVN 接口名（`dm/gfx/nvn/nvn_names_totk.txt`），
+  其中 **13 个宿主的名字表里没有** → `nvn_lookup` 返回 NULL → 客体拿到空函数指针 → 开机即崩。
+  这 13 个是 D2R 那一代 NVN 里没有的新接口（延迟绑定、子块尺寸、视图偏移、provoking vertex、自动检查点掩码等）。
+- **名字表补齐**：`dm/gfx/nvn/names.txt` 变成 536（D2R 的 523 个顺序不动、槽索引不变；TotK 独有的 13 个追加在末尾），
+  `nvn_thunks.S` / `nvn_count.h` / `nvn_protos.h` 重新生成。新增 `dm/gfx/tools/nvn_table.py`：
+  **只靠名字表就能重建跳板与计数表**（原来的 `gen_protos.py` 需要仓外的 Nintendo `nvn.h`）；
+  先验证它能把改动前的三个文件逐字节复现，再扩表。
+- **自动定位取址函数**：新增 `dm/gfx/tools/nvn_slots_auto.py`（不写死地址，认得 D2R 与 TotK 两种加载函数形态）→
+  出「名字 / 槽 / 调用点」表；TotK 的取址函数在 `upd_main.img` 的 `0xbbfac0`。
+- **13 个新接口落地**（`dm/gfx/nvn/hle_nvn.c`）：6 个延迟绑定直接转调对应的普通绑定；其余是 no-op 或返回 0
+  （视图偏移 / 子块尺寸这两个查询**不写出参**，免得写错地址）。
+- **合并贴图绑定**：`nvnCommandBufferBindTextures` 此前是报红桩（D2R 不调，TotK 调 **260 次**）→
+  按合并句柄（纹理 ID 低 20 位 + 采样器 ID 第 20..31 位）拆成贴图 / 采样器两条绑定记录，
+  与后端「合并档位」的重打包对上（D2R 不调用这个函数，D2R 行为不变）。
+- **缺口清单**：静态扫描 TotK main 的 .text（`adrp 槽页; ldr [xN,#off]; ldr [xN]; blr xN` 这种间接调用）
+  → TotK 真正调用 **213 个**接口（`dm/gfx/nvn/nvn_calls_totk.tsv`），宿主已实现 **110** 个，**还缺 103 个**
+  （`dm/gfx/tools/nvn_coverage.py` 可复查）。缺口最大的：`nvnBufferFlushMappedRange`(132)、
+  `nvnCommandBufferDrawElementsBaseVertex`(103)、`nvnDeviceGetTexelFetchHandle`(103)、`nvnCommandBufferWaitSync`(98)、
+  `nvnCommandBufferSetRenderEnableConditional`(60)、`nvnMemoryPoolInvalidateMappedRange`(55)、
+  `nvnCommandBufferClearColori`(39)、`nvnCommandBufferBindImage`(29)。
+- **本批 NOT RUN**：真机（手机断开）；合并句柄拆分的正确性目前只有静态依据，要等真机出图才能确认。
+
 **2026-10-20（最新）：NA-034 收口 —— c[2] 布局按档位可选并在真机验证；驱动选型真机实测收口；查出着色器键口径的新拦路虎。**
 
 - **c[2] 句柄表布局按游戏档位可选**：TotK 的贴图句柄在 `c[2][0x20 + 8r]`（合并句柄，32 槽），D2R 在 `0x168 + 8r`（分离贴图）。
