@@ -64,10 +64,11 @@ public final class LauncherActivity extends Activity {
     private static final int WARNING = 0xffd08a78;
 
     private Switch overlaySwitch;
-    private TextView profileItem, resolutionItem, driverItem, importItem, statusView, startItem;
+    private TextView profileItem, resolutionItem, driverItem, gameItem, importItem, statusView, startItem;
     private boolean handheld;
     private int resolutionIndex;
     private int driverIndex;
+    private int gameIndex;
     private String packageSummary = "";
     private boolean importing;
     private volatile boolean cancelImport;
@@ -81,6 +82,10 @@ public final class LauncherActivity extends Activity {
     // Measured difference: the Adreno driver shows blocky lighting around the player, Turnip does not — see the
     // driver notes under docs/.
     private static final String[] DRIVER_STATES = {"system", "turnip"};
+    // 游戏档位：决定宿主用哪套 c[2] 句柄表布局（D2R 是分离贴图，TotK 是合并句柄）与哪套着色器包。
+    // The game profile selects the host's c[2] handle table layout (D2R separate textures, TotK combined handles)
+    // and the shader package that goes with it.
+    private static final String[] GAME_STATES = {"d2r", "totk"};
     private static final String TURNIP_ASSET = "turnip/vulkan.purple.so";
 
     private String text(String key) {
@@ -95,7 +100,7 @@ public final class LauncherActivity extends Activity {
     // input_receipts, for instance) and has to survive a rewrite -- otherwise starting the game from the launcher
     // silently drops it. Measured once with input_receipts=1: the file said so, native read "unset", the HID
     // receipts were never produced, and the overwrite was the last thing found.
-    private static final String[] OWNED_KEYS = {"debug_overlay", "operation_mode", "resolution"};
+    private static final String[] OWNED_KEYS = {"debug_overlay", "operation_mode", "resolution", "game_profile"};
 
     // 游戏还活着时启动界面立刻让位。
     // 从桌面点图标回来时，安卓会在**游戏上面**再开一个启动界面（启动界面是本应用的入口活动），玩家看到的是启动界面、
@@ -199,6 +204,11 @@ public final class LauncherActivity extends Activity {
         }
     }
 
+    private String gameLabel() {
+        return text("dmAndroidLaunchGame") + "：" + text(
+                GAME_STATES[gameIndex].equals("totk") ? "dmAndroidLaunchGameTotK" : "dmAndroidLaunchGameD2R");
+    }
+
     private String driverLabel() {
         return text("dmAndroidLaunchDriver") + "：" + text(
                 DRIVER_STATES[driverIndex].equals("turnip") ? "dmAndroidLaunchDriverTurnip" : "dmAndroidLaunchDriverSystem");
@@ -271,6 +281,7 @@ public final class LauncherActivity extends Activity {
         StringBuilder content = new StringBuilder("# 仅供界面显示 | display only\n");
         if (!packageSummary.isEmpty()) content.append("package_summary=").append(packageSummary).append('\n');
         content.append("driver=").append(DRIVER_STATES[driverIndex]).append('\n');
+        content.append("game=").append(GAME_STATES[gameIndex]).append('\n');
         write(stateFile(), content.toString());
     }
 
@@ -291,6 +302,7 @@ public final class LauncherActivity extends Activity {
         if (profileItem != null) profileItem.setText(profileLabel());
         if (resolutionItem != null) resolutionItem.setText(resolutionLabel());
         if (driverItem != null) driverItem.setText(driverLabel());
+        if (gameItem != null) gameItem.setText(gameLabel());
         if (importItem != null) importItem.setText(importLabel());
         if (startItem != null) updateStartState();
     }
@@ -315,6 +327,13 @@ public final class LauncherActivity extends Activity {
         driverIndex = 0;
         if (driver != null) for (int i = 0; i < DRIVER_STATES.length; i++) if (DRIVER_STATES[i].equals(driver)) driverIndex = i;
         if (!turnipBundled()) driverIndex = 0;
+        // 游戏档位记在启动界面自己的状态文件里（与驱动同理），同时写进 launch-settings.conf 的
+        // game_profile 键 —— native 读那个键来选 c[2] 的句柄表布局。
+        // The game profile lives in the launcher's own state file (like the driver) and is also written as the
+        // game_profile key in launch-settings.conf, which native reads to pick the c[2] handle table layout.
+        String game = LaunchSettings.read(stateFile(), "game");
+        gameIndex = 0;
+        if (game != null) for (int i = 0; i < GAME_STATES.length; i++) if (GAME_STATES[i].equals(game)) gameIndex = i;
         applyLabels();
     }
 
@@ -363,6 +382,10 @@ public final class LauncherActivity extends Activity {
             driverItem.setOnClickListener(v -> { driverIndex = (driverIndex + 1) % DRIVER_STATES.length; applyLabels(); writeState(); });
             column.addView(driverItem);
         }
+
+        gameItem = item(gameLabel(), 19, PARCHMENT, false, true);
+        gameItem.setOnClickListener(v -> { gameIndex = (gameIndex + 1) % GAME_STATES.length; applyLabels(); writeState(); });
+        column.addView(gameItem);
 
         importItem = item(importLabel(), 19, PARCHMENT, false, true);
         importItem.setOnClickListener(v -> pickPackage());
@@ -612,6 +635,8 @@ public final class LauncherActivity extends Activity {
         // 跟随档位时不写这个键：native 语义里"省略"就是不改动，保持原版 16:9 常数。
         // "Follow profile" writes no key: omitting it means "leave it alone" to native, keeping the original 16:9 constants.
         if (!RESOLUTION_PRESETS[resolutionIndex].isEmpty()) content.append("resolution=").append(RESOLUTION_PRESETS[resolutionIndex]).append('\n');
+        // 游戏档位：native 读它来选 c[2] 的句柄表布局（D2R 分离表 / TotK 合并表）。
+        content.append("game_profile=").append(GAME_STATES[gameIndex]).append('\n');
         content.append(LaunchSettings.foreign(configFile(), OWNED_KEYS));
         write(configFile(), content.toString());
         setStatus("", PARCHMENT);
