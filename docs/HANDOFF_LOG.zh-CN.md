@@ -3,6 +3,40 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 04:05 Asia/Shanghai — [TOTK] NA-041：包重建（16.62 GiB）；M4 的 TotK 专属部分核对结果是「本来就是通用的」
+
+- 会话目标：把真机测试前的准备做完，并把 M4 里「哪些要为 TotK 改」查清楚。
+- 结果：① 数据包重建完成（16.62 GiB，含变体着色器）；② **M4 的触控 / 存档 / 音频 / 手柄映射都是通用件**，不需要为 TotK 重写，
+  只需真机校准；③ 着色器绑定容量静态核对通过。
+
+[BEGIN] na-041-package-and-m4-review
+
+- 命令：`dm/android/tools/totk_package.py`（重建包）、`dm/android/tools/build_package.py inspect`、`dm/android/tools/build.py --game-run --version trim-b37`、`dm/android/tools/ci_checks.py`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：包里有变体着色器；M4 的 D2R 专属部分到底有哪些。
+- 日志路径：无
+- 回滚点：`e0dea7f`
+
+[END] na-041-package-and-m4-review
+
+- 退出码：`totk_package.py` exit 0（16.62 GiB）；`build_package.py inspect` exit 0（game 9 / romfs 304,207 / shaders 24,535）；`build.py --game-run --version trim-b37` exit 0；`ci_checks.py` 14 项通过 / 0 失败。
+- 产物：`D:\Switch\totk-work\package-totk\totk-package.zip`（16.62 GiB；旧的留成 `totk-package-old.zip`）；APK `dm/android/build/D2R-Android-port.apk`（trim-b37）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机断开）。
+
+证据（本条目对应的命令与退出码）：
+
+- **包的清单**：`build_package.py inspect` 读出 `shaders: 24535`（5,534 个控制段键的 .spv/.meta + 5,913 个变体完整键的 .spv/.meta + 1,640 份 `.variants`）、
+  着色器部分 646,871,659 字节、romfs 304,207 个文件。
+- **触控是通用虚拟手柄**：`dm/android/java/org/d2r/android/port/TouchControls.java` 的六个窗口是
+  左摇杆 / 右四键（A B X Y，菱形排布）/ 左肩 L+ZL / 右肩 R+ZR / 方向键 / 功能键（Minus Plus LS RS），
+  坐标是相对屏幕算的，**没有引用 D2R 的 HUD 资源** → TotK 直接可用。
+- **存档不用改**：`dm/android/native/frontend_activity.c` 把 `DM_SAVE` 指向 `<内部存储>/save`，
+  客体按自己的档名开文件（`dm/gfx/nvn/hle_fs.c` 把它拼到 `DM_SAVE` 下）→ 两个游戏的档自然不同名。
+- **绑定容量**：扫 11,447 个 `.meta` 得每阶段最多 UBO 9 / SSBO 8 / 贴图 21 / 图像 0；
+  宿主上限是 UBO/SSBO 每阶段 16、贴图 128、c[2] 合并表 32 槽 → 都在范围内 ✓。
+- 下一步：**NA-042** —— 真机预检脚本（一键跑完设备前能查的全套闸门），以及手机一回来就按 NA-036 推包开机。
+
 ## 2026-10-21 03:40 Asia/Shanghai — [TOTK] NA-039 / NA-040：5 个空实现补成真实现；1,640 个歧义控制键查清并做成运行期可解；预排布贴图接上
 
 - 会话目标：把「TotK 调用、宿主还是空实现 / 接红桩」的接口收干净；把 M3 最大的坑（歧义控制键）查清并给出解法。
