@@ -3,6 +3,51 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 03:40 Asia/Shanghai — [TOTK] NA-039 / NA-040：5 个空实现补成真实现；1,640 个歧义控制键查清并做成运行期可解；预排布贴图接上
+
+- 会话目标：把「TotK 调用、宿主还是空实现 / 接红桩」的接口收干净；把 M3 最大的坑（歧义控制键）查清并给出解法。
+- 结果：① 覆盖缺口 **103 → 0**（213 个接口全部有实现）；② 歧义控制键**量化清楚**（43.6% 的着色器会拿错变体），
+  给出并实现了「变体完整键 + 运行期挑选」的机制，键代数已用归档 47,260 个着色器逐个核对；③ 预排布贴图数据接上了。
+
+[BEGIN] na-039-040-nvn-and-variants
+
+- 命令：`dm/gfx/tools/nvn_coverage.py --check`、`dm/gfx/tools/totk_variant_keys.py`、`dm/gfx/tools/totk_shader_package.py`、`dm/android/tools/build.py --game-run --version trim-b34..36`、`dm/android/tools/ci_checks.py`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：接口覆盖清零；变体键这条链自洽；构建与闸门全绿。
+- 日志路径：无
+- 回滚点：`e47d300`
+
+[END] na-039-040-nvn-and-variants
+
+- 退出码：`nvn_coverage.py --check` exit 0（缺实现 0、空实现 0）；`totk_variant_keys.py` exit 0（47,260 个着色器键一致）；
+  `totk_shader_package.py --verify-shaders` exit 0（11,447 个 meta、1,640 份变体名单、名单里的文件齐全）；
+  `build.py --game-run --version trim-b36` exit 0；`ci_checks.py` 14 项通过 / 0 失败。
+- 产物：仓库内 `dm/gfx/tools/nvn_slots_auto.py`、`nvn_table.py`、`nvn_coverage.py`、`totk_variant_keys.py`，
+  改动 `dm/gfx/nvn/hle_nvn.c`、`nvn_obj.h`、`nvn_names_totk.txt`、`nvn_calls_totk.tsv`、`names.txt`、`nvn_thunks.S`、
+  `nvn_count.h`、`nvn_protos.h`、`dm/android/native/nvn_vulkan.c`、`nvn_vulkan_draw.inc`、`nvn_vulkan_tex.inc`、
+  `nvn_vulkan_shader.inc`、`dm/android/tools/ci_checks.py`；仓库外 `D:\Switch\totk-work\package-totk\shaders\`
+  （5,534 个控制键 + 5,913 个变体文件 + 1,640 份名单）、`D:\Switch\totk-work\package-totk\totk-package-v2.zip`（重建中）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机断开）。变体挑选命中哪个候选、预排布贴图是否正确，都只有静态依据。
+
+证据（本条目对应的命令与退出码）：
+
+- **接口覆盖**：`nvn_slots_auto.py` 在 `upd_main.img`（.text 尾 `0x2ba61f0`）自动定位到 NVN 取址函数 `0xbbfac0`，
+  解析出 **534** 个取址名；与名字表比对，**13 个名字宿主的表里没有** → `nvn_lookup` 返回 NULL → 客体拿到空函数指针（会崩）。
+  补齐后名字表 536（D2R 的 523 个顺序不动 → 槽索引不变 → D2R 行为逐字节不变）。
+- **调用面**：静态扫描 TotK main 的 `.text`（`adrp 槽页; ldr [xN,#off]; ldr [xN]; blr xN`）→ **213** 个接口被调用、
+  2,946 个调用点。按调用点数从高到低逐个实现（缓冲族、绘制、句柄绑定、整数清除、各类查询与状态），
+  缺口 103 → 0；其中「按值返回不透明结构体」的接口（`NVNmemoryPool` / `NVNmemoryPoolFlags`）改用 64 位返回：
+  头文件把它们建模成 96/256 字节结构体（按值返回走间接返回约定），而游戏那边拿到的是寄存器里的普通值。
+- **歧义控制键**：1,640 个控制键覆盖 5,913 次出现；多数派规则下 **4,273 次（43.6%）用错变体**。
+  键代数已证明：流水线键 `sha256(控制段+机器码+c1)` 与宿主运行期 `sha256(控制段前0x880+机器码+c1)` 哈希的字节相同
+  （控制段恰好 0x880 字节、机器码与 c1 在代码区首尾相接），归档里 47,260 个着色器逐个重算一致。
+  包里同时存两套键 + `<控制键>.variants` 名单；宿主运行期在四个候选位置找机器码，算完整键去名单里挑。
+- **预排布贴图**：游戏用 `nvnTextureBuilderSetPackagedTextureData` 给的是**指针**（不是池里偏移），
+  宿主之前忽略它 → 那批贴图会没有内容；现在 builder 记住指针、初始化时用它当来源，走已有的解排布上传路径。
+- **下一步**：**NA-041** —— TotK 专属的 M4 部分（触控布局 / 存档目录 / 音频），以及把 16.6 GiB 的包在手机上的导入流程准备好；
+  手机一回来就按 NA-036 推包开机。
+
 ## 2026-10-21 03:05 Asia/Shanghai — [TOTK] NA-038：TotK 调用到的 NVN 接口全部补齐（缺口 103 → 0）
 
 - 会话目标：按 NA-038 的清单，把「TotK 真正调用、宿主还接报红桩」的 NVN 接口逐个实现。
