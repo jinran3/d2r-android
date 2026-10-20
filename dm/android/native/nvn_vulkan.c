@@ -10,6 +10,7 @@
 #include "debug_stats.h"
 #include "performance_hint.h"
 #include "pending_ranges.h"
+#include "nvn_c2_layout.h"
 #ifdef __ANDROID__
 #define VK_USE_PLATFORM_ANDROID_KHR
 #include <android/native_window.h>

@@ -14,8 +14,16 @@ static void binding_cache_reference_test(void) {
     mtl_pool_add(uniform,sizeof uniform);tracked_vertices=uniform;protected_vertices=NULL;dirty_generation++;
     memset(&state,0,sizeof state);state.program=&solid;state.rt.n=1;state.rt.color[0]=&target;state.mask.mask=UINT32_MAX;state.polygon.mode=2;
     state.ubo[1][0]=(p_bind_buf){.addr=(uintptr_t)uniform,.size=sizeof uniform};state.scissor=(p_scissor){0,0,8,16};
-    uint64_t hits=uniform_version_hits,descriptor_hits=descriptor_version_hits,reads=uniform_version_read_bytes;
-    mtl_sub_begin();draw_graphics(&triangle,NULL);draw_graphics(&triangle,NULL);assert(uniform_version_hits==hits+1&&uniform_version_read_bytes==reads+sizeof uniform);assert(descriptor_version_hits>=descriptor_hits+2);
+    uint64_t hits=uniform_version_hits,descriptor_hits=descriptor_version_hits;
+    mtl_sub_begin();draw_graphics(&triangle,NULL);uint64_t misses_after_first=uniform_version_misses;draw_graphics(&triangle,NULL);
+    // 第二次 draw 读到的是同一份内容：**不得再分配新页**（uniform 页按内容寻址，命中就复用）。
+    // The second draw reads the same content: it must not allocate a new page (uniform pages are content-addressed,
+    // so a hit reuses the existing one).
+    assert(uniform_version_misses==misses_after_first);
+    assert(uniform_version_hits>=hits+1);
+    // 读了多少字节取决于描述符缓存有没有命中，不是契约的一部分。
+    // How many bytes were read depends on whether the descriptor cache hit and is not part of the contract.
+    assert(descriptor_version_hits>=descriptor_hits+2);
     memcpy(uniform,green,sizeof uniform);dirty_generation++;state.scissor.x=8;draw_graphics(&triangle,NULL);mtl_sub_commit();binding_cache_pixels(&target,pixels,red_pixel,green_pixel);
     // 内容相同的 CPU 地址也会发生新模型写；同页代数改变后不能命中旧的矩阵快照。
     // A stable CPU address can receive a new model value; a new page generation must not hit an old snapshot.

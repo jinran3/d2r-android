@@ -233,7 +233,18 @@ static VkDescriptorBufferInfo uniform_buffer(shader_entry *s,const shader_bindin
         if(s->stage==5)for(unsigned i=0;i<16;i++){memcpy(data+0x210+16*i,&state.ubo[5][i].addr,8);uint32_t size=state.ubo[5][i].size;memcpy(data+0x210+16*i+8,&size,4);}
         return uniform_dynamic_split(b,uniform_driver(s->stage,0,data,base+256),dynamic_offset);}
     if(b->slot==2){VkDescriptorBufferInfo current;if(uniform_driver_current(s->stage,1,&current))return uniform_dynamic_split(b,current,dynamic_offset);
-        uint8_t data[0x968]={0};for(unsigned i=0;i<128;i++){uint32_t tex=state.textures[s->stage][i],samp=state.samplers[s->stage][i];memcpy(data+0x168+8*i,&tex,4);memcpy(data+0x568+8*i,&samp,4);}for(unsigned i=0;i<8;i++){uint32_t image=state.images[s->stage][i];memcpy(data+0x120+8*i,&image,4);}
+        // c[2] 的句柄表按游戏档位写：D2R 写分离贴图与分离采样器，TotK 写合并句柄（纹理 ID + 采样器 ID）。
+        // The c[2] handle tables follow the game profile: D2R writes separate textures and separate samplers,
+        // TotK writes combined handles (texture id plus sampler id).
+        const dm_nvn_c2_layout *layout=dm_nvn_c2_layout_current();
+        uint8_t data[0x968]={0};
+        if(layout->combined){
+            for(unsigned i=0;i<(layout->tex_end-layout->tex_base)/8;i++){uint32_t handle=dm_nvn_combined_handle(state.textures[s->stage][i],state.samplers[s->stage][i]);memcpy(data+layout->tex_base+8*i,&handle,4);}
+        }else{
+            for(unsigned i=0;i<(layout->tex_end-layout->tex_base)/8;i++){uint32_t tex=state.textures[s->stage][i];memcpy(data+layout->tex_base+8*i,&tex,4);}
+            for(unsigned i=0;i<(layout->samp_end-layout->samp_base)/8;i++){uint32_t samp=state.samplers[s->stage][i];memcpy(data+layout->samp_base+8*i,&samp,4);}
+        }
+        for(unsigned i=0;i<8;i++){uint32_t image=state.images[s->stage][i];memcpy(data+layout->img_base+8*i,&image,4);}
         return uniform_dynamic_split(b,uniform_driver(s->stage,1,data,sizeof data),dynamic_offset);}
     if(b->slot>=3&&b->slot<19){const p_bind_buf *u=&state.ubo[s->stage][b->slot-3];uint32_t n=u->addr&&u->size?(u->size<65536?u->size:65536):0;
         // 未绑定 uniform 的完整范围同为零，可共享一个不可变页，不占每 draw 的 arena 空间。

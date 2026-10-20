@@ -126,6 +126,10 @@ def main():
         python_check("APK 版本折算（test_version）", "dm/android/tests/test_version.py")
 
         compile_and_run("方向键/扳机映射（t_padmap）", [REPO / "dm/host/tests/t_padmap.c"], workspace / "t_padmap")
+        # c[2] 句柄表布局：D2R 的分离表与 TotK 的合并表是纯逻辑，任何平台都能跑。
+        # The c[2] handle table layout (D2R separate tables, TotK combined handles) is pure logic and runs anywhere.
+        compile_and_run("c[2] 句柄表布局（t_c2layout）", [REPO / "dm/android/tests/c2_layout_test.c"], workspace / "t_c2layout",
+                        ("-std=c11", "-O2", "-Wall", "-Wextra", "-Werror"))
         # 启动设置：普通版与"环境写入失败"注入版都要跑（故障恢复那条只有注入版才覆盖）。
         # 这条测试用的是 alarm/setenv/unsetenv/mkdtemp 和 -Wl,--wrap，都是 POSIX 专有；
         # Windows/MinGW 没有它们，直接编译必然失败。这里如实标成跳过，不假装通过——

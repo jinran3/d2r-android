@@ -41,6 +41,7 @@ static uint64_t test_sync_commit(void){uint64_t ticket=async_raw_commit();assert
 #include "sampler_test.inc"
 #include "shadow_array_test.inc"
 #include "handle_decode_test.inc"
+#include "c2_layout_test.inc"
 #include "batch_resources_test.inc"
 #include "uniform_arena_test.inc"
 #include "binding_cache_test.inc"
@@ -205,6 +206,7 @@ int main(void) {
     if(getenv("DM_VK_SHADERS")){uniform_arena_reference_test();binding_cache_reference_test();depth_range_reference_test();dependencies_reference_test();sampler_reference_test();shadow_array_reference_test();handle_decode_reference_test();batch_resources_reference_test();query_readback_reference_test();}
     async_reference_test();forward_reference_test();pending_index_reference_test();if(getenv("DM_VK_SHADERS")){forward_binding_reference_test();texel_forward_reference_test();readback_dependency_reference_test();guest_publish_reference_test();index_reference_test();packaged_texture_reference_test();packaged_subresources_reference_test();known_copy_snapshot_reference_test();}
     typed_clear_reference_test();
+    c2_layout_reference_test();
     assert(pending_index_oracle_queries&&pending_index_oracle_nodes);
     printf("Vulkan pending index: %llu real query/old-chain equivalence checks, old chain nodes=%llu index tree nodes=%llu, all commit registration audits PASS (diagnostic suite, not game FPS)\n",(unsigned long long)pending_index_oracle_queries,(unsigned long long)pending_index_oracle_nodes,(unsigned long long)(pending_index_nodes[0]+pending_index_nodes[1]));
     assert(fence_wait_total_ns>0);
