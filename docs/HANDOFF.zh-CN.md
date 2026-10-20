@@ -4,9 +4,9 @@ updated_at: 2026-10-20T14:10:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: a25ccc3
+observed_head: 3a9ea0c
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: a25ccc3
+origin_head_at_checkpoint: 3a9ea0c
 code_worktree: CLEAN
 next_action_id: NA-032
 ---
