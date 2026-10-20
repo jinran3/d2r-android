@@ -635,6 +635,70 @@ NVN(nvnCommandBufferBindSeparateSamplers, void, NVNcommandBuffer *c, NVNshaderSt
 NVN(nvnCommandBufferBindSeparateSampler, void, NVNcommandBuffer *c, NVNshaderStage st, int i, NVNseparateSamplerHandle h) {
     bind_handles(c, OP_BIND_SAMP, st, i, 1, &h.value);
 }
+
+// ---------- 合并贴图绑定（TotK 用；D2R 不调用这个函数，D2R 行为不变） ----------
+// Combined texture binding (TotK; D2R never calls it, so D2R behaviour is unchanged).
+// TotK 的贴图句柄是**合并句柄**：纹理 ID 低 20 位 + 采样器 ID 第 20..31 位
+// （实测见 dm/android/native/nvn_c2_layout.h：TotK 档位下 c[2][0x20+8r] 就是这种合并句柄）。
+// 后端在合并档位下用 state.textures[] / state.samplers[] 重新打包，所以这里把合并句柄拆成两条绑定记录。
+NVN(nvnCommandBufferBindTextures, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNtextureHandle *h) {
+    uint64_t tex[32], samp[32];
+    if (n < 0 || n > 32) { LOG("【红】绑定合并贴图数 %d", n); return; }
+    for (int i = 0; i < n; i++) {
+        uint64_t v = h[i];
+        tex[i] = v & 0xfffff;            // 纹理 ID | texture id
+        samp[i] = (v >> 20) & 0xfff;     // 采样器 ID | sampler id
+    }
+    bind_handles(c, OP_BIND_TEX, st, first, n, tex);
+    bind_handles(c, OP_BIND_SAMP, st, first, n, samp);
+}
+
+// ---------- TotK 专有的新接口（仓内 nvn.h 没有这些原型 → 不做编译期签名检查） ----------
+// The interfaces only TotK uses (the in-repo nvn.h has no prototype for them → no compile-time signature check).
+
+// 延迟绑定：参数与对应的普通绑定完全一致；语义上把「延后生效」改成「即时生效」。
+// Deferred binds: exactly the arguments of the plain binds; "applied at a later point" becomes "applied now".
+NVN_NOPROTO(nvnCommandBufferBindUniformBuffersDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNbufferRange *rg) {
+    h_nvnCommandBufferBindUniformBuffers(c, st, first, n, rg);
+}
+NVN_NOPROTO(nvnCommandBufferBindStorageBuffersDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNbufferRange *rg) {
+    h_nvnCommandBufferBindStorageBuffers(c, st, first, n, rg);
+}
+NVN_NOPROTO(nvnCommandBufferBindTexturesDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNtextureHandle *h) {
+    h_nvnCommandBufferBindTextures(c, st, first, n, h);
+}
+NVN_NOPROTO(nvnCommandBufferBindImagesDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNimageHandle *h) {
+    h_nvnCommandBufferBindImages(c, st, first, n, h);
+}
+NVN_NOPROTO(nvnCommandBufferBindSeparateTexturesDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNseparateTextureHandle *h) {
+    h_nvnCommandBufferBindSeparateTextures(c, st, first, n, h);
+}
+NVN_NOPROTO(nvnCommandBufferBindSeparateSamplersDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNseparateSamplerHandle *h) {
+    h_nvnCommandBufferBindSeparateSamplers(c, st, first, n, h);
+}
+// 控制内存回调：宿主不支持着色器写控制内存的回调 → 记住开关即可（关掉是安全的一侧）。
+// Control-memory callback: the host has no such callback → remember the flag (disabled is the safe side).
+NVN_NOPROTO(nvnCommandBufferSetControlMemoryCallbackEnabled, void, NVNcommandBuffer *c, uint32_t enabled) {
+    if (enabled) OLOG("控制内存回调：宿主不支持，按不支持处理 | control-memory callback unsupported");
+}
+// 子块尺寸覆盖：宿主按 Vulkan 的分块渲染走，不接受覆盖 → 忽略。
+// Subtile size override: the host follows Vulkan's tiling → ignored.
+NVN_NOPROTO(nvnCommandBufferOverrideSubtileSize, void, NVNcommandBuffer *c, uint32_t width, uint32_t height) { }
+// Z 压缩的浮点格式：宿主不启用 → 忽略（不压缩是安全的一侧）。
+// Float Z compression: the host does not enable it → ignored (no compression is the safe side).
+NVN_NOPROTO(nvnCommandBufferSetZCullZF32CompressionEnable, void, NVNcommandBuffer *c, uint32_t enable) { }
+// provoking vertex：Vulkan 默认就是「第一个顶点」，与 NVN 的默认值一致 → 忽略。
+// Provoking vertex: Vulkan's default is the first vertex, same as NVN's → ignored.
+NVN_NOPROTO(nvnCommandBufferSetProvokingVertexMode, void, NVNcommandBuffer *c, uint32_t mode) { }
+// 自动检查点掩码：宿主不做 GPU 抓取 → 忽略。
+// Automatic checkpoint mask: the host does not capture the GPU → ignored.
+NVN_NOPROTO(nvnDeviceSetAutomaticCheckpointsMask, void, NVNdevice *d, uint32_t mask) { }
+// 视图偏移查询：宿主没有视图偏移这个概念 → 返回 0，且**不写出参**（免得写错地址）。
+// View offset query: the host has no view-offset concept → returns 0 and does not write the out parameter.
+NVN_NOPROTO(nvnTextureBuilderGetViewOffset, int, const NVNtextureBuilder *b, uint32_t *offset) { return 0; }
+// 子块尺寸查询：宿主不查询 → 返回 0（表示查不到），同样不写出参。
+// Subtile size query: the host does not answer it → returns 0 (not found), and does not write the out parameters either.
+NVN_NOPROTO(nvnProgramGetSubtileSize, int, const NVNprogram *p, uint32_t *width, uint32_t *height) { return 0; }
 NVN(nvnCommandBufferSetStencilValueMask, void, NVNcommandBuffer *c, NVNface f, int m) { *REC(c, OP_STENCIL, p_stencil) = (p_stencil){f, m, 0, 0, 0}; }
 NVN(nvnCommandBufferSetStencilMask, void, NVNcommandBuffer *c, NVNface f, int m) { *REC(c, OP_STENCIL, p_stencil) = (p_stencil){f, 0, m, 0, 1}; }
 NVN(nvnCommandBufferSetStencilRef, void, NVNcommandBuffer *c, NVNface f, int v) { *REC(c, OP_STENCIL, p_stencil) = (p_stencil){f, 0, 0, v, 2}; }

@@ -528,6 +528,19 @@ typedef void (*NVNT_nvnCommandBufferSignalEvent)(NVNcommandBuffer*, const NVNeve
 //   nvnDeviceSetAutomaticCheckpointsByDebugGroup
 //   nvnDeviceSetCheckpointCallStacksEnable
 //   nvnDeviceSetCheckpointMaxCallStacksDepth
+//   nvnTextureBuilderGetViewOffset
+//   nvnProgramGetSubtileSize
+//   nvnCommandBufferSetControlMemoryCallbackEnabled
+//   nvnCommandBufferBindUniformBuffersDeferred
+//   nvnCommandBufferBindStorageBuffersDeferred
+//   nvnCommandBufferBindTexturesDeferred
+//   nvnCommandBufferBindImagesDeferred
+//   nvnCommandBufferBindSeparateTexturesDeferred
+//   nvnCommandBufferBindSeparateSamplersDeferred
+//   nvnCommandBufferOverrideSubtileSize
+//   nvnCommandBufferSetZCullZF32CompressionEnable
+//   nvnCommandBufferSetProvokingVertexMode
+//   nvnDeviceSetAutomaticCheckpointsMask
 // Names with no prototype in the header (newer interface): can only be wired to named stubs
 //   nvnDeviceBuilderGetFlags
 //   nvnQueueBuilderSetQueuePriority
