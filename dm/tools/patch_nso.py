@@ -605,6 +605,13 @@ for o in range(0, TEXT_END, 4):
     if w & 0xFFFFFFE0 == 0xD53BD060: kinds[o] = ('tpidrro_r', None); continue
     if w & 0xFFFFFFE0 == 0xD53BE020: kinds[o] = ('cntpct', w & 31); continue
     if w & 0xFFFFFFE0 == 0xD53BE040: kinds[o] = ('cntvct', w & 31); continue
+    # x18/w18 只会占这四个寄存器字段；字段里没有 18 的字不必反汇编（上游 d2r-mobile#55 的预筛：
+    # 候选从 720 万降到 19 万，三个模块一趟 78.5s → 20.2s；语义不变，产物逐字节相同）。
+    # x18/w18 can only occupy these four register fields, so words without a match need no disassembly
+    # (the prefilter from upstream d2r-mobile#55: 7.2M candidates down to 189k, one pass over the three
+    # modules 78.5s -> 20.2s; semantics unchanged, byte-identical output).
+    if REWRITE_X18 and not any((w >> p) & 31 == 18 for p in (0, 5, 10, 16)):
+        continue
     for ins in md.disasm(IMG[o:o + 4], o):
         if REWRITE_X18 and has18(ins): kinds[o] = ('x18', None)
 

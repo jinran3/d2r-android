@@ -351,6 +351,9 @@ def cmd_romfs_extract(args):
     def pull(entry):
         path, offset, size = entry
         target = out / path
+        if target.exists() and target.stat().st_size == size:
+            done[0] += 1          # 断点续传：已取过的（大小一致）跳过 | resume: skip files already extracted (same size)
+            return
         target.parent.mkdir(parents=True, exist_ok=True)
         data = nca.read_section(section, offset, size)
         target.write_bytes(data)
