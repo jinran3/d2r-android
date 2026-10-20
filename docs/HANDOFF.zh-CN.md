@@ -6,7 +6,7 @@ state: ACTIVE
 branch: totk/scaffold
 observed_head: 152493c
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 8136185
+origin_head_at_checkpoint: 25b56f4
 code_worktree: CLEAN
 next_action_id: NA-039
 ---
