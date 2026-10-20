@@ -3,6 +3,48 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 00:30 Asia/Shanghai — [TOTK] NA-036 数据侧就绪：数据包打好并逐条校验，并修掉一个路径 bug
+
+- 会话目标：把 TotK 的数据变成能推到手机上的东西，并查清有没有别的坑。
+- 结果：**数据包已打好并逐条校验**（315,286 条目、0 重名、抽样逐字节一致）；**途中发现并修掉一个真的数据 bug**（RomFS 目录树遍历丢了父目录前缀）；手机中途掉线，推包与开机顺延。
+
+[BEGIN] na-036-package-verify
+
+- 命令：
+  1. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\totk_package.py --romfs-image … --ivfc … --shaders … --game … --output …`
+  2. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\build_package.py inspect …`
+  3. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\ci_checks.py`
+- 工作目录：`D:\Switch\d2r-android`（产物落在仓库外 `D:\Switch\totk-work\`）
+- 预期结果：包内条目与清单一致、路径不重名、内容与映像一致；闸门全绿。
+- 日志路径：`D:\Switch\totk-work\cache\package-totk2.log`
+- 回滚点：`e946844`
+
+[END] na-036-package-verify
+
+- 退出码：出包 exit 0（16.31 GiB，RomFS 304,207 + 着色器 11,069 + 模块 9）；`inspect` 清单核对通过（`subgroup_size=64` ✓）；抽样 8 个文件与映像逐字节一致 ✓；`ci_checks.py` 12 项通过 / 0 项失败。
+- 产物：`D:\Switch\totk-work\package-totk\totk-package.zip`；仓库内：`dm/tools/switch_nca.py` 与 `dm/android/tools/totk_package.py` 的遍历修复（提交 `e946844`）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机掉线）。
+
+证据（本条目对应的命令与退出码）：
+
+- **★ 修掉一个真的数据 bug**：RomFS 目录树遍历把每个目录**只带着自己的名字**入栈，父目录前缀丢了 ——
+  于是嵌套目录里的文件路径被截断，不同层级里同名的目录会撞成同一个路径。
+  实测本体 RomFS：**1,693 条重名路径，且同一路径下的内容不同**（说明是不同文件被放错了地方），
+  第一次出的包就带着这个问题。修复后：**304,207 个文件、304,207 条唯一路径、0 重名**，
+  路径深度也对了（最深 `Voice/Resource/USfr/EventFlowMsg/…` 五层 ✓）。
+  这个 bug 在**原解包工具里也有**（`dm/tools/switch_nca.py` 的 `romfs_entries`），一并修了 ✓。
+- **包的核对**：`build_package.py inspect` 给出清单 —— `game 9 / romfs 304,207 / shaders 11,069`，
+  `subgroup_size=64`（一加 12 实测的子组大小 ✓），总字节 17.4 GB；包里 315,286 个条目、**0 重名** ✓；
+  抽样 8 个文件与映像**逐字节一致** ✓。
+- **启动界面的导入流程本来就够用**：`dm/android/java/org/d2r/android/port/PackageArchive.java` 里
+  `game/` 落到**暂存目录（内部存储**，外部存储是 noexec 挂载、dlopen 会失败），其余落外部存储 ✓ ——
+  所以包走 zip 导入这条路，宿主侧的目录约定不用改。
+- **还差的数据层**：合并包里的 `d214ebdad75878d540c13f3155640f39.nca`（499.5 MB）的 romfs 段是 **`crypt: bktr`**，
+  `switch_nca.py` 的 `read_section` 只支持 CTR 段 → **更新包的数据补丁解不开**（上游 hactool 1.4.0 同样报
+  "Invalid BKTR layout!"；本机取不到 hactool 源码，GitHub 也连不上，只能逆向）。本体数据已完整可用，先按它跑。
+- 下一步：**NA-036** —— 把包推上一加 12，走 M1 的「装载 → `nnMain`」。
+
 ## 2026-10-20 23:40 Asia/Shanghai — [TOTK] NA-036 第一阶段：TotK 数据管线打通（RomFS 映像 → 数据包 zip）
 
 - 会话目标：把 TotK 的数据变成**能推到手机上**的东西。
