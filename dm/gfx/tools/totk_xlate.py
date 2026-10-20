@@ -58,7 +58,23 @@ JOB_DEFAULTS = {
     "depth_minus_one_to_one": True,      # TotK 的深度是 -1..1（D2R 是 0..1） | TotK's depth is -1..1
     "host_no_fp64": True,                # 宿主不支持 fp64 | the host has no fp64
     "host_no_depth_clip": True,          # 宿主不支持深度裁剪控制 | the host has no depth clip control
+    # 这三项只有 Android 口径的翻译器认（dm/android/tools/build_shaders.py 的模板）：桌面那个翻译器
+    # 忽略它们，所以拿它译出来的 SPIR-V 会按 32 宽子组、所有绑定挤在第 0 组 —— 一加 12 的子组是 64，
+    # 顶点与片元的绑定号还会互相撞车。TotK 必须用 Android 口径的翻译器。
+    # Only the Android-shaped translator honours these three (the template in
+    # dm/android/tools/build_shaders.py); the desktop one ignores them, so its SPIR-V assumes a 32-wide
+    # subgroup and puts every binding in set 0 - and the OnePlus 12 has a 64-wide subgroup while the
+    # vertex and fragment binding numbers collide in one set.
+    "host_subgroup_size": 64,            # 一加 12 实测的子组尺寸 | the subgroup size measured on the phone
+    "set": 0,                            # 每阶段独立描述符集（下面按阶段填）| a descriptor set per stage (filled per stage below)
+    "c2_tex_base": 0x20,                 # c[2] 合并贴图句柄表的基址 | the base of the combined texture handle table
+    "c2_tex_end": 0x120,                 # 合并贴图句柄表的上界 | the end of the combined texture handle table
 }
+
+# 每阶段独立描述符集，避免顶点与片元的绑定号互相碰撞（与 D2R 的 Android 管线同一约定）。
+# A descriptor set per stage, so the vertex and fragment binding numbers do not collide (the same
+# convention as the D2R Android pipeline).
+STAGE_SET = {"vs": 0, "ps": 1, "gs": 2, "hs": 3, "ds": 4, "cs": 0}
 
 
 def read_index(path: Path) -> list:
@@ -100,6 +116,7 @@ def build_job(rec: dict, code_dir: Path, facts: dict) -> dict:
     job = {"key": rec["key"], "stage": rec["stage"], "code": str(code_dir / (rec["key"] + ".bin"))}
     extra = facts.get(rec["key"], {})
     job.update(JOB_DEFAULTS)
+    job["set"] = STAGE_SET.get(rec["stage"], 0)
     for field in ("tex", "img", "attr", "fout"):
         if extra.get(field):
             job[field] = extra[field]

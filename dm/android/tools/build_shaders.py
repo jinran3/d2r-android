@@ -234,13 +234,33 @@ def translator(dotnet, work):
     source = source.replace("new(0, _binding++)", "new(_set, _binding++)").replace("new(0, b)", "new(_set, b)")
     # 原 Maxwell warp=32；Ryujinx 按真实 host subgroup 适配高半线程、SHFL 和 ballot/vote。
     # Maxwell warps remain 32; Ryujinx adapts upper host lanes, SHFL and ballot/vote to the actual host subgroup.
+    # c[2] 的贴图句柄表区间按作业给：D2R 是分离表 0x168..0x568，TotK 是合并表 0x20..0x120。
+    # 缺省仍是 D2R 的两段，所以 D2R 的产物逐字节不变。
+    # The c[2] texture handle table range comes from the job: D2R uses the separate table at
+    # 0x168..0x568, TotK the combined one at 0x20..0x120. The default stays the D2R pair, so the
+    # D2R output is unchanged byte for byte.
+    tex_slot_old = """            return (cbufSlot < 0 || (cbufSlot & 0xffff) == 2) && bytes >= TexBase && bytes < SampBase && (bytes - TexBase) % 8 == 0 ? (bytes - TexBase) / 8 : -1;"""
+    tex_slot_new = """            int texBase = _job["c2_tex_base"] is JsonNode tb ? (int)tb : TexBase;
+            int texEnd = _job["c2_tex_end"] is JsonNode te ? (int)te : SampBase;
+            return (cbufSlot < 0 || (cbufSlot & 0xffff) == 2) && bytes >= texBase && bytes < texEnd && (bytes - texBase) % 8 == 0 ? (bytes - texBase) / 8 : -1;"""
+    if source.count(tex_slot_old) != 1: raise ValueError("Android c[2] range injection anchor changed")
+    source = source.replace(tex_slot_old, tex_slot_new)
+
     anchor = "        public bool QueryHostSupportsTextureShadowLod() => true;"
     if source.count(anchor) != 1: raise ValueError("Android host-subgroup accessor injection anchor changed")
     # 离线生成器只能声明Android真正启用的能力，不能继承桌面缺省的无用double/interlock声明。
     # Declare only capabilities enabled by Android; do not inherit unused desktop double/interlock declarations.
     source = source.replace(anchor, '        public int QueryHostSubgroupSize() => _job["host_subgroup_size"] is JsonNode n ? (int)n : 32;\n'
-        '        public bool QueryHostSupportsShaderFloat64() => false;\n'
         '        public bool QueryHostSupportsFragmentShaderInterlock() => false;\n' + anchor)
+    # fp64 那一条基座里已经有了（按作业的 host_no_fp64 作答），**替换**而不是再加一份 ——
+    # 两份同名成员编译不过（CS0111），D2R 的 Android 翻译器因此构建不出来。
+    # The base already has the fp64 member (answered from the job's host_no_fp64), so replace it instead of
+    # adding a second one - two members with the same name do not compile (CS0111), which is why the D2R Android
+    # translator could not be built.
+    float64_old = '        public bool QueryHostSupportsShaderFloat64() => !(_job["host_no_fp64"] is JsonNode a && (bool)a);'
+    float64_new = '        public bool QueryHostSupportsShaderFloat64() => false;'
+    if source.count(float64_old) != 1: raise ValueError("Android fp64 capability anchor changed")
+    source = source.replace(float64_old, float64_new)
     (project / "Program.cs").write_text(source, encoding="utf-8")
     ryu = ROOT / "third_party/ryujinx"
     csproj = f'''<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup><ItemGroup><ProjectReference Include="{ryu}/src/Ryujinx.Graphics.Shader/Ryujinx.Graphics.Shader.csproj"/><ProjectReference Include="{ryu}/src/Ryujinx.Common/Ryujinx.Common.csproj"/><EmbeddedResource Include="Program.cs" LogicalName="src0"/><EmbeddedResource Include="dmsh_android.csproj" LogicalName="src1"/></ItemGroup></Project>'''
