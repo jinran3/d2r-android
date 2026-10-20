@@ -191,6 +191,14 @@ static int shader_variants_has(const char *variants,size_t vbytes,const char *ke
     }
     return 0;
 }
+// 变体挑选的依据（静态推断，尚未真机确认）：游戏把着色器表做成 {程序地址, …, 控制段地址, …}，
+// 调用 NVN 时传 {data = 程序地址 + 固定偏移, control = 控制段地址}；而 NVN 的 data 就是「着色器数据（程序）」。
+// 所以程序最可能在 data 或 data-程序偏移（代码区头在程序前面）这两处 —— 宿主按这个顺序先试。
+// The basis of the variant picking (a static inference, not yet confirmed on a device): the game keeps
+// a shader table of {program address, …, control address, …} and passes {data = program address +
+// a fixed offset, control = the control address} to NVN, where data is the shader's program. So the
+// program is most likely at data or at data minus the program offset (the code-area header sits in
+// front of the program); the host tries those first.
 // 同一控制段哈希下可能有多个机器码变体（TotK 有 1,640 个这样的键，覆盖 43.6% 的着色器出现次数）：
 // 控制段本身分不出变体 → 用运行期能看到的机器码算「完整键」去挑变体；挑不到就退回控制段键
 // （拿包里多数派那个变体），并在日志里说清楚用的是哪一条。
