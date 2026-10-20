@@ -6,7 +6,7 @@ state: ACTIVE
 branch: totk/scaffold
 observed_head: 45d5254
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 04ca8349d8e3f9bf348c3c1b656d51b12111f3db
+origin_head_at_checkpoint: 45d5254fc9d8f03543194fbd0a0b625dd85d39db
 code_worktree: CLEAN
 next_action_id: NA-034
 ---
@@ -218,6 +218,9 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 工作目录：`D:\Switch\d2r-android`
 - 前置条件：HEAD = NA-033 的业务提交 `45d5254`；代码工作区干净；事实表在仓库外 `D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv`（9,807 键）。
 - 动作：**把 c[2] 驱动常量段的布局做成按规则集可选，宿主与翻译器两侧一起改** —— 这是 NA-033 查出的、**真机出图的直接拦路虎**（不是事实表）。实测：TotK 的 9,807 个着色器里**全部**贴图引用的 c[2] 字节偏移都落在 `0x20 + 8r`（r = 0..31，合并句柄，handle type = 0），偏移集合是干净的 8 字节步进、没有一个越界，0x120 正好是图像句柄表的起点；而 D2R 用的是**分离**贴图 `0x168 + 8r` 与分离采样器 `0x568 + 8r`。宿主现在只认 D2R 那三段 → TotK 的贴图句柄全读成 0，**画面必然是黑的**。要改四处：① **宿主读侧** `dm/android/native/nvn_vulkan_handles.inc`：`shader_handle_word()` / `shader_texture_slot()` / `shader_image_slot()` 里 0x168 / 0x568 / 0x120 的死值 → 按规则集取；② **宿主写侧** `dm/android/native/nvn_vulkan_shader.inc`：c[2] 那块 0x968 字节缓冲与 `memcpy(data+0x168+8*i,&tex,4)` → TotK 要把「纹理 ID（低 20 位）+ 采样器 ID（第 20..31 位）」的**合并句柄**写进 `0x20 + 8r`；③ **翻译器侧** `dm/gfx/tools/dmsh_xlate/Program.cs`：`TexSlot()` 的死值 `TexBase = 0x168` → 改成由作业带 `c2_tex_base`（TotK = 0x20），并与 `dm/gfx/tools/totk_facts.py --tex-base` 同一口径；④ **规则集接线**：确认 `DM_RULESET=totk-run-v1` 在宿主侧从哪里能拿到（构建期固化还是运行期传递），据此决定 c[2] 布局的取值点。**D2R 路径必须逐字节不变**。
+- NA-034 实施要点（本次会话已查清，下一节不用再摸）：① **宿主里没有任何规则集痕迹** —— 全仓 grep `dm/android/native/` 与 `dm/gfx/nvn/` 都找不到 `DM_RULESET` 或 `totk-run-v1`（规则集只作用于 `dm/tools/patch_nso.py` 的 NSO 改写），所以 c[2] 布局只能**构建期**决定（编译期宏 / 单独的宿主构建变体）或另设运行期开关。
+- NA-034 实施要点（续）：② **游戏的绑定入口是 `nvnCommandBufferBindTexture(cmdbuf, stage, index, handle)` → `state.textures[stage][index] = handle`**，`index` 就是着色器的贴图槽号（D2R 侧已闭合验证：游戏 index r ↔ `c[2][0x168 + 8r]` ↔ 着色器立即数 `0x5A + 2r`）。TotK 同理 → 基址取 `0x20` 时，「游戏 index r ↔ `c[2][0x20 + 8r]`」成立，**槽号语义两边一致**。
+- NA-034 实施要点（续）：③ **合并句柄的打包**：NVIDIA 的合并句柄 = 纹理 ID 低 20 位 + 采样器 ID 第 20..31 位（`TextureHandle.UnpackTextureId` / `UnpackSamplerId`）；宿主读侧现在只取 `shader_handle(...) & 0xfffff`（低 20 位）当纹理 ID，所以 TotK 要额外把第 20..31 位的采样器 ID 用起来（`shader_handle()` 的 type 0 分支只返回了一个字）。④ c[2] 那块缓冲现在固定 `uint8_t data[0x968]`（D2R 的 0x168..0x968 段），TotK 只需要 0x20..0x120 一段，**缓冲大小也要按规则集取**（别写死 0x968）。
 - 命令或编辑目标：先读 `dm/android/native/nvn_vulkan_handles.inc` 与 `nvn_vulkan_shader.inc` 里 0x168 / 0x568 / 0x120 的全部出处，以及 `DM_RULESET` 在宿主里的传递路径（`dm/tools/patch_nso.py` 产出的规则集 → 宿主怎么知道）；再按上面四处改；随后在 `dm/android/tests/` 里补一条 TotK c[2] 布局的单测；最后 `ci_checks.py`、`build.py --game-run --version trim-b29`、`tools/agent_handoff_check.py --verify`。
 - 成功判据：① 宿主单测（新增的 TotK c[2] 布局用例）与现有 `dm/android/tests/` 全绿；② `ci_checks.py` 10 项通过 / 0 项失败；③ `build.py --game-run --version trim-b29` exit 0 且产出 APK；④ 用 `totk_facts.py --tex-base 0x20` 出的事实表喂回翻译器后，**那 12 个 TXQ 着色器的 SPIR-V 出现可核对的变化**（此前因为 `TexSlot()` 的基址不对，事实表里的贴图维度没被查到）；⑤ **D2R 侧行为逐字节不变**（D2R 的 c[2] 布局与翻译器输出与改前一致）。
 - 失败判据：改完宿主后 D2R 的既有单测 / `ci_checks` / 构建任一非零；或 TotK 的 c[2] 布局在真机上仍读不到句柄（说明合并句柄的 ID 打包方式猜错）—— 此时回滚本批，并改走「运行期观测 + 逐槽记录」的诊断路径，把读到的 c[2] 内容 dump 出来定位。
