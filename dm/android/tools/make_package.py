@@ -220,6 +220,8 @@ def main():
                         help="改写规则域：touch-run-v4（D2R 触屏版，默认）/ totk-run-v1（TotK v1.4.2） | rewriter rules domain")
     parser.add_argument("--exefs", type=Path, default=None,
                         help="已解出的 ExeFS 目录（TotK 用：游戏包是 NCA，ExeFS 由 dm/tools/switch_nca.py 解出） | already extracted ExeFS directory")
+    parser.add_argument("--romfs-layout", choices=("data", "root"), default="data",
+                        help="RomFS 布局：data（D2R 默认）/ root（TotK：整棵树保留相对路径）| RomFS layout")
     parser.add_argument("--modules-only", action="store_true",
                         help="只做模块那一步（改写 + 打成 ELF 库），不组装数据包 | only do the module step (rewrite + pack into ELF libraries)")
     args = parser.parse_args()
@@ -244,7 +246,7 @@ def main():
             derived = derived_tables(reuse / "RomFS", reuse)
             run([sys.executable, HERE / "build_package.py", "assemble", output,
                  "--game", reuse / "game", "--romfs", reuse / "RomFS", "--shaders", spirv, "--derived", derived,
-                 "--note", "assembled from reused data"], "汇编数据包", timeout=60 * 60)
+                 "--note", "assembled from reused data", "--romfs-layout", args.romfs_layout], "汇编数据包", timeout=60 * 60)
             say(f"完成：{output}（{output.stat().st_size / 2**30:.2f} GiB）")
             return
 

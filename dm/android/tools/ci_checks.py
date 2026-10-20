@@ -127,6 +127,9 @@ def main():
         # TotK 着色器包的反射格式必须与宿主读的那份一致（DMVK 头、绑定表、c1、属性数组）。
         # The TotK shader package reflection must match what the host reads (DMVK header, binding table, c1, attributes).
         python_check("TotK 着色器包格式（t_totkpkg）", "dm/gfx/tools/test_totk_shader_package.py")
+        # 数据包里的 RomFS 布局：D2R 的 data/ 与 TotK 的整棵树都要打出游戏要开的路径。
+        # The RomFS layout in the package: D2R's data/ and TotK's whole tree must both produce the paths the game opens.
+        python_check("数据包 RomFS 布局（t_pkglayout）", "dm/android/tests/test_package_layout.py")
 
         compile_and_run("方向键/扳机映射（t_padmap）", [REPO / "dm/host/tests/t_padmap.c"], workspace / "t_padmap")
         # c[2] 句柄表布局：D2R 的分离表与 TotK 的合并表是纯逻辑，任何平台都能跑。

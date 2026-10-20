@@ -47,7 +47,7 @@ def collect_game(directory):
     return sorted(GAME_MODULES + GAME_LAYOUTS)
 
 
-def collect_romfs(directory):
+def collect_romfs(directory, layout="data"):
     """把 data/ 下的**所有**文件都打包，不按扩展名筛选。
 
     曾经只收 .data 与 .psv，漏掉了 `build_key.txt`，结果导入后的包启动时游戏报
@@ -59,13 +59,22 @@ def collect_romfs(directory):
     cannot be enumerated at packaging time, so nothing is filtered here.
     """
     require_directory(directory, "romfs")
+    if layout == "root":
+        # TotK：RomFS 本身是一棵深目录树（30 多万个文件），必须**保留相对路径**，
+        # 否则包里的路径与游戏要开的路径对不上。
+        # TotK: the RomFS is a deep tree of more than 300k files, so the relative paths must be preserved -
+        # otherwise the packaged paths do not match the ones the game opens.
+        entries = sorted(p for p in directory.rglob("*") if p.is_file())
+        if not entries:
+            raise PackageError(f"romfs directory is empty: {directory}")
+        return [(path, path.relative_to(directory).as_posix()) for path in entries]
     data = directory / "data"
     if not data.is_dir():
         raise PackageError(f"romfs directory has no data/ subdirectory: {directory}")
     entries = sorted(p for p in data.rglob("*") if p.is_file())
     if not entries:
         raise PackageError(f"romfs data/ is empty: {data}")
-    return entries
+    return [(path, "data/" + path.name) for path in entries]
 
 
 def collect_shaders(directory):
@@ -110,9 +119,9 @@ def write_entry(archive, source, name, progress):
     return written
 
 
-def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False):
+def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False, romfs_layout="data"):
     game_files = collect_game(game)
-    romfs_files = collect_romfs(romfs)
+    romfs_files = collect_romfs(romfs, romfs_layout)
     subgroup, shader_files = collect_shaders(shaders)
     # derived.tsv：游戏派生表（现在只剩经验表与技能图标索引）的内容。壳模式的 APK 里只有空表与条数，
     # 内容全从这份文件读 —— 没有它，那三块功能会是空的（运行时打红字）。
@@ -126,7 +135,7 @@ def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False)
         if derived_rows == 0:
             raise PackageError(f"derived table is empty: {derived}")
 
-    total_romfs = sum(p.stat().st_size for p in romfs_files)
+    total_romfs = sum(path.stat().st_size for path, _ in romfs_files)
     total_shaders = sum(p.stat().st_size for p in shader_files)
     total_game = sum((game / n).stat().st_size for n in game_files)
 
@@ -172,8 +181,8 @@ def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False)
         written_bytes += len(manifest_bytes)
         for name in game_files:
             write_entry(archive, game / name, f"game/{name}", progress)
-        for path in romfs_files:
-            write_entry(archive, path, f"romfs/data/{path.name}", progress)
+        for path, name in romfs_files:
+            write_entry(archive, path, f"romfs/{name}", progress)
         for path in shader_files:
             write_entry(archive, path, f"shaders/{path.name}", progress)
         if derived is not None:
@@ -215,6 +224,9 @@ def main():
     assemble_parser.add_argument("--derived", type=Path, default=None,
                                  help="runtime table data (derived.tsv) produced by shell_stubs.py data")
     assemble_parser.add_argument("--note", default=None)
+    assemble_parser.add_argument("--romfs-layout", choices=("data", "root"), default="data",
+                                 help="RomFS 布局：data（D2R：包里的 romfs/data/ 下是平铺的归档）/ root（TotK：整棵树保留相对路径）"
+                                      " | RomFS layout: data (D2R) or root (TotK, the whole tree keeps its relative paths)")
 
     inspect_parser = subparsers.add_parser("inspect", help="print a package's manifest without touching it")
     inspect_parser.add_argument("archive", type=Path)
@@ -222,7 +234,8 @@ def main():
     args = parser.parse_args()
     try:
         if args.command == "assemble":
-            assemble(args.output, args.game, args.romfs, args.shaders, derived=args.derived, note=args.note)
+            assemble(args.output, args.game, args.romfs, args.shaders, derived=args.derived, note=args.note,
+                     romfs_layout=args.romfs_layout)
         else:
             manifest, groups = inspect(args.archive)
             print(json.dumps(manifest, indent=2, ensure_ascii=False))
