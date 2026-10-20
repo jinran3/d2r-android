@@ -224,6 +224,27 @@ def main() -> int:
         and meta_offset + meta_size <= section['size']
         and hash_ok and ivfc_ok)
 
+    # 重定位表：只把已知的事实打出来（每页头里的计数值与前几行十六进制），
+    # 语义还没解出来 —— 下一轮接着解，别再从头猜。
+    # The relocation table: print only the facts we know (the count in each page header and the
+    # leading bytes). Its semantics are still unknown; the next round continues from here.
+    relocation_start = superblock['relocation']['offset']
+    relocation_head = read_plain(nca, section, relocation_start, 0x40)
+    relocation_counts = []
+    for page in range((superblock['relocation']['size'] + 0x3FFF) // 0x4000):
+        head = read_plain(nca, section, relocation_start + page * 0x4000, 8)
+        relocation_counts.append(struct.unpack_from('<I', head, 4)[0])
+    # 首页那 4 条不是记录（是页头），所以真正的条目数是后面几页的计数之和：
+    # 818 + 818 + 818 + 204 = 2,658，与 fs_header 里那个块总长 0xA62 = 2,658 一致 → 交叉印证。
+    # The first page's 4 entries are page-header material, not records, so the real count is the
+    # sum of the later pages: 818 + 818 + 818 + 204 = 2,658 -- which matches the block total size
+    # 0xA62 = 2,658 in the fs_header, so the two agree.
+    record_count = sum(relocation_counts[1:])
+    layout['relocation'] = {'offset': relocation_start, 'size': superblock['relocation']['size'],
+                             'page_counts': relocation_counts, 'record_count': record_count,
+                             'fs_header_total': superblock['relocation']['block_total_size'],
+                             'head': relocation_head.hex(' ')}
+
     if args.romfs:
         layout['payload'] = scan_payload(nca, section, args.romfs)
     if args.json:
@@ -251,6 +272,12 @@ def main() -> int:
         for region in layout['regions']:
             print('  0x%08x .. 0x%08x  %-22s %d 字节' % (
                 region['offset'], region['offset'] + region['size'], region['name'], region['size']))
+        print('重定位表 @0x%x 长度 0x%x：每 16 KB 一页，各页头里的计数 %s' % (
+            relocation_start, superblock['relocation']['size'], relocation_counts[:12]))
+        print('  条目数 %d（首页那 4 条是页头，不算记录）；fs_header 里写的块总长 %d（0x%X）'
+              % (record_count, superblock['relocation']['block_total_size'],
+                 superblock['relocation']['block_total_size']))
+        print('  首页前 0x40 字节：%s' % relocation_head.hex(' '))
         if 'payload' in layout:
             payload = layout['payload'][0]
             print('载荷里的 zstd 帧：%d 个' % payload['frame_count'])
