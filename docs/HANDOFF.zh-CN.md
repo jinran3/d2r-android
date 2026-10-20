@@ -1,6 +1,6 @@
 ---
 protocol: 1
-updated_at: 2026-10-20T11:30:00+08:00
+updated_at: 2026-10-20T12:40:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
@@ -151,7 +151,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b26`，17,725,903 字节）
 - 本次会话目标：NA-031（模块来源接规则域 + HLE 缺口普查）与 NA-032（§4.4 着色器事实表来源）。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：着色器事实表里**贴图维度 / 图像格式 / 属性分量类型**那几项还没定位（控制头里的描述符表），以及让翻译链吃下 TotK 着色器（NA-032 剩下的部分；计算着色器的线程组与共享内存**已直接可得**）；**改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」和 `blr x18` 调用两种 D2R 没有的形态，当前 TotK 规则域先不做 x18 改写，Android 侧靠宿主保全 x18；正式做法见 NA-032 之后那一步）；更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这层）；真机装载与进 `nnMain`（一加 12 未接）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线）。
+- 未完成：贴图维度 / 图像格式 / 属性分量类型**不在着色器里**（已实测确认），要靠游戏数据或运行期观测；翻译链（`dm/gfx/tools/dmsh_xlate` + 仓内 Ryujinx C#）**要在本机编出来**（csproj 目标 net10.0，需 .NET 10 SDK）并翻一批 TotK 着色器到 SPIR-V 验证路线（NA-032 剩下的部分）；**改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」和 `blr x18` 调用两种 D2R 没有的形态，当前 TotK 规则域先不做 x18 改写，Android 侧靠宿主保全 x18；正式做法见 NA-032 之后那一步）；更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这层）；真机装载与进 `nnMain`（一加 12 未接）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线）。
 - 最近一次成功命令：`build.py --game-run --version trim-b26` exit 0（APK 17,725,903 字节）；`ci_checks.py` 10 项通过 / 0 项失败；`agent_handoff_check.py --verify` exit 0；`test_rewriter.py` exit 0；`make_package.py --ruleset totk-run-v1 --exefs ... --modules-only` exit 0；`switch_shaders.py` exit 0（30 个着色器文件 + 清单）。
 - 最近一次失败命令及原因：① `make_package.py` 第一次跑 TotK 报 `FileNotFoundError: ...\produce\game` —— 自备 ExeFS 那条路少了 `produce.mkdir`，已修；② `test_rewriter.py` 首次报 `FileNotFoundError` —— 本机没设 `DM_ANDROID_TOOLS`（脚本按 `~/dm-work/tools/android` 找工具链），设上即 exit 0；③ `switch_nca.py romfs-extract` 多线程共用一个文件句柄导致读串台（已改为每线程一个句柄，并加了读满校验）。
 - 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（`trim-b26`）；TotK 侧仓库外产物：`D:\Switch\totk-work\`（upd-exefs、pack-totk\produce\game、guest-so、shaders-out、base\RomFS 解包中）
@@ -201,6 +201,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-031 模块来源接规则域 + HLE 缺口普查（`48f5d1f`）：`make_package.py` 新增 `--ruleset` / `--exefs` / `--modules-only`，TotK 侧一条命令出模块（`--ruleset totk-run-v1 --exefs <目录> --modules-only` exit 0，产物 `game/` 里是三个 `libdmguest_*.so` 与 `{name}.fixups/gates.tsv`，正是数据包要的形态），D2R 路径一字未变。**HLE 缺口普查（关键结论）**：TotK 三模块未定义导入 1,266 个，宿主已有的 HLE_FORCE 表（173 条）覆盖 66 个，**真正缺的只有 8 个 `glslc*`**（NVIDIA 运行时 GLSL 编译器 API，D2R 没有这个需求）；宿主的「未实现桩」是良性的（记一次日志、返回 0，不中止），所以符号层不用改宿主。另外把 58 个 svc 号与宿主覆盖面对了一遍：宿主有 case 的 34 个，**没有 case 的 24 个**是 #19 MapSharedMemory、#20 UnmapSharedMemory、#21 CreateTransferMemory、#31 ConnectToNamedPort、#33 SendSyncRequest、#34 SendSyncRequestWithUserBuffer、#35 SendAsyncRequestWithUserBuffer、#50 SetThreadActivity、#51 GetThreadContext3、#54 SynchronizePreemptionState、#64 CreateSession、#65 AcceptSession、#67 ReplyAndReceive、#68 ReplyAndReceiveWithUserBuffer、#75 CreateCodeMemory、#81 MapTransferMemory、#82 UnmapTransferMemory、#112 CreatePort、#114 ConnectToPort 等（名字取自 Ryujinx 的 `[Svc(0x..)]` 枚举）——它们多是 Horizon IPC，而 D2R 宿主是直接接管**服务客户端函数**（HLE_FORCE）而不走 IPC，所以真机上的实际缺口预计远小于 24 个。
 - NA-032 §4.4 着色器事实表来源（`944681d`）：**任天堂的 zstd 字典就在游戏自己里** —— `/Pack/ZsDic.pack.zs` 是个 SARC装着 3 份 128 KB 字典（`zs.zsdic` id=1、`bcett.byml.zsdic` id=2、`pack.zsdic` id=3），着色器包的 zstd 帧头写着自己要 id=1；之前「Dictionary mismatch」的死结由此解开。用新写的 `dm/tools/switch_shaders.py` 解出全部着色器归档：`ApplicationPackage.Nin_NX_NVN.release.sarc.zs` → SARC 19 个条目（含 `AglShader.sharcb` 794,624 字节等），12 个 `*.bfsha.zs` → FSHA 容器（`material...` 解出 101,165,712 字节），条目里带 `cTexSrc`、`gl_InstanceID`、`grass_shader` 这类**反射元数据字符串** —— 也就是 D2R 那条「从 PC 版反射冻结事实表」的路对 TotK 不成立，但**从游戏自带的着色器归档取**这条路成立（方案 D 可行），§4.4 的 go/no-go 风险基本解除。
 - NA-032 着色器事实表（第一半，`a25ccc3`）：按确认的归档格式自己写了 `dm/gfx/tools/totk_shaders.py`（BNSH / FSHA / BAHS v9 三种容器 → 逐着色器解出控制头、机器码与 C1，算出**着色器键** = `sha256(control+program+c1)[:16]`、阶段、控制头尺寸）。实测：`/Shader` 归档里 49,089 条记录、**9,807 个唯一键**（cs 18 / ps 5,557 / vs 4,232）；**计算着色器的线程组与共享内存直接从控制头 0x748 读出**（如 64x1x1、8x8x1、1x1x1，共享内存 0 / 2048 字节）—— 这类事实**不需要 PC 反射**，TotK 侧直接可得。贴图维度 / 图像格式 / 属性分量类型的位置还没定位（C1 块很小，多半在控制头的描述符表），仍按方案 A / B 走。
+- NA-032 着色器事实（第二半的实测）：**贴图维度 / 图像格式 / 属性分量类型不在着色器里** —— 抽查 4 个归档的 vs / ps，控制头（0x880 字节）只有 15–33 个非零字、没有描述符表，C1 块也只有 0–64 字节；这几项事实只能来自游戏的数据（材质 / 图形数据）或运行期观测（方案 B）。同时确认：我们的翻译链 `dm/gfx/tools/dmsh_xlate/`（MIT，引用仓内 `dm/third_party/ryujinx` 的 MIT 源码）输入作业里带 `tex` / `img` / `attr` / `fout` / `local` / `c1`，**缺项按缺省作答**（2D / R8G8B8A8Unorm / float），输出是 **SPIR-V（Vulkan）** —— 正是 Android 侧要的东西，也正是方案 A 的落点。它的 csproj 目标 `net10.0`，本机只有 .NET 8（覆盖目标框架会报 NETSDK1045），已下载 Windows 版 .NET 10.0.401 SDK（300,608,304 字节）到仓库外工作区，解压中。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
@@ -214,7 +215,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
 - 前置条件：HEAD / origin 均为 NA-032 的业务提交（见 frontmatter）；代码工作区干净；着色器归档已能解出（`D:\Switch\totk-work\shaders-out\`，30 个文件 + `manifest.json`）。
-- 动作：把解出的着色器归档解析成**事实表**（贴图维度类型 / 格式、顶点与片元输出的分量类型、计算着色器的线程组大小与共享内存），并让仓库现有的翻译链吃下 TotK 的着色器：① 先摸清 FSHA 容器与 `*.sharcb` / `*.bfsha` 内层 BNSH 二进制的结构（从 `manifest.json` 与二进制头出发，参考外部项目 `OJZen/totk-mobile` 的 `script/index_shaders.py` / `build_shader_ir.py` 的思路，**代码自己写**）；② 产出 TotK 版的事实表（与 `dm/gfx/tools/dmsh_facts.py` 现有表同格式，落在仓库外，接口信息入库要先开 Issue）；③ 用一条小批量（几十个着色器）验证「翻译 → SPIR-V → 能出图」这条路。
+- 动作：把解出的着色器归档变成**事实表**并让仓库现有的翻译链吃下 TotK 的着色器：① 事实表第一版 = 计算着色器的线程组与共享内存（已能给出）+ 其余按缺省（翻译器的缺省查询本来就按 2D / R8G8B8A8Unorm / float 作答）；② **在本机编出翻译器**（`dm/gfx/tools/dmsh_xlate/dmsh_xlate.csproj`，目标 net10.0 → 需 .NET 10 SDK；仓内 `dm/third_party/ryujinx` 是 MIT 源码）；③ 用 TotK 的键 + 机器码 + c1 造一批作业，翻成 SPIR-V，看能否成功并检查产物。归档结构已摸清（BNSH / FSHA / BAHS v9，键 = `sha256(control+program+c1)[:16]`），事实表的边界也清楚了（见「已完成清单」）；剩下的就是编译翻译器与翻一批着色器。
 - 命令或编辑目标：先 `git grep -n -e shader_facts -e dmsh_facts -- dm/gfx/tools` 看现有事实表的格式与消费方，再写一个解析脚本（放 `dm/tools/` 或 `dm/gfx/tools/`，按仓库规矩命名），用 `D:\Switch\totk-work\shaders-out\` 里的文件跑；随后 `ci_checks.py`、`build.py --game-run --version trim-b28`。
 - 成功判据：能从一批 TotK 着色器里读出维度 / 格式 / 线程组等事实并写成与现有事实表同格式的表；对同一批着色器跑翻译链能产出 SPIR-V 且不报「缺事实」；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b28` exit 0 且产出 APK。
 - 失败判据：解析不出事实（说明游戏自带归档里没有这些信息 → §4.4 需要改走方案 A/B，**如实记录并改结论**）、翻译链吃不下、任一验证命令非零 —— 此时回滚本批并更新计划 §4.4 的结论。
