@@ -31,6 +31,37 @@
 - 新增工具 `dm/android/tools/totk_modules.py`：一条命令跑完「改写 → 打包 ELF 库 → 宿主同款解析 → 未解析导入清单」，`--reuse` 可复用已有改写产物；游戏文件与密钥只在本机读，产物在仓库外。
 - 下一步：NA-031 —— 把「用哪套模块」接到规则域（D2R 用包内 `game/`，TotK 用仓库外的 `guest-so/`），并把 TotK 的 `game/` 目录形态与 `make_package.py` / `build_package.py` 对齐，使真机装载这条路在没有设备时也能在宿主侧离线核对。
 
+## 2026-10-20 10:10 Asia/Shanghai — [TOTK] NA-031 模块来源接规则域 + NA-032 §4.4 着色器事实表来源
+
+- 会话目标：把「用哪套模块」接到规则域上（打包链参数化），并把 §4.4 的着色器事实表来源查清（用户提供了外部项目 `catoncat/d2r-port-radar` 雷达，顺着它找到一个**已经能跑 TotK 的移植** `OJZen/totk-mobile`）。
+- 两条结论：① 宿主的服务面几乎不用改 —— TotK 三模块的未定义导入里，宿主 HLE 表已覆盖 66 个，**真正缺的只有 8 个 `glslc*`**，而宿主的未实现桩是良性的；② **§4.4 的 go/no-go 风险基本解除** —— 任天堂的 zstd 字典就在游戏自己的 `/Pack/ZsDic.pack.zs` 里，着色器归档能解开，且归档里带反射元数据字符串。
+
+[BEGIN] na-031-modules-and-shaders
+
+- 命令：`make_package.py --ruleset totk-run-v1 --exefs <目录> --modules-only`（TotK 模块）；`switch_shaders.py <RomFS> <输出>`（着色器归档）；HLE 缺口普查脚本（导入符号 × 宿主 HLE 表）；svc 号与宿主 case 的对照（名字取自 Ryujinx 的 `[Svc(0x..)]` 枚举）。
+- 工作目录：`D:\Switch\d2r-android`（游戏文件与产物都在仓库外 `D:\Switch\totk-work`）
+- 预期结果：TotK 模块能走官方打包链出包；着色器归档能解；HLE 缺口有清单。
+- 日志路径：本文件对应 [END] 记录
+- 回滚点：`124b315`
+
+[END] na-031-modules-and-shaders
+
+- 退出码：`make_package.py ... --modules-only` exit 0；`switch_shaders.py` exit 0（30 个文件 + `manifest.json`）；`ci_checks.py` 10 项通过 / 0 项失败；`agent_handoff_check.py --verify` exit 0。
+- 产物：提交 `48f5d1f`（打包链参数化 + 解包并发读修复）、`944681d`（`dm/tools/switch_shaders.py`）；仓库外 `D:\Switch\totk-work\pack-totk\produce\game\`（三个 `libdmguest_*.so` + 布局表）、`D:\Switch\totk-work\shaders-out\`（着色器归档与清单）。
+- 结果：SUCCESS
+- 备注：真机出图 NOT RUN（一加 12 未接）；iOS / macOS 侧编译 NOT RUN。
+
+证据（本条目对应的命令与退出码）：
+
+- **外部资源**（用户指出后跟进的）：`catoncat/d2r-port-radar`（移植雷达 + 知识库，机器可读接口 `api/*.json`）里收录了一个**已经能读档游玩的 TotK 移植** `OJZen/totk-mobile`（Mac/iOS，v1.4.3，Apache-2.0，内核是 d2r-mobile 的 MIT 部分）。它印证了三件我们正在踩的事：① 他们的 `script/extract_romfs.py` 走的也是「NCA → hactool `--basenca` 合并 RomFS」；② 他们的 `script/extract_shaders.py` 写着「字典从 `/Pack/ZsDic.pack.zs` 取」；③ 他们的知识库里 `gen-0001` 记着「宿主把 ProgramId 写死成 D2R 的 titleId」、`gen-0002` 记着「svc 0x1F/0x21/0x22（IPC 收发）静默回成功、不写回复」—— 后者正是我们缺的 #31/#33/#34。**许可**：他们的代码是 Apache-2.0，本仓库是 MIT，**只读思路与格式事实，代码自己写**；Ryujinx（MIT）可以按其声明使用。
+- **HLE 缺口普查**：TotK 三模块（main / sdk / subsdk0）未定义导入 1,266 个 → 宿主 HLE_FORCE 表（173 条）覆盖 66 个 → 真正缺 8 个，全是 NVIDIA GLSL 编译器 API：`glslcInitialize` / `glslcCompile` / `glslcCompilePreSpecialized` / `glslcCompileSpecialized` / `glslcFinalize` / `glslcGetDefaultOptions` / `glslcGetVersion` / `glslcSetAllocator`（D2R 没有这个需求）。宿主的「未实现导入」桩是良性的（`dm/host/hle.c` 的 `unimpl_c` 记一次日志、返回 0，不中止），所以**符号层不需要改宿主**；真机上用 `DM_HLECOUNT` 看它们有没有被调用。
+- **svc 面对照**：TotK 的 58 个 svc 号里，宿主 `hle_*.c` 有 case 的 34 个；**没有 case 的 24 个**是 #19 MapSharedMemory、#20 UnmapSharedMemory、#21 CreateTransferMemory、#31 ConnectToNamedPort、#33 SendSyncRequest、#34 SendSyncRequestWithUserBuffer、#35 SendAsyncRequestWithUserBuffer、#50 SetThreadActivity、#51 GetThreadContext3、#54 SynchronizePreemptionState、#64 CreateSession、#65 AcceptSession、#67 ReplyAndReceive、#68 ReplyAndReceiveWithUserBuffer、#75 CreateCodeMemory、#81 MapTransferMemory、#82 UnmapTransferMemory、#112 CreatePort、#114 ConnectToPort 等（名字取自 Ryujinx 的 `[Svc(0x..)]` 枚举）。它们多是 Horizon IPC，而 D2R 宿主直接接管**服务客户端函数**，所以真机上的实际缺口预计远小于 24 个。
+- **打包链接规则域**：`make_package.py` 新增 `--ruleset` / `--exefs` / `--modules-only`；TotK 一条命令 exit 0，`game/` 目录里是三个 `libdmguest_*.so` 与 `{name}.fixups/gates.tsv`（正是数据包要的形态）；D2R 默认路径（`touch-run-v4`）一字未变。
+- **着色器事实表来源（§4.4）**：`/Pack/ZsDic.pack.zs`（108,344 字节）解开是 SARC，里面 3 份 128 KB zstd 字典（`zs.zsdic` id=1、`bcett.byml.zsdic` id=2、`pack.zsdic` id=3）；着色器包的 zstd 帧头写明自己要 id=1（此前一律报 `Dictionary mismatch`）。用字典解开：`ApplicationPackage.Nin_NX_NVN.release.sarc.zs` → 8,840,872 字节 SARC（19 个条目，如 `GrassShader.sharcb` 69,632 字节、`AglShader.sharcb` 794,624 字节）；12 个 `*.bfsha.zs` → FSHA 容器（`material...` 解出 101,165,712 字节）。条目里带 `cTexSrc`、`gl_InstanceID`、`grass_shader` 等**反射元数据字符串** → D2R 那条「从 PC 版反射冻结事实表」的路对 TotK 不成立，但**从游戏自带归档取**成立（方案 D 可行）。
+- 顺带修掉一个自造 bug：`switch_nca.py romfs-extract` 之前多线程共用一个文件句柄，seek/read 会串台（读出坏数据、进程卡死）。改为每线程一个句柄并加读满校验；旧的产物不可信，已解到新目录重解（后台仍在跑）。
+- **外部参考（`OJZen/totk-mobile` 的内核）**：它的 `core/tools/patch_nso.py` 其实是 d2r-mobile 的原版改写器（未为 TotK 改），TotK 的适配全在它自己的 `tools/patch_module.py` + `tools/exclusive.py` 里，做法是：① `DM_RULESET=native`（TotK 不带 D2R 剪口，并显式拒绝任何 cuts/obs/params 条目）✓ 与我们的结论一致；② **保留 x18 改写**，但把「独占窗口」改成**多入口**（一个 LL/SC 区域可以有多个 load 入口共享一个 store，每个入口各带一段序言；外部跳进区域中间的路径也要有入口），这正是我们 v1.4.2 上撞到 `branch into window` 时的正解；③ 额外处理 **`blr x18`**（TotK 用 x18 当函数指针调用）；④ 跳转表是**有符号**的（v1.4.3 的 5 张表按地址写死，v1.4.2 要自己定位）。它的 v1.4.3 main 构建号 `277178b7dba1b6d4949a84778d4abc58`可与我们 v1.4.2 的 `5cb42b1c…` 对照。**许可**：它是 Apache-2.0，本仓库是 MIT —— 只读思路与格式事实，代码自己写。
+- 下一步：NA-032 —— 摸清 FSHA / BNSH 结构，把事实（维度 / 格式 / 线程组）读出来，接进 `dm/gfx/tools/` 的翻译链；之后再做改写器的 x18 适配（多入口独占窗口 + `blr x18`）。
+
 ## 2026-10-20 08:30 Asia/Shanghai — [TOTK] NA-028 规则域接 TotK + NA-029 上游同步完成
 
 - 会话目标：把 `patch_nso.py` 的 `totk-run-v1` 规则域接到 TotK 真实构建号并跑出第一份 TotK 改写映像与宿主门清单；按用户要求核对上游仓库的更新与 issue，判断对本项目有没有用，并把这条规则写进 AGENTS.md。

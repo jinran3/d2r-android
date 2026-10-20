@@ -12,6 +12,16 @@
 
 ## 当前状态（继续开发先看这里）
 
+**2026-10-20（再晚）：§4.4 的着色器事实表来源有解了；宿主的 HLE 面几乎不用改。**
+
+顺着用户指出的 `catoncat/d2r-port-radar` 雷达，找到了一个**已经能读档游玩的 TotK 移植**（`OJZen/totk-mobile`，Mac/iOS，v1.4.3，Apache-2.0，内核基于 d2r-mobile 的 MIT 部分）。只读它的做法（代码自己写，许可不兼容不能搬），两件事落地：
+
+1. **§4.4 风险基本解除**：任天堂的 zstd 字典**就在游戏自己里** —— `/Pack/ZsDic.pack.zs` 是个 SARC，装着 3 份 128 KB 字典（id 1/2/3），着色器包的 zstd 帧头写明自己要 id=1。之前「Dictionary mismatch」的死结由此解开：全部 13 个着色器包都解开了（`ApplicationPackage...sarc.zs` → SARC 19 个条目；12 个 `*.bfsha.zs` → FSHA 容器），条目里带 `cTexSrc` / `gl_InstanceID` 这类**反射元数据**。所以 D2R 那条「从 PC 版反射冻结事实表」的路对 TotK 不成立，而**从游戏自带归档取**成立（方案 D 可行）。下一步是把 FSHA / BNSH 的结构摸清、产出事实表、接进翻译链。
+2. **HLE 面几乎不用改**：TotK 三模块的未定义导入 1,266 个，宿主已有的 HLE 表（173 条）覆盖 66 个，**真正缺的只有 8 个 `glslc*`**（NVIDIA 运行时 GLSL 编译器 API，D2R 没有）；宿主的未实现桩是良性的（记日志、返回 0，不中止），所以符号层不动宿主。58 个 svc 号里宿主有 case 的 34 个，缺的 24 个多是 Horizon IPC（ConnectToNamedPort / SendSyncRequest / CreateSession / CreatePort …），而 D2R 宿主是直接接管服务客户端函数、不走 IPC，所以真机上的实际缺口预计远小于 24 个。
+
+另外：模块来源已接到规则域上（`make_package.py --ruleset totk-run-v1 --exefs <目录> --modules-only` exit 0，产物形态与数据包一致），宿主的同款解析读出 33,855 符号 / 36,745 重定位 / 1,353 导入。
+
+
 **2026-10-20（再晚）：TotK 的三个模块能打成宿主可装载的 ELF 库，宿主解析读数一致。**
 
 `dm/android/tools/totk_modules.py` 把「改写（`DM_RULESET=totk-run-v1` + `DM_TARGET=android`）→ `guest_elf.py` 打包 → 照 `dm/android/native/game_modules.c` 复刻宿主解析」串成一条命令。实测：main / sdk / subsdk0 三个库 61.8 / 13.0 / 6.8 MB，宿主解析读出 33,855 符号 / 36,745 重定位 / 1,353 导入（与离线统计对得上）。

@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-20T09:20:00+08:00
+updated_at: 2026-10-20T10:10:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: bd3d0b7
+observed_head: 944681d
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: bd3d0b7
+origin_head_at_checkpoint: 944681d
 code_worktree: CLEAN
-next_action_id: NA-031
+next_action_id: NA-032
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,25 +140,25 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-20 09:20（Asia/Shanghai）
-- 当前阶段：M0 勘察完成；M1（模块装载）已能出 TotK 模块库并通过宿主同款解析
+- 快照时间：2026-10-20 10:10（Asia/Shanghai）
+- 当前阶段：M0 勘察完成；M1（模块装载）就绪；§4.4 着色器事实表来源已有解
 - 当前分支：`totk/scaffold`
-- 观测 HEAD：见 frontmatter `observed_head`（NA-030 业务提交：TotK 模块在 Android 上下文改写并打成 ELF 库 + 宿主同款解析核对）
+- 观测 HEAD：见 frontmatter `observed_head`（NA-032 业务提交：着色器归档解码工具）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b26`，17,725,903 字节）
-- 本次会话目标：NA-030（把 TotK 的三个模块接进 Android 宿主的装载链并核对）。
+- 本次会话目标：NA-031（模块来源接规则域 + HLE 缺口普查）与 NA-032（§4.4 着色器事实表来源）。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：宿主按规则域选用 TotK 模块的接线（NA-031）；真机上的实际装载与进 `nnMain`（一加 12 未接，`adb devices` 无设备）；更新包 RomFS 的 BKTR 补丁应用；着色器事实表来源（§4.4 go/no-go）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线 —— 注意 `dm/android/tools/build_shaders.py` 还 import `casc_overlay`，删它要一并改）。
-- 最近一次成功命令：`dm\android\tools\build.py --game-run --version trim-b26` exit 0（APK 17,725,903 字节）；`dm\android\tools\ci_checks.py` 10 项通过 / 0 项失败；`dm\android\tests\test_rewriter.py` exit 0；`tools\agent_handoff_check.py --verify` exit 0；`DM_RULESET=totk-run-v1 DM_TARGET=android` 改写 TotK 四个模块全部 exit 0；`guest_elf.py` 打包三个模块 exit 0。
-- 最近一次失败命令及原因：`dm/android/tests/test_rewriter.py` 首次运行报 `FileNotFoundError` —— 本机没设 `DM_ANDROID_TOOLS`（脚本按 `~/dm-work/tools/android` 找工具链），设上环境变量即 exit 0，不是代码问题。
-- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（`trim-b26`）；TotK 的 Android 上下文改写产物与 ELF 库在仓库外 `D:\Switch\totk-work\patched-android\` 与 `D:\Switch\totk-work\guest-so\`（`libdmguest_main.so` 61,817,600 / `libdmguest_sdk.so` 13,009,664 / `libdmguest_subsdk0.so` 6,767,368 字节）
-- 当前阻塞：一加 12 真机仍未接（`adb devices` 无设备）；着色器包（`*.bfsha.zs` / `*.sarc.zs`）是 zstd + 任天堂字典的编译包，本机没有那个字典，解不开。
+- 未完成：把解出的着色器归档解析成**事实表**（维度 / 格式 / 线程组）并让翻译链吃下（NA-032 的下一步）；**改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」和 `blr x18` 调用两种 D2R 没有的形态，当前 TotK 规则域先不做 x18 改写，Android 侧靠宿主保全 x18；正式做法见 NA-032 之后那一步）；更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这层）；真机装载与进 `nnMain`（一加 12 未接）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线）。
+- 最近一次成功命令：`build.py --game-run --version trim-b26` exit 0（APK 17,725,903 字节）；`ci_checks.py` 10 项通过 / 0 项失败；`agent_handoff_check.py --verify` exit 0；`test_rewriter.py` exit 0；`make_package.py --ruleset totk-run-v1 --exefs ... --modules-only` exit 0；`switch_shaders.py` exit 0（30 个着色器文件 + 清单）。
+- 最近一次失败命令及原因：① `make_package.py` 第一次跑 TotK 报 `FileNotFoundError: ...\produce\game` —— 自备 ExeFS 那条路少了 `produce.mkdir`，已修；② `test_rewriter.py` 首次报 `FileNotFoundError` —— 本机没设 `DM_ANDROID_TOOLS`（脚本按 `~/dm-work/tools/android` 找工具链），设上即 exit 0；③ `switch_nca.py romfs-extract` 多线程共用一个文件句柄导致读串台（已改为每线程一个句柄，并加了读满校验）。
+- 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（`trim-b26`）；TotK 侧仓库外产物：`D:\Switch\totk-work\`（upd-exefs、pack-totk\produce\game、guest-so、shaders-out、base\RomFS 解包中）
+- 当前阻塞：一加 12 真机仍未接（`adb devices` 无设备）；FSHA 容器的内层条目格式还没解析（事实表还差最后一步）。
 - 需要用户提供的材料：一加 12（开启 USB 调试）——游戏文件与 `prod.keys` 已由用户于 2026-10-20 提供。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
-- 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据。
+- 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据；**外部项目的代码不要直接搬进来**（`OJZen/totk-mobile` 是 Apache-2.0，本仓库是 MIT；只读思路与格式事实，代码自己写；Ryujinx 是 MIT，可用但要保留声明）。
 
 ### 已完成清单
 
@@ -198,6 +198,8 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-028 规则域接 TotK（`a70f0ef`）：`dm/tools/patch_nso.py` 的 `DM_RULESET=totk-run-v1` 从「空表占位」改成**按 TotK 真实构建号取表**（TOTK_BUILDS = main `5cb42b1cf25469fb0635fd046453d843` / sdk `5cf080e800530a7f25bd528ec875c27b` / subsdk0 `3308c1d216f788397d1451c8345a16cd` / rtld `82a3cf78789f9d9858c52379d8d2d129`），构建号不符即中止；CUTS / OBS / PARAMS 给 TotK 的 main 登记空表（空表是当前正确状态）。**M1 前提修正**：实测 TotK 的 main 把 x18 当**普通寄存器**用（.text 里 24,204 条指令提到 x18、18,572 条提到 w18，例如 0x3f00 `add x18, x19, #0x260`、0xa761c `stxr w17, w18, [x10]`），D2R 那套「x18 = TLS 指针」的语义前提对 TotK 不成立；但上游的机制本质是**每线程把客体 x18 存进线程槽 K18**，对普通寄存器同样成立，而 Android 宿主本来就保全 x18（`dm/android/native/probe.c` 逐次检查宿主调用前后 x18 不变；Linux AArch64 ABI 不用 x18），所以 **TotK 规则域不做 x18 改写、宿主侧也不用改** —— D2R 的行为一字未动。证据：`DM_RULESET=totk-run-v1` 对四个模块全部 exit 0，产出第一份 TotK 改写映像（main 61,760,960 / sdk 12,984,320 / subsdk0 6,750,208 / rtld 66,136 字节）与门清单：**sdk 58 个不同 svc 号 + 42 个计时器门 + 124 处 TLS 区读 + 2 处 TLS 读 + 3 处 TLS 写，main 814 处 TLS 读，rtld 5 个 svc（与 sdk 重叠）**；`ci_checks.py` 10 / 0；`build.py --game-run --version trim-b26` exit 0。
 - NA-029 上游同步（见下面日志条目）：上游 `jhaizhou-ops/d2r-mobile` 的 main 已比本 fork 新（其 `dm/tools/patch_nso.py` 88,578 字节 vs 我们 72,377，283 行差异）。差异分三类：① D2R 玩法剪口（我们裁剪批次已删）② Android 宿主改造（我们独有）③ **可直接用的上游改进**。采纳了第三类里的 **#55 寄存器字段预筛**（扫描时先看四个寄存器字段有没有 18，命中才反汇编；上游口径 7,201,192 → 189,399 个候选、三个模块一趟 78.5s → 20.2s）。验证：① 按上游口径在 TotK 的 main 上独立复核 —— 11,442,300 字 → 322,813 候选（2.82%）→ 42,776 处 x18/w18，**漏 0、多 0**；② 仓库自带 `dm/android/tests/test_rewriter.py`（unicorn 逐条比对原指令与改写后语义，含 ldxr/stxr 独占窗口用例）**exit 0**。未采纳并说明理由：上游的西班牙语界面、社区修复（Mac 悬停提示 / iCloud 启动 / 快速操作 / Xcode 26.2）、loader 空弱引用修复等都是 D2R 产品侧改动，与 TotK 移植无直接关系；其中「Mac 着色器反射 JSON 按目录拷贝」（#60）与 §4.4 相关，列入待查。
 - NA-030 TotK 模块进 Android 装载链（见下面日志条目）：用 `DM_RULESET=totk-run-v1 DM_TARGET=android` 重跑改写器（四个模块全部 exit 0），再用 `dm/android/tools/guest_elf.py` 把 main / sdk / subsdk0 打成 `libdmguest_*.so`（61,817,600 / 13,009,664 / 6,767,368 字节，`.target` = `android-context-v1` ✓）；再照 `dm/android/native/game_modules.c` 的 `parse()` 复刻宿主解析，三个模块全部读出：符号 706 / 23,039 / 10,110（合计 33,855）、重定位 2,070 / 19,027 / 15,648（合计 36,745）、导入 680 / 9 / 664（合计 1,353），与 NA-027 的离线统计对得上。**跨模块未解析只剩 9 个符号，且全是 `glslc*`**（NVIDIA 的运行时 GLSL 编译器 API：`glslcInitialize` / `glslcCompile` / `glslcCompilePreSpecialized` / `glslcCompileSpecialized` / `glslcFinalize` / `glslcGetDefaultOptions` / `glslcGetVersion` / `glslcSetAllocator`）——D2R 没有这个需求。宿主的 `resolve_import`（`dm/host/hle.c`）对模块外导入有**未实现桩兜底**，所以这 9 个不会挡住装载，只会在 HLE 审计里记成 STUB（真机跑起来后用 `DM_HLECOUNT` 看有没有被调用过）。**本批 NOT RUN**：真机上的实际装载与进 `nnMain`（一加 12 未接）。
+- NA-031 模块来源接规则域 + HLE 缺口普查（`48f5d1f`）：`make_package.py` 新增 `--ruleset` / `--exefs` / `--modules-only`，TotK 侧一条命令出模块（`--ruleset totk-run-v1 --exefs <目录> --modules-only` exit 0，产物 `game/` 里是三个 `libdmguest_*.so` 与 `{name}.fixups/gates.tsv`，正是数据包要的形态），D2R 路径一字未变。**HLE 缺口普查（关键结论）**：TotK 三模块未定义导入 1,266 个，宿主已有的 HLE_FORCE 表（173 条）覆盖 66 个，**真正缺的只有 8 个 `glslc*`**（NVIDIA 运行时 GLSL 编译器 API，D2R 没有这个需求）；宿主的「未实现桩」是良性的（记一次日志、返回 0，不中止），所以符号层不用改宿主。另外把 58 个 svc 号与宿主覆盖面对了一遍：宿主有 case 的 34 个，**没有 case 的 24 个**是 #19 MapSharedMemory、#20 UnmapSharedMemory、#21 CreateTransferMemory、#31 ConnectToNamedPort、#33 SendSyncRequest、#34 SendSyncRequestWithUserBuffer、#35 SendAsyncRequestWithUserBuffer、#50 SetThreadActivity、#51 GetThreadContext3、#54 SynchronizePreemptionState、#64 CreateSession、#65 AcceptSession、#67 ReplyAndReceive、#68 ReplyAndReceiveWithUserBuffer、#75 CreateCodeMemory、#81 MapTransferMemory、#82 UnmapTransferMemory、#112 CreatePort、#114 ConnectToPort 等（名字取自 Ryujinx 的 `[Svc(0x..)]` 枚举）——它们多是 Horizon IPC，而 D2R 宿主是直接接管**服务客户端函数**（HLE_FORCE）而不走 IPC，所以真机上的实际缺口预计远小于 24 个。
+- NA-032 §4.4 着色器事实表来源（`944681d`）：**任天堂的 zstd 字典就在游戏自己里** —— `/Pack/ZsDic.pack.zs` 是个 SARC装着 3 份 128 KB 字典（`zs.zsdic` id=1、`bcett.byml.zsdic` id=2、`pack.zsdic` id=3），着色器包的 zstd 帧头写着自己要 id=1；之前「Dictionary mismatch」的死结由此解开。用新写的 `dm/tools/switch_shaders.py` 解出全部着色器归档：`ApplicationPackage.Nin_NX_NVN.release.sarc.zs` → SARC 19 个条目（含 `AglShader.sharcb` 794,624 字节等），12 个 `*.bfsha.zs` → FSHA 容器（`material...` 解出 101,165,712 字节），条目里带 `cTexSrc`、`gl_InstanceID`、`grass_shader` 这类**反射元数据字符串** —— 也就是 D2R 那条「从 PC 版反射冻结事实表」的路对 TotK 不成立，但**从游戏自带的着色器归档取**这条路成立（方案 D 可行），§4.4 的 go/no-go 风险基本解除。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
@@ -207,16 +209,17 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-031
+- ID：NA-032
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：HEAD / origin 均为 NA-030 的业务提交（见 frontmatter）；代码工作区干净；TotK 的三个模块已能改写并打成 ELF 库（`D:\Switch\totk-work\guest-so\libdmguest_{main,sdk,subsdk0}.so`）。
-- 动作：把「用哪套模块」接到规则域上 —— 让宿主 / 打包链按 `DM_RULESET` 选模块来源：D2R 用现成的包内 `game/` 目录，TotK 用 `D:\Switch\totk-work\guest-so\`（仓库外，运行时按环境变量或包内目录切换）；同时把 TotK 的 `game/` 目录形态与 `make_package.py` 的 `build_package.py assemble` 步骤对齐（模块库 + `*.fixups.tsv` 布局表 + 派生表 + 着色器），使「一加 12 上装上包 → 启动界面 → 装载 TotK 模块」这条路在**没有真机**时也能在宿主侧离线核对（包内容清单、模块库可被宿主解析、门与槽的登记表齐备）。
-- 命令或编辑目标：先读 `dm/android/tools/make_package.py` 与 `dm/android/tools/build_package.py` 里 `game/` 目录的组装方式与 `dm/host/loader.c` 取模块的路径（`DM_GAME_DIR` 之类），再改这两处 + 宿主取模块处，让模块来源随规则域切换；随后跑 `ci_checks.py`、`build.py --game-run --version trim-b28`，并用宿主同款解析脚本对新产物再核对一遍。
-- 成功判据：规则域切换后，包内 `game/` 目录里是 TotK 的三个模块库与对应布局表，宿主同款解析读出的符号 / 重定位数与 NA-030 一致（33,855 / 36,745）；D2R 侧（`touch-run-v4` / `native`）的包内容与行为一字未变；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b28` exit 0 且产出 APK。
-- 失败判据：切换后 D2R 路径受影响（包内容或模块选择变了）、TotK 模块库装不进包或解析读不出、任一验证命令非零 —— 此时回滚本批并把差异写进日志。
+- 前置条件：HEAD / origin 均为 NA-032 的业务提交（见 frontmatter）；代码工作区干净；着色器归档已能解出（`D:\Switch\totk-work\shaders-out\`，30 个文件 + `manifest.json`）。
+- 动作：把解出的着色器归档解析成**事实表**（贴图维度类型 / 格式、顶点与片元输出的分量类型、计算着色器的线程组大小与共享内存），并让仓库现有的翻译链吃下 TotK 的着色器：① 先摸清 FSHA 容器与 `*.sharcb` / `*.bfsha` 内层 BNSH 二进制的结构（从 `manifest.json` 与二进制头出发，参考外部项目 `OJZen/totk-mobile` 的 `script/index_shaders.py` / `build_shader_ir.py` 的思路，**代码自己写**）；② 产出 TotK 版的事实表（与 `dm/gfx/tools/dmsh_facts.py` 现有表同格式，落在仓库外，接口信息入库要先开 Issue）；③ 用一条小批量（几十个着色器）验证「翻译 → SPIR-V → 能出图」这条路。
+- 命令或编辑目标：先 `git grep -n -e shader_facts -e dmsh_facts -- dm/gfx/tools` 看现有事实表的格式与消费方，再写一个解析脚本（放 `dm/tools/` 或 `dm/gfx/tools/`，按仓库规矩命名），用 `D:\Switch\totk-work\shaders-out\` 里的文件跑；随后 `ci_checks.py`、`build.py --game-run --version trim-b28`。
+- 成功判据：能从一批 TotK 着色器里读出维度 / 格式 / 线程组等事实并写成与现有事实表同格式的表；对同一批着色器跑翻译链能产出 SPIR-V 且不报「缺事实」；`ci_checks.py` 10 项通过 / 0 项失败；`build.py --game-run --version trim-b28` exit 0 且产出 APK。
+- 失败判据：解析不出事实（说明游戏自带归档里没有这些信息 → §4.4 需要改走方案 A/B，**如实记录并改结论**）、翻译链吃不下、任一验证命令非零 —— 此时回滚本批并更新计划 §4.4 的结论。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
-- 需要写入的证据：模块来源切换的代码引用（文件 + 行）、新包的内容清单（`game/` 目录列表）、宿主同款解析的输出、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。**本机 NOT RUN 的部分**：真机上的装载与进 `nnMain`（一加 12 未接）、iOS / macOS 侧编译（无 Xcode / macOS）。
+- 需要写入的证据：FSHA / BNSH 的结构证据（偏移与字段）、事实表的条目数与样例、翻译批量的输出与错误、`ci_checks.py` 计分行、构建退出码与 APK 路径大小、`git status --short`、提交号、HANDOFF / LOG 更新与 `--verify` 退出码。**本机 NOT RUN 的部分**：真机上的实际出图（一加 12 未接）、iOS / macOS 侧编译。
+- 顺带记下（下一步之后要做）：改写器要按 TotK 适配两处形态 —— ① **多入口独占窗口**（一个 LL/SC 区域可以有多个 load 入口共享一个 store，外部分支还能跳进区域中间；做法是给每个入口各发一段序言，外部跳进来的目标也要有入口），② **`blr x18`**（TotK 用 x18 当函数指针调用，需要专门的站点处理）。参考实现见 `OJZen/totk-mobile` 的 `tools/patch_module.py` + `tools/exclusive.py`（Apache-2.0，**只读思路、代码自己写**）。该项目的 v1.4.3 main 构建号是 `277178b7dba1b6d4949a84778d4abc58`（我们是 v1.4.2 的 `5cb42b1c…`），它的跳转表是**有符号**的、按 v1.4.3 的地址写死，TotK v1.4.2 的对应表要自己定位。
 
 ## 长操作两阶段日志
 

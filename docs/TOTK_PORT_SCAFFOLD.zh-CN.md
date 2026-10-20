@@ -140,6 +140,12 @@ main (保留 D2R 可构建)
 
 **结论**：M3 之前必须用 A+B 组合拿到「能出 3D 画面」的事实表，并把 D 当备选调研。**这是本计划里唯一可能推翻「原生移植」路线、被迫退回模拟器路线的风险点**，要在 M2 结束时就给出结论，不要拖到 M3。
 
+**2026-10-20 的实测结论（风险基本解除）**：
+
+- 任天堂的 zstd 字典**在游戏自己里**：`/Pack/ZsDic.pack.zs` 是 SARC，装 3 份 128 KB 字典（id 1/2/3），着色器包的 zstd 帧头写明自己要哪一份（着色器用 id=1）。没有它，任何 `*.bfsha.zs` / `*.sarc.zs` 都是 `Dictionary mismatch`。
+- 用这份字典，TotK 的着色器归档**能解开**：`ApplicationPackage.Nin_NX_NVN.release.sarc.zs` → SARC（19 个条目，含 `*.sharcb`），各 `*.bfsha.zs` → FSHA 容器；条目里带 `cTexSrc`、`gl_InstanceID` 这类**反射元数据**。所以 D2R 那条「从 PC 版反射冻结事实表」的路确实不存在，但**从游戏自带归档取**（方案 D）成立 —— 事实表的下一步是把 FSHA / BNSH 的结构解析出来。
+- 外部可参考的实现：`OJZen/totk-mobile`（Mac/iOS，已能读档游玩，v1.4.3）。**许可提醒**：它是 Apache-2.0，本仓库是 MIT，只读思路与格式事实、代码自己写；它内嵌的 Ryujinx 部分是 MIT，可按其声明使用。移植雷达（`catoncat/d2r-port-radar`）有机器可读的接口，值得定期看。
+
 ### 4.5 上游同步：哪些机制能直接搬
 
 本 fork 与上游 `jhaizhou-ops/d2r-mobile`（iOS/macOS 原版）的共同祖先是 `sydeEvans/d2r-android`。上游的 `main` 一直在走，两边 `dm/tools/patch_nso.py` 的差异分三类：

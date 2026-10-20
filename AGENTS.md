@@ -14,9 +14,10 @@
 8. 所有“已完成/已验证”结论必须带命令、退出码或产物证据；没跑就写 `NOT RUN`，不能猜测。
 9. 超过 5 分钟或高风险操作必须在 HANDOFF_LOG 写 `[BEGIN]`/`[END]`；只有 BEGIN 没有 END 时先检查进程、日志和产物，不能直接重跑。
 10. 不提交游戏内容、密钥、存档或构建产物；不回显 `prod.keys`；不把 D2R 数据当作 TotK 数据。
-11. **上游有更新要同步，并判断对本项目是否有用**：上游 `jhaizhou-ops/d2r-mobile`（iOS/macOS 原版）与本 fork 的共同祖先是 `sydeEvans/d2r-android`；上游的新提交 / issue 要定期看（`gh` 一律带 `--repo jinran3/d2r-android`，查上游用 `--repo jhaizhou-ops/d2r-mobile`）。同步时只取**对本项目有用**的部分（本 fork 已有 Android 宿主改造与裁剪批次，不要整文件覆盖），并把「这条上游改动对本项目有没有用、为什么」的结论写进 `docs/HANDOFF_LOG.zh-CN.md`。
-12. 交接控制面应单独提交并推送；无法提交/推送时，必须在 HANDOFF 中明确标注 `COMMIT: NOT DONE` / `PUSH: NOT DONE` 和恢复命令。
-13. 不使用 `git reset --hard`、强制推送或删除未提交改动来“清理”交接状态。
+11. **上游有更新要同步，并判断对本项目是否有用**：上游 `jhaizhou-ops/d2r-mobile`（iOS/macOS 原版）与本 fork 的共同祖先是 `sydeEvans/d2r-android`；上游的新提交 / issue 要定期看（`gh` 一律带 `--repo jinran3/d2r-android`，查上游用 `--repo jhaizhou-ops/d2r-mobile`）。同步时只取**对本项目有用**的部分（本 fork 已有 Android 宿主改造与裁剪批次，不要整文件覆盖），并把「这条上游改动对本项目有没有用、为什么」的结论写进 `docs/HANDOFF_LOG.zh-CN.md`。外部移植参考也定期看：移植雷达 `catoncat/d2r-port-radar`（机器可读接口 `api/*.json`）、以及雷达收录的其它 TotK / Switch 移植（如 `OJZen/totk-mobile`）。**许可红线**：外部项目的代码不要直接搬进本仓库（Apache-2.0 与 MIT 不兼容；只读思路与格式事实，代码自己写；MIT / BSD 的按其声明使用并保留声明）。
+12. **卡住了就去 GitHub 找同类的 Switch 移植项目**：遇到解决不了的问题（格式不解、跑不起来、缺工具、缺知识）时，上 GitHub 搜相关的 Switch 游戏移植项目（关键词：游戏名 / title id / 报错符号 / 文件格式），从别人的实现里找解法与格式事实，再按本仓库的规矩自己写。查找途径：GitHub 搜索 + 移植雷达 `catoncat/d2r-port-radar`（`api/*.json` 机器可读接口）+ 雷达收录的移植仓库。找到之后把「哪条线索有用、怎么用」写进 `docs/HANDOFF_LOG.zh-CN.md`。**许可红线**：外部项目的代码不要直接搬进本仓库（Apache-2.0 与 MIT 不兼容；只读思路与格式事实，代码自己写；MIT / BSD 的按其声明使用并保留声明）。
+13. 交接控制面应单独提交并推送；无法提交/推送时，必须在 HANDOFF 中明确标注 `COMMIT: NOT DONE` / `PUSH: NOT DONE` 和恢复命令。
+14. 不使用 `git reset --hard`、强制推送或删除未提交改动来“清理”交接状态。
 
 ## 新会话恢复顺序
 
