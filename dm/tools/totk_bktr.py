@@ -104,7 +104,7 @@ def parse_ivfc(blob: bytes) -> dict:
             'num_levels': num_levels, 'levels': levels}
 
 
-def scan_payload(nca: S.Nca, section: dict, romfs: Path, limit: int = 4) -> list:
+def scan_payload(nca: S.Nca, section: dict, romfs: Path, limit: int = 40) -> list:
     """扫载荷里的 zstd 帧，按帧头写的字典 id 解开，并报出解出来的是什么。
 
     The payload's frames name their dictionary in the frame header; the dictionaries live in the
@@ -145,6 +145,12 @@ def scan_payload(nca: S.Nca, section: dict, romfs: Path, limit: int = 4) -> list
             out.append({'offset': position, 'error': str(error)[:60]})
             continue
         record = {'offset': position, 'dict_id': dict_id, 'content_size': content}
+        try:
+            object_ = zstandard.ZstdDecompressor(dict_data=dictionaries.get(dict_id)).decompressobj()
+            object_.decompress(read_plain(nca, section, position, 1 << 24))
+            record['compressed_size'] = (1 << 24) - len(getattr(object_, 'unused_data', b''))
+        except Exception:
+            record['compressed_size'] = None
         failure = '没有匹配的字典'
         for key in list(dictionaries) + [None]:
             try:
@@ -170,6 +176,36 @@ def scan_payload(nca: S.Nca, section: dict, romfs: Path, limit: int = 4) -> list
     return [{'frame_count': len(frames), 'frames': out}]
 
 
+def compare_base(package: Path, frames: list) -> list:
+    """把载荷里解出来的消息归档与本体里 romfs/Mals/*.sarc.zs 对一下（条目数与压缩大小）。
+
+    Compare the message archives decoded out of the payload with the base ones in the package zip:
+    the entry counts and the compressed sizes line up one by one, which is what shows that the
+    payload carries the updated versions of those files.
+    """
+    import zipfile
+    with zipfile.ZipFile(package) as archive:
+        base = []
+        for info in archive.infolist():
+            if info.filename.startswith('romfs/Mals/') and info.filename.endswith('.sarc.zs'):
+                base.append((info.filename, info.file_size))
+        rows = []
+        for record in frames:
+            if record.get('kind') != 'SARC' or record.get('entries', 0) < 1000:
+                continue
+            same = [name for name, size in base if size == record.get('compressed_size')]
+            closest = min(base, key=lambda item: abs(item[1] - record.get('compressed_size', 0)))
+            rows.append({
+                'payload_offset': record['offset'],
+                'payload_entries': record['entries'],
+                'payload_compressed': record.get('compressed_size'),
+                'base_closest': closest[0],
+                'base_size': closest[1],
+                'base_entries': record.get('base_entries'),
+            })
+        return rows
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('nca', type=Path, help='更新包里的 .nca 文件 | the update .nca file')
@@ -177,6 +213,8 @@ def main() -> int:
     parser.add_argument('--json', action='store_true', help='输出 JSON | print JSON')
     parser.add_argument('--romfs', type=Path,
                         help='本体 RomFS 目录（要带 Pack/ZsDic.pack.zs）：用来读 zstd 字典并扫载荷 | the base RomFS directory (must hold Pack/ZsDic.pack.zs)')
+    parser.add_argument('--compare-base', type=Path,
+                        help='数据包 zip：拿本体里的 romfs/Mals/*.sarc.zs 与载荷里的消息归档对大小 | the package zip: compare the base message archives against the payload')
     args = parser.parse_args()
 
     if not args.keys:
@@ -247,6 +285,8 @@ def main() -> int:
 
     if args.romfs:
         layout['payload'] = scan_payload(nca, section, args.romfs)
+        if args.compare_base:
+            layout['payload'].append(compare_base(args.compare_base, layout['payload'][0]['frames']))
     if args.json:
         print(json.dumps(layout, ensure_ascii=False, indent=2))
     else:
@@ -294,10 +334,18 @@ def main() -> int:
                     record.get('kind', '?'),
                     ('，%d 条（例：%s）' % (record['entries'], record['first_entries']))
                     if record.get('kind') == 'SARC' else ''))
+        if len(layout.get('payload', [])) > 1:
+            print('载荷里的消息归档与本体 romfs/Mals/ 的对照：')
+            for row in layout['payload'][1]:
+                print('  0x%08x  条目 %d  压缩 %s  ->  本体 %s（%d 字节）'
+                      % (row['payload_offset'], row['payload_entries'], row['payload_compressed'],
+                         row['base_closest'].replace('romfs/', ''), row['base_size']))
         print('布局自洽：%s' % layout['consistent'])
     return 0 if layout['consistent'] else 1
 
 
 if __name__ == '__main__':
     raise SystemExit(main())
+
+
 
