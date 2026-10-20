@@ -3,6 +3,56 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-20 22:10 Asia/Shanghai — [TOTK] NA-035 第一版：TotK 着色器包按宿主口径打好（5,534 个宿主键）
+
+- 会话目标：接着 NA-034 往下推 —— 让 TotK 的着色器**真的能被宿主按名找到**（此前两边键口径不同，宿主一个也找不到）。
+- 结果：着色器包已生成并逐个按宿主的校验规则核对通过；**1,640 个歧义控制键**（同一个控制段对应多种机器码）有报告，取舍规则写在工具里。下一步转向 TotK 数据与真机装载。
+
+[BEGIN] na-035-totk-shader-package
+
+- 命令：
+  1. `D:\Switch\.tools\venv\Scripts\python.exe dm\gfx\tools\totk_shaders.py D:\Switch\totk-work\shaders-out D:\Switch\totk-work\shaders-index5`
+  2. `D:\Switch\.tools\venv\Scripts\python.exe dm\gfx\tools\totk_shader_package.py --index D:\Switch\totk-work\shaders-index5\shader_index.tsv --spirv D:\Switch\totk-work\xlate-full --out D:\Switch\totk-work\package-totk --facts D:\Switch\totk-work\xlate-full\shader_facts_totk_v2.tsv`
+  3. `D:\Switch\.tools\venv\Scripts\python.exe dm\gfx\tools\test_totk_shader_package.py`
+  4. `D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\ci_checks.py`
+- 工作目录：`D:\Switch\d2r-android`（产物落在仓库外 `D:\Switch\totk-work\`）
+- 预期结果：索引带宿主键；包按宿主键命名且 meta 全部合规；测试与闸门全绿。
+- 日志路径：`D:\Switch\totk-work\package-totk\`（包与歧义报告）
+- 回滚点：`2a140a8`（NA-034 业务提交）
+
+[END] na-035-totk-shader-package
+
+- 退出码：索引 exit 0（9,807 变体键 / 5,534 宿主键）；打包 exit 0（**5,534 个宿主键，缺翻译结果 0**）；格式测试 exit 0；`ci_checks.py` 11 项通过 / 0 项失败（交接控制面一项在本条更新后重跑）。
+- 产物：`D:\Switch\totk-work\package-totk\shaders\<宿主键>.spv` 与 `.meta`（5,534 套）、`D:\Switch\totk-work\package-totk\ambiguity.tsv`、`D:\Switch\totk-work\package-totk\host-profile.json`、`D:\Switch\totk-work\shaders-index5\shader_index.tsv`；仓库内新增 `dm/gfx/tools/totk_shader_package.py` 与 `dm/gfx/tools/test_totk_shader_package.py`，修改 `dm/gfx/tools/totk_shaders.py`。
+- 结果：SUCCESS
+- 备注：**真机出图与进 `nnMain` 本批 NOT RUN**（TotK 数据还没装进手机）。
+
+证据（本条目对应的命令与退出码）：
+
+- **两个键口径本来就对不上（根因）**：宿主 `dm/android/native/nvn_vulkan_shader.inc` 的 `shader_get(control)` 用
+  `sha256(控制段前 0x880 字节)[:16]` 当键，再按这个键去数据包找 `<键>.meta` 与 `<键>.spv`；
+  而流水线 `dm/gfx/tools/totk_shaders.py` 的键是 `sha256(控制段+机器码+c1)[:16]`。
+  **两个口径不同 → 宿主一个着色器都找不到**。
+- **为什么 TotK 非得带机器码**：TotK 的归档里**同一个 NVN 控制段被多个机器码变体共用** ——
+  实测 49,089 个变体，按 `(控制段+机器码+c1)` 只有 9,807 个唯一值，按控制段只有 **5,534** 个，
+  其中 **1,640 个控制段对应多种机器码**（最多的一个 47 种），差异中位数 1,297 字节（最大 35,463 字节）——
+  是真的不同着色器，不是填充差异。
+- **本批做法**：新增 `dm/gfx/tools/totk_shader_package.py`，按**宿主口径**重新出包：
+  索引里同时给出变体键与宿主键（`totk_shaders.py` 多一列 `host_key`）；
+  包里每个宿主键一对 `<键>.spv` + `<键>.meta`；
+  `meta` 用与 D2R 侧 `dm/android/tools/build_shaders.py` **完全相同**的 DMVK 格式
+  （魔数、版本、阶段、描述符组、绑定数、c1 长度、属性数 + 每绑定 40 字节 + c1 + 32 个属性类型）；
+  绑定表来自翻译产物的 `res.json`（cbufs/sbufs/textures/images），属性类型来自 SPIR-V 的输入位置加事实表的分量类型。
+  **歧义控制段**按「出现次数最多」选一个变体，并把每个歧义控制段的全部候选写进 `ambiguity.tsv`。
+- **逐个按宿主规则核对**：5,534 个 `meta` 全部满足宿主 `shader_load_by_key` 的校验
+  （魔数 DMVK、版本 1、绑定数 ≤ 256、c1 长度 ≤ 65536、属性数 32，且**总字节数正好等于 28 + 绑定数×40 + c1 长度 + 128**），
+  **不合规 0 个**；5,534 个 SPIR-V 的魔数 `0x07230203` **全部正确**；阶段分布 vs 1,725 / ps 3,791 / cs 18。
+- **新闸门**：`dm/gfx/tools/test_totk_shader_package.py` 用合成的 res.json 与最小 SPIR-V 走一遍打包工具，
+  再按宿主那条规则逐字节核对（绑定数、c1 字节、属性类型、文件总长）；已接进 `ci_checks.py`（11 项通过）。
+- **仍要真机确认的**：1,640 个歧义控制段上「游戏实际用的是哪个变体」—— 现在的取舍规则是「出现次数最多」，
+  真实规则要等游戏跑起来看画面才能定；这也是下一步数据装好之后的检查项之一。
+- 下一步：**NA-036** —— 把 TotK 数据装进一加 12，走 M1 的「装载 → `nnMain`」。
+
 ## 2026-10-20 20:30 Asia/Shanghai — [TOTK] NA-034 收口：c[2] 布局按档位、驱动选型真机实测，并查出着色器键口径的新拦路虎
 
 - 会话目标：执行 NA-034（把 c[2] 驱动常量段的句柄表布局做成按规则集可选，宿主与翻译器两侧一起改），并把 TotK 往一加 12 上推。
