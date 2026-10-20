@@ -68,10 +68,14 @@ class Romfs:
             return data_offset, size, name
 
         out = []
-        stack = [directory(0)]
+        # 每个目录项带**完整前缀**入栈：只带自己的名字会把不同层级里同名的目录混在一起，
+        # 包里就会出现重名路径与放错目录的文件。
+        # Every directory is pushed with its full prefix: carrying only its own name mixes up directories with the
+        # same name at different levels, which yields duplicate and misplaced paths in the package.
+        stack = [(0, "")]
         while stack:
-            _parent, _sibling, child, file, name = stack.pop()
-            prefix = "" if name == "" else name + "/"
+            offset, prefix = stack.pop()
+            _parent, _sibling, child, file, _hash, name_size = struct.unpack_from("<6I", self.dirs, offset)
             entry = file
             while entry != 0xFFFFFFFF:
                 data_offset, size, file_name = file_entry(entry)
@@ -79,7 +83,9 @@ class Romfs:
                 entry = struct.unpack_from("<I", self.files, entry + 4)[0]
             child_entry = child
             while child_entry != 0xFFFFFFFF:
-                stack.append(directory(child_entry))
+                _cp, _cs, _cc, _cf, _ch, child_name_size = struct.unpack_from("<6I", self.dirs, child_entry)
+                child_name = self.dirs[child_entry + 24:child_entry + 24 + child_name_size].split(b"\0")[0].decode("utf-8", "replace")
+                stack.append((child_entry, prefix + (child_name + "/" if child_name else "")))
                 child_entry = struct.unpack_from("<I", self.dirs, child_entry + 4)[0]
         return out
 

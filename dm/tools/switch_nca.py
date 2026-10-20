@@ -292,10 +292,15 @@ def romfs_entries(base: int, head: dict, dirs: bytes, files: bytes) -> list:
         return data_off, size, name
 
     out = []
-    stack = [dir_entry(0)]
+    # 每个目录项带**完整前缀**入栈：只带自己的名字会把不同层级里同名的目录混在一起，
+    # 解出来的路径既会重名也会放错目录。
+    # Every directory is pushed with its full prefix: carrying only its own name mixes up directories with the
+    # same name at different levels, which yields both duplicate and misplaced paths.
+    stack = [(0, '')]
     while stack:
-        parent, sibling, child, file, name = stack.pop()
-        prefix = '' if name == '' else name + '/'
+        offset, prefix = stack.pop()
+        _parent, _sibling, child, file, _hash, name_size = struct.unpack_from('<6I', dirs, offset)
+        name = dirs[offset + 24: offset + 24 + name_size].split(b'\0')[0].decode('utf-8', 'replace')
         # 文件
         entry = file
         while entry != 0xFFFFFFFF:
@@ -305,7 +310,9 @@ def romfs_entries(base: int, head: dict, dirs: bytes, files: bytes) -> list:
         # 子目录
         child_entry = child
         while child_entry != 0xFFFFFFFF:
-            stack.append(dir_entry(child_entry))
+            _cp, _cs, _cc, _cf, _ch, cn = struct.unpack_from('<6I', dirs, child_entry)
+            child_name = dirs[child_entry + 24: child_entry + 24 + cn].split(b'\0')[0].decode('utf-8', 'replace')
+            stack.append((child_entry, prefix + (child_name + '/' if child_name else '')))
             child_entry = struct.unpack_from('<I', dirs, child_entry + 4)[0]   # 兄弟目录在 +4（+8 是子目录） | the sibling directory is at +4 (+8 is the child)
     return out
 
