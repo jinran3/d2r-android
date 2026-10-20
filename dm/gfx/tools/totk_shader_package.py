@@ -13,6 +13,11 @@ TotK 的麻烦：**同一个控制段会被多个机器码变体共用**（实�
 用法：
   totk_shader_package.py --index <shader_index.tsv> --spirv <翻译输出目录> --out <包目录>
                           [--facts <事实表.tsv>] [--ambiguity <歧义报告路径>]
+  totk_shader_package.py --verify-shaders <着色器包目录> [--tex-base 0x20] [--tex-end 0x120]
+
+`--verify-shaders` 单独核对着色器包：每个 `.meta` 里贴图/图像绑定的 c[2] 字节偏移
+（`(handle & 0x3fff) * 4`）必须落在该档位的句柄表区间内且 8 字节对齐 ——
+这是「TotK 用合并句柄表 0x20+8r」这个结论的独立验证：机器码里的贴图立即数真的指着那一张表。
 产出（仓库外）：
   <包目录>/shaders/<宿主键>.spv    翻译好的 SPIR-V
   <包目录>/shaders/<宿主键>.meta    紧凑反射（DMVK 格式，与 D2R 侧 build_shaders.py 同格式）
@@ -109,14 +114,59 @@ def spirv_inputs(code, facts):
     return attributes
 
 
+def verify_shaders(directory, tex_base, tex_end):
+    """核对着色器包：meta 里的贴图/图像绑定必须落在该档位的句柄表区间内。
+
+    Check the shader package: the texture and image bindings in every .meta must sit inside the
+    profile's handle table.
+    """
+    import struct
+    metas = sorted(p for p in directory.iterdir() if p.name.endswith(".meta"))
+    if not metas:
+        raise SystemExit("no .meta files in " + str(directory))
+    offsets = set()
+    bad = []
+    for path in metas:
+        blob = path.read_bytes()
+        magic, version, stage, group, count, c1_size, attributes = struct.unpack_from("<4s6I", blob, 0)
+        if magic != b"DMVK" or version != 1 or attributes != 32:
+            bad.append((path.name, "header"))
+            continue
+        position = 28
+        for _ in range(count):
+            kind, binding, slot, cb_slot, cb_offset, handle, type, array, flags, separate = struct.unpack_from("<10I", blob, position)
+            if kind in (3, 4):
+                offset = (handle & 0x3FFF) * 4
+                offsets.add(offset)
+                if not tex_base <= offset < tex_end or (offset - tex_base) % 8:
+                    bad.append((path.name, hex(offset)))
+            position += 40
+    print("着色器包 %s：%d 个 meta，贴图/图像用到的 c[2] 偏移 %d 个（%s .. %s）"
+          % (directory, len(metas), len(offsets), hex(min(offsets)) if offsets else "-",
+             hex(max(offsets)) if offsets else "-"))
+    if bad:
+        print("不合规 %d 个（前面几个：%s）" % (len(bad), bad[:5]))
+        return 1
+    print("全部落在 [%#x, %#x) 且 8 字节对齐 ✓" % (tex_base, tex_end))
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--index", type=Path, required=True, help="totk_shaders.py 产出的索引 TSV | the index TSV")
-    parser.add_argument("--spirv", type=Path, required=True, help="翻译输出目录（<键>.spv 与 <键>.res.json）| the translation output dir")
-    parser.add_argument("--out", type=Path, required=True, help="包输出目录 | the package output dir")
+    parser.add_argument("--verify-shaders", type=Path, help="只核对着色器包 | only verify the shader package")
+    parser.add_argument("--tex-base", type=lambda v: int(v, 0), default=0x20, help="贴图句柄表基址 | the texture handle table base")
+    parser.add_argument("--tex-end", type=lambda v: int(v, 0), default=0x120, help="贴图句柄表上界 | the end of the texture handle table")
+    parser.add_argument("--index", type=Path, help="totk_shaders.py 产出的索引 TSV | the index TSV")
+    parser.add_argument("--spirv", type=Path, help="翻译输出目录（<键>.spv 与 <键>.res.json）| the translation output dir")
+    parser.add_argument("--out", type=Path, help="包输出目录 | the package output dir")
     parser.add_argument("--facts", type=Path, help="事实表（属性分量类型）| the fact table")
     parser.add_argument("--ambiguity", type=Path, help="歧义报告路径 | the ambiguity report path")
     args = parser.parse_args()
+    if args.verify_shaders:
+        return verify_shaders(args.verify_shaders, args.tex_base, args.tex_end)
+    for name in ("index", "spirv", "out"):
+        if getattr(args, name) is None:
+            parser.error("--%s is required unless --verify-shaders is used" % name)
 
     rows = read_index(args.index)
     facts = read_facts(args.facts)
