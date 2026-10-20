@@ -46,6 +46,7 @@ import json
 import os
 import struct
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -142,6 +143,7 @@ class Nca:
         self.path = Path(path)
         self.keys = keys
         self.file = open(self.path, 'rb')
+        self._local = threading.local()   # 每线程一个句柄：共用一个句柄时 seek/read 会串台 | one handle per thread: a shared handle interleaves seek/read
         raw = self.file.read(NCA_HEADER_SIZE)
         if len(raw) < NCA_HEADER_SIZE:
             raise SystemExit('NCA 太小，读不出头：%s' % self.path)
@@ -176,6 +178,14 @@ class Nca:
         self.kak = kak
         self.key_area = AES.new(kak, AES.MODE_ECB).decrypt(head[0x300:0x340])
         self.content_key = self.key_area[0x20:0x30]
+
+    def handle(self):
+        """当前线程的读句柄（每个线程一个，避免 seek/read 互相串台）。 | The reading handle of the current thread (one per thread, so seek/read do not interleave)."""
+        handle = getattr(self._local, 'handle', None)
+        if handle is None:
+            handle = open(self.path, 'rb')
+            self._local.handle = handle
+        return handle
 
     def close(self):
         self.file.close()
@@ -216,10 +226,11 @@ class Nca:
         absolute = section['offset'] + offset
         aligned = absolute & ~0xF
         skip = absolute - aligned
-        self.file.seek(aligned)
-        raw = self.file.read(size + skip)
+        handle = self.handle()
+        handle.seek(aligned)
+        raw = handle.read(size + skip)
         if len(raw) < size + skip:
-            raise SystemExit('读段数据不够：%s' % self.path)
+            raise SystemExit('读段数据不够（%d < %d）：%s' % (len(raw), size + skip, self.path))
         ctr = bytearray(16)
         for index in range(8):
             ctr[index] = section['section_ctr'][7 - index]

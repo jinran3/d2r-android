@@ -216,6 +216,12 @@ def main():
     parser.add_argument("--reuse", type=Path, default=None,
                         help="复用已解出的数据目录（应有 ExeFS/、RomFS/、game/、shaders/spirv/），跳过最慢的两步")
     parser.add_argument("--subgroup", type=int, default=64)
+    parser.add_argument("--ruleset", default="touch-run-v4",
+                        help="改写规则域：touch-run-v4（D2R 触屏版，默认）/ totk-run-v1（TotK v1.4.2） | rewriter rules domain")
+    parser.add_argument("--exefs", type=Path, default=None,
+                        help="已解出的 ExeFS 目录（TotK 用：游戏包是 NCA，ExeFS 由 dm/tools/switch_nca.py 解出） | already extracted ExeFS directory")
+    parser.add_argument("--modules-only", action="store_true",
+                        help="只做模块那一步（改写 + 打成 ELF 库），不组装数据包 | only do the module step (rewrite + pack into ELF libraries)")
     args = parser.parse_args()
 
     work = args.workspace
@@ -242,32 +248,45 @@ def main():
             say(f"完成：{output}（{output.stat().st_size / 2**30:.2f} GiB）")
             return
 
-        game_input = gather_game_files(args.game, work / "input")
-        base, update = find_title_files(game_input)
-        say(f"本体 = {base.name}（{base.stat().st_size / 2**30:.2f} GiB）")
-        say(f"更新 = {update.name}（{update.stat().st_size / 2**30:.2f} GiB）")
-        keys = unpack_keys(args.keys, work)
-
-        base_nsp = to_nsp(base, work)
-        update_nsp = to_nsp(update, work)
-
         produce = work / "produce"
         layout = produce / "layout"
-        run([sys.executable, HERE / "extract_packages.py", base_nsp, update_nsp, keys, layout,
-             "--hactool", HACTOOL], "用密钥解出 ExeFS 与 RomFS（最慢的两步之一）", timeout=6 * 60 * 60)
-        romfs, exefs = layout / "RomFS", layout / "ExeFS"
-        for path, label in ((romfs, "RomFS"), (exefs, "ExeFS")):
-            if not path.is_dir():
-                raise PackageError(f"解包没有产出 {label}：{path}")
+        romfs = None
+        if args.exefs:
+            # 自备 ExeFS（TotK：游戏包是 NCA，ExeFS 由 dm/tools/switch_nca.py 解出，RomFS 还要等 BKTR 补丁）
+            exefs = args.exefs
+            if not exefs.is_dir():
+                raise PackageError(f"--exefs 指向的目录不存在：{exefs}")
+            say(f"用自备的 ExeFS：{exefs}")
+        else:
+            game_input = gather_game_files(args.game, work / "input")
+            base, update = find_title_files(game_input)
+            say(f"本体 = {base.name}（{base.stat().st_size / 2**30:.2f} GiB）")
+            say(f"更新 = {update.name}（{update.stat().st_size / 2**30:.2f} GiB）")
+            keys = unpack_keys(args.keys, work)
+            base_nsp = to_nsp(base, work)
+            update_nsp = to_nsp(update, work)
+            run([sys.executable, HERE / "extract_packages.py", base_nsp, update_nsp, keys, layout,
+                 "--hactool", HACTOOL], "用密钥解出 ExeFS 与 RomFS（最慢的两步之一）", timeout=6 * 60 * 60)
+            romfs, exefs = layout / "RomFS", layout / "ExeFS"
+            for path, label in ((romfs, "RomFS"), (exefs, "ExeFS")):
+                if not path.is_dir():
+                    raise PackageError(f"解包没有产出 {label}：{path}")
 
         game = produce / "game"
+        produce.mkdir(parents=True, exist_ok=True)
         game.mkdir(exist_ok=True)
-        environment = dict(os.environ, DM_TARGET="android", DM_RULESET="touch-run-v4")
+        environment = dict(os.environ, DM_TARGET="android", DM_RULESET=args.ruleset)
+        say(f"规则域 = {args.ruleset}")
         for module in ("main", "sdk", "subsdk0"):
             run([sys.executable, ROOT / "tools" / "patch_nso.py", exefs / module, game, module],
                 f"改写模块 {module}", env=environment)
         run([sys.executable, HERE / "guest_elf.py", game, game, "main", "sdk", "subsdk0"],
             "把模块打成 ELF 动态库", env=environment)
+        if args.modules_only:
+            say(f"只做模块：产物在 {game}")
+            return
+        if romfs is None:
+            raise PackageError("自备 ExeFS 时只能出模块部分：RomFS（BKTR 补丁）、着色器与派生表还没就绪")
 
         # 三张宿主表从 RomFS 生成到工作目录，再拆成运行时数据 derived.tsv（随包走）。不再写源码树：
         # 仓库里提交的是运行时替身，任何构建都不该被一组由游戏文件生成的头文件污染。
