@@ -1,12 +1,12 @@
 ---
 protocol: 1
-updated_at: 2026-10-20T10:10:00+08:00
+updated_at: 2026-10-20T11:30:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 944681d
+observed_head: a25ccc3
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 944681d
+origin_head_at_checkpoint: a25ccc3
 code_worktree: CLEAN
 next_action_id: NA-032
 ---
@@ -151,7 +151,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b26`，17,725,903 字节）
 - 本次会话目标：NA-031（模块来源接规则域 + HLE 缺口普查）与 NA-032（§4.4 着色器事实表来源）。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：把解出的着色器归档解析成**事实表**（维度 / 格式 / 线程组）并让翻译链吃下（NA-032 的下一步）；**改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」和 `blr x18` 调用两种 D2R 没有的形态，当前 TotK 规则域先不做 x18 改写，Android 侧靠宿主保全 x18；正式做法见 NA-032 之后那一步）；更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这层）；真机装载与进 `nnMain`（一加 12 未接）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线）。
+- 未完成：着色器事实表里**贴图维度 / 图像格式 / 属性分量类型**那几项还没定位（控制头里的描述符表），以及让翻译链吃下 TotK 着色器（NA-032 剩下的部分；计算着色器的线程组与共享内存**已直接可得**）；**改写器的 x18 适配**（TotK 的 main 有「分支跳进独占窗口中间」和 `blr x18` 调用两种 D2R 没有的形态，当前 TotK 规则域先不做 x18 改写，Android 侧靠宿主保全 x18；正式做法见 NA-032 之后那一步）；更新包 RomFS 的 BKTR 补丁应用（最终数据集还差这层）；真机装载与进 `nnMain`（一加 12 未接）；批 6 剩余的 D2R 清理（D2R 的 CUTS/OBS 表、`casc_overlay.py`、iOS 资产管线）。
 - 最近一次成功命令：`build.py --game-run --version trim-b26` exit 0（APK 17,725,903 字节）；`ci_checks.py` 10 项通过 / 0 项失败；`agent_handoff_check.py --verify` exit 0；`test_rewriter.py` exit 0；`make_package.py --ruleset totk-run-v1 --exefs ... --modules-only` exit 0；`switch_shaders.py` exit 0（30 个着色器文件 + 清单）。
 - 最近一次失败命令及原因：① `make_package.py` 第一次跑 TotK 报 `FileNotFoundError: ...\produce\game` —— 自备 ExeFS 那条路少了 `produce.mkdir`，已修；② `test_rewriter.py` 首次报 `FileNotFoundError` —— 本机没设 `DM_ANDROID_TOOLS`（脚本按 `~/dm-work/tools/android` 找工具链），设上即 exit 0；③ `switch_nca.py romfs-extract` 多线程共用一个文件句柄导致读串台（已改为每线程一个句柄，并加了读满校验）。
 - 已验证产物路径：`D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk`（`trim-b26`）；TotK 侧仓库外产物：`D:\Switch\totk-work\`（upd-exefs、pack-totk\produce\game、guest-so、shaders-out、base\RomFS 解包中）
@@ -200,6 +200,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-030 TotK 模块进 Android 装载链（见下面日志条目）：用 `DM_RULESET=totk-run-v1 DM_TARGET=android` 重跑改写器（四个模块全部 exit 0），再用 `dm/android/tools/guest_elf.py` 把 main / sdk / subsdk0 打成 `libdmguest_*.so`（61,817,600 / 13,009,664 / 6,767,368 字节，`.target` = `android-context-v1` ✓）；再照 `dm/android/native/game_modules.c` 的 `parse()` 复刻宿主解析，三个模块全部读出：符号 706 / 23,039 / 10,110（合计 33,855）、重定位 2,070 / 19,027 / 15,648（合计 36,745）、导入 680 / 9 / 664（合计 1,353），与 NA-027 的离线统计对得上。**跨模块未解析只剩 9 个符号，且全是 `glslc*`**（NVIDIA 的运行时 GLSL 编译器 API：`glslcInitialize` / `glslcCompile` / `glslcCompilePreSpecialized` / `glslcCompileSpecialized` / `glslcFinalize` / `glslcGetDefaultOptions` / `glslcGetVersion` / `glslcSetAllocator`）——D2R 没有这个需求。宿主的 `resolve_import`（`dm/host/hle.c`）对模块外导入有**未实现桩兜底**，所以这 9 个不会挡住装载，只会在 HLE 审计里记成 STUB（真机跑起来后用 `DM_HLECOUNT` 看有没有被调用过）。**本批 NOT RUN**：真机上的实际装载与进 `nnMain`（一加 12 未接）。
 - NA-031 模块来源接规则域 + HLE 缺口普查（`48f5d1f`）：`make_package.py` 新增 `--ruleset` / `--exefs` / `--modules-only`，TotK 侧一条命令出模块（`--ruleset totk-run-v1 --exefs <目录> --modules-only` exit 0，产物 `game/` 里是三个 `libdmguest_*.so` 与 `{name}.fixups/gates.tsv`，正是数据包要的形态），D2R 路径一字未变。**HLE 缺口普查（关键结论）**：TotK 三模块未定义导入 1,266 个，宿主已有的 HLE_FORCE 表（173 条）覆盖 66 个，**真正缺的只有 8 个 `glslc*`**（NVIDIA 运行时 GLSL 编译器 API，D2R 没有这个需求）；宿主的「未实现桩」是良性的（记一次日志、返回 0，不中止），所以符号层不用改宿主。另外把 58 个 svc 号与宿主覆盖面对了一遍：宿主有 case 的 34 个，**没有 case 的 24 个**是 #19 MapSharedMemory、#20 UnmapSharedMemory、#21 CreateTransferMemory、#31 ConnectToNamedPort、#33 SendSyncRequest、#34 SendSyncRequestWithUserBuffer、#35 SendAsyncRequestWithUserBuffer、#50 SetThreadActivity、#51 GetThreadContext3、#54 SynchronizePreemptionState、#64 CreateSession、#65 AcceptSession、#67 ReplyAndReceive、#68 ReplyAndReceiveWithUserBuffer、#75 CreateCodeMemory、#81 MapTransferMemory、#82 UnmapTransferMemory、#112 CreatePort、#114 ConnectToPort 等（名字取自 Ryujinx 的 `[Svc(0x..)]` 枚举）——它们多是 Horizon IPC，而 D2R 宿主是直接接管**服务客户端函数**（HLE_FORCE）而不走 IPC，所以真机上的实际缺口预计远小于 24 个。
 - NA-032 §4.4 着色器事实表来源（`944681d`）：**任天堂的 zstd 字典就在游戏自己里** —— `/Pack/ZsDic.pack.zs` 是个 SARC装着 3 份 128 KB 字典（`zs.zsdic` id=1、`bcett.byml.zsdic` id=2、`pack.zsdic` id=3），着色器包的 zstd 帧头写着自己要 id=1；之前「Dictionary mismatch」的死结由此解开。用新写的 `dm/tools/switch_shaders.py` 解出全部着色器归档：`ApplicationPackage.Nin_NX_NVN.release.sarc.zs` → SARC 19 个条目（含 `AglShader.sharcb` 794,624 字节等），12 个 `*.bfsha.zs` → FSHA 容器（`material...` 解出 101,165,712 字节），条目里带 `cTexSrc`、`gl_InstanceID`、`grass_shader` 这类**反射元数据字符串** —— 也就是 D2R 那条「从 PC 版反射冻结事实表」的路对 TotK 不成立，但**从游戏自带的着色器归档取**这条路成立（方案 D 可行），§4.4 的 go/no-go 风险基本解除。
+- NA-032 着色器事实表（第一半，`a25ccc3`）：按确认的归档格式自己写了 `dm/gfx/tools/totk_shaders.py`（BNSH / FSHA / BAHS v9 三种容器 → 逐着色器解出控制头、机器码与 C1，算出**着色器键** = `sha256(control+program+c1)[:16]`、阶段、控制头尺寸）。实测：`/Shader` 归档里 49,089 条记录、**9,807 个唯一键**（cs 18 / ps 5,557 / vs 4,232）；**计算着色器的线程组与共享内存直接从控制头 0x748 读出**（如 64x1x1、8x8x1、1x1x1，共享内存 0 / 2048 字节）—— 这类事实**不需要 PC 反射**，TotK 侧直接可得。贴图维度 / 图像格式 / 属性分量类型的位置还没定位（C1 块很小，多半在控制头的描述符表），仍按方案 A / B 走。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 
 ### 代码工作区（排除交接控制面）
