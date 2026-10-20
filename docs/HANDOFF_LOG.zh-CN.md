@@ -3,6 +3,53 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 04:40 Asia/Shanghai — [TOTK] 着色器按 Android 口径重译：修掉「32 子组 + 描述符集撞车」
+
+- 会话目标：把不依赖手机的事做完，并核实上一轮「已验证」的说法。
+- 结果：**发现并修掉一个真实缺陷** —— TotK 的着色器此前是用**桌面版翻译器**译的，它既不认作业里的 `host_subgroup_size`（一律按 32 宽子组），也不分每阶段的描述符集；一加 12 实测是 **64** 宽子组，顶点与片元的绑定号还挤在同一个描述符集里。已改用 **Android 口径的翻译器**全量重译（9,807/9,807，0 失败）并重打包。顺带发现 **D2R 的 Android 翻译器根本构建不出来**（重名成员 CS0111），也一并修好了。另用实测证明 TotK 的改写不碰 x18。
+
+[BEGIN] na-036-android-shaped-shaders
+
+- 命令：
+  1. `dm/android/tools/build_android_translator.py --out … --dotnet …\tools\dotnet10\dotnet.exe`
+  2. `dm/gfx/tools/totk_xlate.py --index … --spirv … --xlate …\dmsh_android.dll --shards 6`
+  3. `dm/gfx/tools/totk_shader_package.py --index … --spirv … --out …` 与 `--verify-shaders …`
+  4. `dm/tools/verify_totk_rewrite.py --exefs … --patched …`
+- 工作目录：`D:\Switch\d2r-android`
+- 预期结果：Android 翻译器能构建；重译全绿；描述符集与子组口径正确；包重建；改写不碰 x18。
+- 日志路径：`D:\Switch\totk-work\xlate-android.log`、`D:\Switch\totk-work\cache\package-totk3.log`
+- 回滚点：`837228b`
+
+[END] na-036-android-shaped-shaders
+
+- 退出码：翻译器构建 exit 0 ✓；全量重译 exit 0（9,807 成功 / 0 失败 ✓）；重打包 exit 0 ✓；`--verify-shaders` exit 0 ✓；`verify_totk_rewrite.py` exit 0 ✓；`ci_checks.py` 13 项通过 / 0 失败 ✓。
+- 产物：`D:\Switch\totk-work\xlate-android\`（重译的 SPIR-V）、`D:\Switch\totk-work\android-translator\`（Android 翻译器）、`D:\Switch\totk-work\package-totk\`（着色器包与数据包）；仓库内新增 `dm/android/tools/build_android_translator.py` 与 `dm/tools/verify_totk_rewrite.py`，修改 `dm/android/tools/build_shaders.py` 与 `dm/gfx/tools/totk_xlate.py`（提交 `837228b`）。
+- 结果：SUCCESS
+- 备注：**真机部署与开机本批 NOT RUN**（手机断开）。
+
+证据（本条目对应的命令与退出码）：
+
+- **★ 上一轮「已验证」的说法过头了，这里纠正**：TotK 的 SPIR-V 是用 `dm/gfx/tools/dmsh_xlate`（桌面版）译的，
+  而 D2R 的 Android 管线用的是 `dm/android/tools/build_shaders.py` 从同一份源再注入几处得到的**另一个**翻译器。
+  桌面那个**不认** `host_subgroup_size`（一律 32 宽子组）、**不分**每阶段描述符集 →
+  ① 一加 12 实测子组是 **64**（探针实测），子组运算会按错的宽度算；
+  ② 顶点与片元的绑定号挤在描述符集 0 里，互相撞车。
+  上一轮我校验的是**文件格式与键命名**，没校验**翻译口径**，就说"已验证通过"，这个说法不成立。
+- **重译结果**：9,807 个键全部成功、0 失败，SPIR-V 539,594,700 字节；逐个校验魔数 **0 个坏** ✓；
+  描述符集分布：**vs 4,232 个全在集 0**、**ps 5,453 个是 {0,1}**（另 104 个无绑定，只有 {0}）、cs 18 个全在集 0 ✓。
+- **D2R 的 Android 翻译器此前构建不出来**：模板往源里注入 `QueryHostSupportsShaderFloat64`，而基座里已经有一个
+  （按作业的 `host_no_fp64` 作答）→ 同名成员 CS0111，编译直接失败。现在改成**替换**而不是追加 ✓，
+  并且 c[2] 句柄表区间改成**按作业给**（`c2_tex_base` / `c2_tex_end`，缺省仍是 D2R 的 0x168/0x568 ✓ 所以 D2R 产物不变）。
+- **TotK 作业改成 Android 口径**：`totk_xlate.py` 现在带 `host_subgroup_size=64`（真机实测值）、每阶段独立描述符集、
+  以及 c[2] 区间 0x20..0x120 ✓（桌面翻译器会忽略这三项，正是它们之前被漏掉的原因）。
+- **x18 的担心被证伪**：新增 `dm/tools/verify_totk_rewrite.py`，把原始 NSO 的 .text 与改写后的映像逐字节比：
+  main 改 3,248 字节 / 814 段（全部 `tpidr_r`）、sdk 改 919 字节 / 230 段（tpidr_r / tpidrro_r / tpidr_w / cntpct / svc）、
+  subsdk0 无改动；**每一处差异都落在登记的改写点上，没有旁改**，且**没有一个改写点涉及 x18 / w18** ✓。
+  结论：「TotK 规则域不做 x18 改写」这条决定是安全的（交接里"分支跳进独占窗口中间"那类形态仍无实测覆盖）。
+- **Mac 侧成本不变**：`build_shaders.py` 不在翻译链版本的计算文件里，所以本轮改动不移动链版本；
+  `dmsh_chain.h` 里的版本本来就过期（上一轮改 `dmsh_xlate/Program.cs` 时就变了），Mac 侧仍需按原清单重建。
+- 下一步：**NA-036** —— 手机回来后推包、导入、开机看日志。
+
 ## 2026-10-21 02:10 Asia/Shanghai — [TOTK] 启动界面的游戏档位、导入上限、着色器包按档位校验
 
 - 会话目标：把不依赖手机的事做完。
