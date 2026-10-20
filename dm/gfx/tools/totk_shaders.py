@@ -83,6 +83,7 @@ def _stage(control: bytes, code: bytes) -> dict:
         "control_bytes": len(control),
         "program_bytes": len(program),
         "c1_bytes": len(c1),
+        "c1": c1.hex(),          # 翻译器解间接跳转表要用（c[1] 的 BRX 跳转表） | the translator needs it (the BRX jump table in c[1])
     }
     if kind == 5:
         x, y, z, shared = _read(control, COMPUTE_FACTS_OFF, "<4I")
@@ -202,13 +203,13 @@ def main():
             records[key] = dict(info, source=path.name)
             (code_dir / (key + ".bin")).write_bytes(program)
     with (args.output / "shader_index.tsv").open("w", encoding="utf-8") as f:
-        f.write("key\tstage\tsource\tcontrol_bytes\tprogram_bytes\tc1_bytes\tlocal\tshared\n")
+        f.write("key\tstage\tsource\tcontrol_bytes\tprogram_bytes\tc1_bytes\tlocal\tshared\tc1\n")
         for key in sorted(records):
             r = records[key]
             local = "x".join(str(v) for v in r["local"]) if "local" in r else "-"
-            f.write("%s\t%s\t%s\t%d\t%d\t%d\t%s\t%d\n" % (
+            f.write("%s\t%s\t%s\t%d\t%d\t%d\t%s\t%d\t%s\n" % (
                 key, r["stage"], r["source"], r["control_bytes"], r["program_bytes"], r["c1_bytes"],
-                local, r.get("shared", 0)))
+                local, r.get("shared", 0), r["c1"]))
     compute = [r for r in records.values() if r["stage"] == "cs"]
     stages = {}
     for r in records.values():
