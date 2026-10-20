@@ -348,6 +348,39 @@ def cmd_romfs_list(args):
     nca.close()
 
 
+def cmd_romfs_export(args):
+    """把 RomFS 段**解密后**导出成一个整文件：宿主或手机端不必再解 30 多万个小文件。
+
+    TotK 的 RomFS 是一棵深目录树（304,207 个文件）。逐个取出再逐个推给手机既慢又占地方；
+    直接导出解密后的整段（RomFS 映像），由读取器按路径取文件即可。
+
+    Export the decrypted RomFS section as one file: the host (or the phone) then reads files
+    by path instead of dealing with more than 300k separate files.
+    """
+    nca = Nca(args.nca, read_keys(args.prod_keys))
+    section = [s for s in nca.sections if s['partition_type'] == PARTITION_ROMFS and s['fs_type'] == FS_TYPE_ROMFS][0]
+    if section['crypt_type'] != CRYPT_CTR:
+        raise SystemExit('这一段不是 CTR 加密的（%s），导不出来' % section['crypt_type'])
+    base, head, dirs, files = nca.romfs(section)
+    total = section['size']
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    # IVFC 头本身在 NCA 的头区（不在段数据里），所以映像旁边要另存一份，读取方才知道
+    # 去哪里找 RomFS 头与各级偏移。
+    # The IVFC header lives in the NCA header, not in the section data, so it is written next to the image:
+    # without it a reader cannot find the RomFS header or the level offsets.
+    (out.with_suffix(out.suffix + ".ivfc")).write_bytes(section['fs_header'])
+    written = 0
+    with out.open('wb') as target:
+        while written < total:
+            size = min(1 << 26, total - written)
+            target.write(nca.read_section(section, written, size))
+            written += size
+            if written % (1 << 28) < size:
+                print('  已导出 %.2f / %.2f GiB' % (written / 2**30, total / 2**30), flush=True)
+    print('已导出 %s（%.2f GiB，%d 个文件）' % (out, total / 2**30, len(romfs_entries(base, head, dirs, files))))
+
+
 def cmd_romfs_extract(args):
     nca = Nca(args.nca, read_keys(args.prod_keys))
     section = [s for s in nca.sections if s['partition_type'] == PARTITION_ROMFS and s['fs_type'] == FS_TYPE_ROMFS][0]
@@ -399,6 +432,10 @@ def main():
     rext.add_argument('--filter', default=None)
     rext.add_argument('--jobs', type=int, default=8)
     rext.set_defaults(func=cmd_romfs_extract)
+    rexp = sub.add_parser('romfs-export', help='把解密后的 RomFS 段导出成一个整文件 | export the decrypted RomFS section as one file')
+    rexp.add_argument('nca')
+    rexp.add_argument('--out', required=True)
+    rexp.set_defaults(func=cmd_romfs_export)
     args = parser.parse_args()
     args.func(args)
 
