@@ -164,7 +164,7 @@ static void clear_color(const p_clear_color *c) {
     // 非完整剪裁必须保留未覆盖像素；不能用整张清除替代。
     // A partial scissor must preserve uncovered pixels; never substitute a whole-image clear.
     if(state.scissor.w>0&&(state.scissor.x||state.scissor.y||state.scissor.w<(int)dimension(e->texture.d.width,r.baseMipLevel)||state.scissor.h<(int)dimension(e->texture.d.height,r.baseMipLevel)))die("Vulkan scissored clear pending");
-    graphics_pass_end();VkClearColorValue color;memcpy(color.float32,c->rgba,sizeof c->rgba);image_access(e,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_TRANSFER_WRITE_BIT);vkCmdClearColorImage(command,e->image,VK_IMAGE_LAYOUT_GENERAL,&color,1,&r);image_gpu_written(e);
+    graphics_pass_end();VkClearColorValue color;if(c->is_int)memcpy(color.uint32,c->rgba_i,sizeof c->rgba_i);else memcpy(color.float32,c->rgba,sizeof c->rgba);image_access(e,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_TRANSFER_WRITE_BIT);vkCmdClearColorImage(command,e->image,VK_IMAGE_LAYOUT_GENERAL,&color,1,&r);image_gpu_written(e);
 }
 static void clear_depth(const p_clear_ds *c) {
     if(!state.rt.depth)return;image_entry *e=image_get(state.rt.depth);VkImageSubresourceRange r=texture_range(e,state.rt.has_dview?&state.rt.dview:NULL);r.aspectMask=0;

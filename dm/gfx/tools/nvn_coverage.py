@@ -32,11 +32,15 @@ src = raw(nvn / 'hle_nvn.c')
 impl = set(re.findall(r"\bNVN(?:_NOPROTO)?\((\w+),", src))
 nops = set(re.findall(r'"(nvn\w+)"', src[src.index('static const char *const g_nops[]'):src.index('g_nops[]') + 2000]))
 
-unknown = [n for n in calls if n not in names]          # 取址会失败 → 崩溃
-missing = [n for n in calls if n in names and n not in impl]   # 有名字但接报红桩
+unknown = [n for n in calls if n not in names]                    # 取址会失败 → 崩溃
+empty = [n for n in calls if n in names and n not in impl and n in nops]   # 有名字，接的是空实现
+missing = [n for n in calls if n in names and n not in impl and n not in nops]   # 有名字，但接报红桩
 print(f'名字表 {len(names)}；TotK 调用 {len(calls)}；宿主实现 {len(impl)}（其中空实现 {len(nops)}）')
 print(f'TotK 调用但名字表里没有：{len(unknown)}')
 for n in unknown: print('   [取址失败]', n)
+print(f'TotK 调用但宿主是空实现（g_nops）：{len(empty)}')
+for n in sorted(empty, key=lambda x: -calls[x]):
+    print(f'   [空实现] {n}  调用点 {calls[n]}')
 print(f'TotK 调用但宿主没实现：{len(missing)}')
 for n in sorted(missing, key=lambda x: -calls[x]):
     print(f'   [缺实现] {n}  调用点 {calls[n]}')

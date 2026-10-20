@@ -132,6 +132,9 @@ def main():
         python_check("数据包 RomFS 布局（t_pkglayout）", "dm/android/tests/test_package_layout.py")
 
         compile_and_run("方向键/扳机映射（t_padmap）", [REPO / "dm/host/tests/t_padmap.c"], workspace / "t_padmap")
+        # TotK 的 NVN 接口面：名字表要覆盖它取址的全部名字，它调用的接口宿主都要有实现。
+        # TotK's NVN surface: the name table must cover every name it resolves, and every interface it calls must be implemented.
+        python_check("NVN 接口覆盖（nvn_coverage）", "dm/gfx/tools/nvn_coverage.py", "--check")
         # c[2] 句柄表布局：D2R 的分离表与 TotK 的合并表是纯逻辑，任何平台都能跑。
         # The c[2] handle table layout (D2R separate tables, TotK combined handles) is pure logic and runs anywhere.
         compile_and_run("c[2] 句柄表布局（t_c2layout）", [REPO / "dm/android/tests/c2_layout_test.c"], workspace / "t_c2layout",
