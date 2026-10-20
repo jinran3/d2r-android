@@ -3,6 +3,86 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 06:45 Asia/Shanghai — [SESSION] 手机不在的一轮：首次开机预演清单 + 导入流程核对 + BKTR 布局定位
+
+- 会话目标：按用户要求，这轮只做「不需要真机」的活，重点是**降低首次开机的失败概率**。
+- 接手核对（按 `AGENTS.md` 的新会话恢复顺序做的，不是凭聊天推断）：
+  读 `AGENTS.md` → 读 `docs/HANDOFF.zh-CN.md` 的 frontmatter / 当前快照 / 下一步唯一动作 →
+  读 `docs/HANDOFF_LOG.zh-CN.md` 顶部条目 → `tools/agent_handoff_check.py --resume` exit 0 →
+  `--verify` exit 0 → Git 核对：分支 `totk/scaffold`，HEAD `63ec043` = `origin/totk/scaffold`，
+  代码工作区干净；`adb devices` 为空、PnP 查不到设备（**手机确实没接上**）。
+  → 交接与 Git 一致，无冲突，直接开工。
+
+### 这一轮做了什么
+
+1. **首次开机预演清单**（写进 `docs/TOTK_PORT_PROGRESS.zh-CN.md` 的「首次开机预演清单」一节，254 行）：
+   模块装载→nnMain 之前 / NVN 接管 / 描述符集 / 合并句柄拆分 / 变体挑选 / 预排布贴图，
+   每段给出「真机上会看到什么日志行」「哪些行是硬失败」「画面该是什么样」；
+   另附 **8 条怀疑清单**（位置 + 为什么可疑 + 真机上怎么确认），按规矩没有靠猜改代码。
+   所有日志字符串都对着当前源码核过行号（`dm/host/main.c`、`dm/host/loader.c`、`dm/host/diag.c`、
+   `dm/gfx/nvn/hle_nvn.c`、`dm/android/native/nvn_vulkan_*.inc`、`dm/android/native/gpu_driver.c`、
+   `dm/android/java/org/d2r/android/port/*.java`）。
+2. **纠正了两个会导致真机白跑的认知**：
+   - **日志不在 logcat**：客体的日志行走 stderr，Android 前端把 stderr 重定向到**内部存储的
+     `files/game.log`**（`dm/android/native/frontend_activity.c:205`）；logcat 只有 tag `D2RAndroid`
+     与 tombstone。取法：`adb shell run-as org.d2r.android.port cat files/game.log`。
+     game.log 每次开机 O_TRUNC 截断 → **重启就丢**。
+   - **`deploy_totk.py` 写的 `game_profile=totk` 会被启动界面覆盖**（`LauncherActivity.java:639`
+     在点「开始」时用界面里选中的那一行重写配置）→ 必须在界面里切到「王国之泪」，
+     否则宿主按 D2R 的分离句柄表读 c[2]，画面必然不对。这是清单里的一号陷阱。
+3. **手机端导入流程的离线核对**（结论见进度文档 §9）：
+   包里 **328,752 个条目全是 stored（不压缩）** → 「zip 17 GiB + 解开 ~34 GiB」偏大，
+   真实占用 ≈ **33.1 GiB**（外部存储）→ /data 至少留 35 GiB、建议 40 GiB；
+   `PackageArchive` 的四个上限全部够用（entries 328,752/600,000；total 16.55/24 GiB；
+   单条最大 196 MB/12 GiB；manifest 314 B/1 MiB），清单自报数与实测逐项一致。
+   两个风险：包里**没有目录条目**（30 万次 mkdirs，导入十几分钟到一小时）；
+   SAF 选 `/sdcard/Android/data/...` 未必读得到 → 备选 `/sdcard/Download/`。
+4. **更新包的 BKTR 补丁：布局定死了**（新增 `dm/tools/totk_bktr.py`，本仓库 MIT、自己写）：
+   - 段数据其实是**普通 AES-CTR**（content key + 段 CTR），不是别的加密
+     （证据：这样解出来的 232 字节元数据块是**合法**的 IVFC 头，随机密钥凑不出来）；
+   - 两个 BKTR 头在 **NCA 头的 fs_header+0x100**，不在段数据里（整段 456 MiB 扫过，`BKTR` 魔数 0 处）；
+   - 元数据块在 fs_header+0x1A0/0x1A8（232 字节），**它的 sha256 与 fs_header+0x1B0 存的哈希逐字节相等**；
+   - 段内物理分区（补丁数据 / 重定位校验表 / 两层 hash / 元数据块）全部定位。
+   **仍未解决**：那 478 MB 的**载荷本身**是什么格式（已排除 zstd / xz / gzip / brotli 帧头）。
+5. **Mac 侧翻译链**：命令清单与前置写进进度文档 §11；本轮**没有**改 `dmsh_chain.h`
+   （它在 Mac 上 `--update-lock` 时会再变一次，徒增差异）。
+
+### 证据（命令与退出码）
+
+- `python dm/tools/totk_bktr.py D:\Switch\totk-work\cache\nca\d214ebdad75878d540c13f3155640f39.nca --keys D:\Switch\totk-work\keys\prod.keys`
+  → **exit 0**，末行「布局自洽：True」，元数据块 sha256 与头里的哈希一致。
+- `python -c "import zipfile …"` 逐条读包 → 328,752 个条目、**全部 compress_type=0**、解压后总长不变。
+- `python dm/android/tools/ci_checks.py` → **13 项通过 / 1 项失败**；失败项是「Agent 交接控制面」，
+  原因是本轮先改了文档还没改 HANDOFF；改完复跑即绿（见下方 [END]）。
+- `python dm/android/tools/build.py --game-run --version trim-b39` → **exit 0**，
+  APK `dm/android/build/D2R-Android-port.apk`（17,873,359 字节）。
+- `python tools/agent_handoff_check.py --verify` → **exit 0**（HANDOFF 改完后复跑）。
+
+### 本会话的提交
+
+| 提交 | 内容 |
+| --- | --- |
+| `abca535` | `dm/tools/totk_bktr.py`：读出并核对更新包 BKTR 段的物理布局（代码侧） |
+
+（交接控制面另有一个提交，只动 `docs/HANDOFF.zh-CN.md`、`docs/HANDOFF_LOG.zh-CN.md`、
+`docs/TOTK_PORT_PROGRESS.zh-CN.md`。）
+
+### 还差什么
+
+- **真机的一切**：推包、导入、切档位、开机、看日志、图、性能 —— **本轮全部 NOT RUN**。
+- **运行期仍未验的三件事**（与上一轮相同）：① 变体挑选在真机上命中哪个候选；
+  ② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。
+  本轮把「怎么验」都写成了可执行的检查步骤（见进度文档 §2 与 §8 的怀疑清单）。
+- **BKTR 载荷格式**（唯一的数据层缺口）：本体数据完整可用，先按「本体数据 + v1.4.2 的模块」开机。
+- **Mac 侧翻译链**（需要 Mac）。
+
+### 下一步
+
+唯一 READY 动作仍是 **NA-044 = 手机接上后推包开机**；命令序列与「第一分钟该做什么」已写进
+`docs/HANDOFF.zh-CN.md` 的「下一步唯一动作」（含开机前 5 条静态核对命令）。
+手机不在时可以接着做的离线活：① 继续啃 BKTR 载荷格式（下一步候选：把 81,920 字节的重定位表
+当表结构解出来）；② 把 `dm/tools/totk_bktr.py` 接进 `totk_preflight.py` 的闸门。
+
 ## 2026-10-21 04:30 Asia/Shanghai — [SESSION] 交接：本会话停在「可以推机」，手机一回来就开机
 
 - 会话目标：按用户要求停下手上的活，把交接文档更新到可以直接开新对话接着做。

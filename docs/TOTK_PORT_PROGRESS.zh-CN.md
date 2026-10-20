@@ -318,3 +318,256 @@ NA-029 按用户要求同步了上游 `jhaizhou-ops/d2r-mobile`：其 `main` 的
 - 密钥不回显：日志与错误信息里不出现 `prod.keys` 内容（`extract_packages.py` 已按此设计）。
 - 许可边界：Ryujinx 着色器翻译与 Eden 胶水是 GPL-3.0，本仓库是 MIT，**可参考思路不可拷代码**。
 - 结论要带证据：性能与正确性结论必须写明机型、场景、热机状态；没跑的直接写「没跑」。
+## 首次开机预演清单（2026-10-21 离线准备）
+
+> 目的：手机一回来就能对照着读日志，而不是重新猜「卡在哪一步」。
+> 本文所有日志字符串都来自**当前源码**（`dm/host/main.c`、`dm/host/loader.c`、`dm/host/diag.c`、
+> `dm/gfx/nvn/hle_nvn.c`、`dm/android/native/nvn_vulkan_*.inc`、`dm/android/native/gpu_driver.c`、
+> `dm/android/java/org/d2r/android/port/*.java`），不是凭印象写的。
+> 级别标注：**文件格式对**（静态可验）/ **运行口径对**（需要真机）/ **真机跑过**（目前一项都没有）。
+
+### 0. 先说清楚日志在哪（最容易踩的一脚）
+
+- 客体的日志行（`[dm] ...`、`【红】...`、`[vulkan-...]`、`[nvn] ...`）走 `dm/host/dm.h` 的
+  `LOG()` → `fprintf(stderr)`；Android 前端把 stderr / stdout 重定向到**内部存储的 game.log**
+  （`dm/android/native/frontend_activity.c:205`：`open(..., O_WRONLY|O_CREAT|O_TRUNC)` + 两次 `dup2`）。
+  → **这些行不在 logcat 里**。logcat 只有 tag `D2RAndroid` 的行（`dm/android/native/vulkan_front.c`
+  的 `LOG` 宏是 `__android_log_print`）以及崩溃时的 tombstone。
+- 取日志的命令（`run-as` 需要 debug 版 APK，本仓库出的就是）：
+  ```
+  adb shell run-as org.d2r.android.port cat files/game.log > D:\Switch\totk-work\device\game.log
+  ```
+  game.log **每次开机都被 O_TRUNC 截断** → 重启就丢，务必先拉下来再重启。
+- `die()`（`dm/host/dm.h`）会打一行 `[dm] FATAL ...` 然后 `abort()` → logcat 里会出现
+  `Fatal signal 6 (SIGABRT)`，栈顶在 `abort` → 对照 game.log 最后一行即可定位。
+
+### 1. 开机前的静态核对（adb 命令，不进游戏就能查）
+
+| 查什么 | 命令 | 期望 |
+| --- | --- | --- |
+| 游戏档位 | `adb shell run-as org.d2r.android.port cat files/temp/launch-settings.conf` | 里有 `game_profile=totk` |
+| 驱动档位 | `adb shell run-as org.d2r.android.port cat files/temp/gpu-driver.conf` | 用内置 Turnip 时有 `subgroup_size=64` |
+| 模块齐不齐 | `adb shell run-as org.d2r.android.port ls files/d2r-package/game` | 3 个 `.so` + 6 个 `.tsv`（`main/sdk/subsdk0` × `fixups/gates`） |
+| 外部数据 | `adb shell ls /sdcard/Android/data/org.d2r.android.port/files/d2r-package/` | `manifest.json` + `romfs/` + `shaders/` |
+| 完成标记 | `adb shell run-as org.d2r.android.port cat /sdcard/Android/data/org.d2r.android.port/files/d2r-package/manifest.json` | `format=1`、`counts.romfs=304207` |
+
+> ⚠️ **启动界面会覆盖 `game_profile`**：`LauncherActivity.startGame()` 用界面里选中的那一行重写
+> `game_profile`（`LauncherActivity.java:639`），`deploy_totk.py` 写进去的值会被覆盖。
+> → **必须在启动界面的「游戏」那一行切到「王国之泪」**，否则宿主按 D2R 的**分离**句柄表读 c[2]
+> （`dm/android/native/nvn_c2_layout.h`），画面必然不对。这是本清单里第一号陷阱。
+
+### 2. 阶段 A：模块装载 → nnMain 之前
+
+| 顺序 | 预期 game.log 行 | 出处 |
+| --- | --- | --- |
+| 1 | `[dm] ⓪ 进程创建 → 宿主 main（dyld）` | `dm/host/main.c`（`dm_prof_mark`） |
+| 2 | `[dm] ① 宿主装载（读 NSO / 重定位 / 强制接管）` | 同上 |
+| 3 | `[dm] main: base 0x… size 0x…`（三个模块各一行） | `dm/host/loader.c:422` |
+| 4 | `[dm] main: gates N patch_off 0x… keys …` | `dm/host/loader.c:227` |
+| 5 | `[dm] main: reloc relative=N abs/glob=N jump=N` | `dm/host/loader.c:253` |
+| 6 | `[dm] force: N 条全部命中` | `dm/host/loader.c:169` |
+| 7 | `[dm] ② SDK 初始化（nnosInitialize → nninitStartup）` + `>>> nnosInitialize` / `>>> nninitInitializeSdkModule` / `>>> nninitStartup` | `dm/host/main.c` |
+| 8 | `[dm] ③ 各模块 init_array` | `dm/host/main.c` |
+| 9 | `[dm] >>> nnMain` | `dm/host/main.c:82` |
+| 10 | `[dm] ④ nnMain → ToFrontEnd` | `dm/host/diag.c:299` |
+| 11 | `[dm] ⑤ 装载面板开→关` / `⑥ →MainMenuButtonRibbon` | `dm/host/diag.c:254` 的分段打点 |
+
+- **硬失败**（出现即 abort）：
+  `FATAL 缺符号 <名字>`（`dm/host/main.c` 的 `req()`）、
+  `FATAL dlopen: …`（模块没解出来，或落在外部存储 —— 外部存储是 noexec，dlopen 必失败）、
+  `FATAL Invalid module layout` / `FATAL Invalid dynamic metadata: main|sdk|subsdk0`、
+  `FATAL [android] launch settings: …`（`launch-settings.conf` 解析失败，例如 `game_profile` 写了别的值）。
+- **画面**：这一段还没出图 → **全黑**。日志停在哪一行就定位到哪一步。
+- **注意**：Android 侧的模块来自**内部**存储的 `d2r-package/game/`（`DM_GUEST_LIBDIR`），
+  名字约定是 `libdmguest_<name>.so` + `<name>.fixups.tsv` + `<name>.gates.tsv`
+  （`dm/host/loader.c:316-318`）—— 与包里 `game/` 的 9 个文件一一对应（**文件格式对**）。
+
+### 3. 阶段 B：NVN 接管（第一次 GPU 调用）
+
+| 预期行 | 出处 | 含义 |
+| --- | --- | --- |
+| `requested=Turnip library=…; identity pending` 或 `requested=system selected=system` | `dm/android/native/gpu_driver.c` | 驱动选哪个 |
+| `subgroup policy requested=64 physical_default=… support=… range=…..… required_stages=0x…` | 同上 | 子组尺寸策略 |
+| `[vulkan] shader subgroup profile=64 matches selected shader execution 64` | `dm/android/native/nvn_vulkan_shader.inc:61` | **这一行必须出现** |
+
+- **硬失败**：
+  - `FATAL Vulkan shader subgroup profile 64 differs from selected shader execution N; rebuild for the actual policy`
+    —— 包里写死 64（`manifest.subgroup_size` 与 `shaders/host-subgroup-size.txt`），驱动实际子组尺寸不同就作废整批 SPIR-V。
+  - `FATAL actual GPU cannot explicitly select subgroup64 for every supported NVN shader stage`
+    —— 系统驱动（高通）不支持 `VK_EXT_subgroup_size_control` 覆盖全部着色器阶段 → **换内置 Turnip**。
+  - `FATAL Custom game driver requires DM_VK_SHADERS and its subgroup profile` / `FATAL Set DM_VK_SHADERS to Vulkan shader cache`
+    —— 着色器目录没指到数据包（`DM_VK_SHADERS` = 外部存储的 `d2r-package/shaders`）。
+  - `【红】NVN 未实现被调用：<名字> (x0=… x1=… x2=…)` —— `dm/gfx/nvn/hle_nvn.c:71`，每个接口只打一次。
+- **画面**：仍黑，但只要没有 FATAL，进程是活的。
+
+### 4. 阶段 C：描述符集 / 着色器装载（出图前最后一道）
+
+| 预期行 | 出处 |
+| --- | --- |
+| `[vulkan] shader <key> stage=N bindings=N dynamic_uniforms=N` | `nvn_vulkan_shader.inc`（每个新着色器一行） |
+| `[vulkan-create-slow] frame=… kind=shader_load wall_ms=… shader=…` | 只打慢的（>2 ms） |
+| `[vulkan] dynamic uniform fallback: shader=… guest=… driver=… limit=…` | 动态 uniform 超限时退回静态 |
+
+- **硬失败**（这一组最可能真的发生）：
+  - `FATAL Missing Vulkan shader <目录>/<key>.spv` ← **头号嫌疑**：包里没有这个键的 SPIR-V。
+    （键口径在**文件格式对**这一级已经核过：归档 47,260 个着色器的完整键与流水线键一致，**运行口径对**要等真机。）
+  - `FATAL Invalid Vulkan reflection <key>` —— `.meta` 与 `.spv` 不同源。
+  - `FATAL Vulkan descriptor array capacity` / `FATAL Vulkan descriptor allocation: N` / `FATAL Vulkan descriptor buffers allocation`
+  - `FATAL Vulkan dynamic uniform placement: shader=… placed=… expected=…`
+  - `FATAL Vulkan storage buffer mapping pending: shader=… cb=… offset=0x…`
+  - `FATAL Vulkan dependency storage mapping: shader=… cb=… offset=0x…`
+  - `FATAL Vulkan render pass create failed: N` / `FATAL Vulkan has no coherent host-visible buffer memory`
+    —— 后者是 Adreno 750 上的真风险：驱动可能不给 host-visible 的内存。
+
+### 5. 阶段 D：合并句柄拆分（TotK 专属，最容易「静默地错」）
+
+- TotK 的贴图句柄是**合并句柄**：c[2][0x20 + 8r]（32 槽），低 20 位纹理 id、第 20..31 位采样器 id；
+  D2R 是**分离表**（贴图 c[2][0x168…]、采样器 c[2][0x568…]、图像 c[2][0x120…]）。
+  档位由 `DM_GAME_PROFILE`（= `launch-settings.conf` 的 `game_profile`）决定，见 `dm/android/native/nvn_c2_layout.h`。
+- 拆分与写回在 `dm/android/native/nvn_vulkan_handles.inc:16-20` 与 `nvn_vulkan_shader.inc:317`。
+- **这一处没有专门的日志行** → 只能靠**画面**判断：几何正常但贴图全花/全黑 → 先怀疑这里。
+- **硬失败**：`FATAL Vulkan texture handle type %u is unsupported` / `FATAL Vulkan texture-handle bank %u is unsupported`
+  / `FATAL Vulkan texture-handle stage %u` → 句柄表布局猜错（多半就是 `game_profile` 没切成 totk）。
+
+### 6. 阶段 E：变体挑选（43.6% 风险那一处，日志能直接给答案）
+
+| 行 | 出处 |
+| --- | --- |
+| `[vulkan-shader] 控制键 <key> 命中变体 <vkey>（机器码来自 0x…）` | `nvn_vulkan_shader.inc:233`（前 8 次 + 每 64 次） |
+| `[vulkan-shader] 控制键 <key> 的变体没挑中，退回多数派变体（累计退回 N 次）` | `nvn_vulkan_shader.inc:241`（前 64 次 + 每 64 次） |
+
+- **命中行里的「机器码来自 0x…」就是程序在运行期的地址** —— 这一行直接回答了
+  「变体挑选的机器码位置在哪」这个一直悬着的问题（**运行口径对**的第一条证据）。
+- 读法：累计退回 N ≈ 0 → 变体挑选正确；退回很多 → 五个候选位置
+  （`data` / `data-of` / `data+of` / `control+0x880` / `control+0x880+of`）全不命中，
+  要改 `nvn_vulkan_shader.inc` 的 `starts[]`。
+- **画面**：挑中但挑错 → 花屏 / 几何炸；退回多数派 → 43.6% 的着色器可能拿错 SPIR-V → 花屏或黑屏。
+
+### 7. 阶段 F：预排布贴图
+
+| 行 | 出处 |
+| --- | --- |
+| `[nvn] 预排布贴图 <W>x<H>x<D> 级<L> 格式0x… 目标<T> 布局字节 … → 块高 log2=… 尺寸 0x…` | `dm/gfx/nvn/hle_nvn.c:251`（前 16 条） |
+| `[nvn] 预排布贴图 首传 N 张、池内容变化重传 N 次；写保护缺页 N 次、宿主写前解保护 N 页；漏检 N（累计）` | `hle_nvn.c:1477`（每帧末尾） |
+
+- **报错（不是硬失败，进程继续跑，但贴图是空的）**：`【红】TextureBuilderGetStorageSize 未知格式 0x…` —— 格式不认识（`hle_nvn.c:257`）。
+- **画面**：贴图黑 / 紫（缺贴图）但几何正常 → 与着色器问题是两类，要分开看。
+- 「首传 N 张」里 N 为 0 → 上传路径没被触发，贴图全是空的。
+
+### 8. 怀疑清单（我怀疑对、但静态验不了的）
+
+> 规矩：**不靠猜改代码**。每条都写清「在哪」「为什么可疑」「真机上怎么确认」。
+
+| # | 位置 | 为什么可疑 | 真机上怎么确认 |
+| --- | --- | --- | --- |
+| 1 | 合并句柄拆分 `nvn_vulkan_handles.inc:16-20`、`nvn_vulkan_shader.inc:317` | 布局是从 9,807 个着色器的贴图立即数反推的（「0x20 起 8 字节步进，一个都不越界」），**没有一条真机证据** | 画面：几何正常、贴图全花 → 先查这里；再核对 `DM_GAME_PROFILE=totk` 是否生效 |
+| 2 | 变体挑选的机器码位置 `nvn_vulkan_shader.inc` 的 `starts[]` | 纯静态推断（注释里已写明），五个候选里哪个对**未知** | 看命中行的「机器码来自 0x…」；地址应落在程序区且与 `data` 有固定关系 |
+| 3 | 预排布贴图的块高 `dm/gfx/nvn/nvn_tex.c` | 布局参数第 0 字节 = 块高 log2 只见过 16 例对照 | `[nvn] 预排布贴图 … 块高 log2=…` 与画面是否一致；「首传 N 张」N 是否非 0 |
+| 4 | c[2] 里 0x120 起的图像句柄表（TotK 与 D2R 同源的假设） | 图像（render target）表位置是按 D2R 侧推的 | 画面：渲染目标（阴影 / HDR 中间纹理）不对，但贴图正常 |
+| 5 | 子组尺寸 64 | 包里写死 64；**Adreno 750 的实际子组尺寸未验**（8 Gen 3 的 warp 宽度本机无法确认） | 日志里 `[vulkan] shader subgroup profile=…` 与 `subgroup policy … physical_default=…` 两行 |
+| 6 | `DM_GAME_PROFILE` 是否真的传下去 | 启动界面重写 `launch-settings.conf`；`deploy_totk.py` 写的值会被覆盖 | 开机后第一行的 `[android] 环境核对 …` 里有没有 `DM_GAME_PROFILE` |
+| 7 | 更新包补丁缺失 | 本体数据（v1.4.0 口径）+ v1.4.2 模块的组合，游戏可能拒绝或读旧内容 | 开机后有没有「数据版本不匹配」类错误；进游戏后资源是否为新版 |
+| 8 | `DM_ROMFS` / `DM_VK_SHADERS` 指向外部存储 | 外部存储是 FUSE，且游戏要按名字开文件 | `[android] 数据包带 derived.tsv：…` 这一行在不在（说明包路径找对了） |
+
+### 9. 手机端导入流程的离线核对（2026-10-21 实测）
+
+**包的真实结构**（用 `zipfile` 逐条读 `D:\Switch\totk-work\package-totk\totk-package.zip`）：
+
+| 类别 | 条目数 | 压缩后 | 解压后 |
+| --- | --- | --- | --- |
+| `game/` | 9 | 81,598,218 | 81,598,218 |
+| `romfs/` | 304,207 | 17,043,238,905 | 17,043,238,905 |
+| `shaders/` | 24,535 | 646,871,659 | 646,871,659 |
+| 合计 | **328,752** | **17,771,709,096（16.55 GiB）** | **同左** |
+
+- **全部条目是 stored（压缩方法 0）**，也就是**包里没有压缩** → 解开后还是 16.55 GiB。
+  → HANDOFF 里「zip 17 GiB + 解开 ~34 GiB」是按「解压会变小」估的，**偏大**。
+- **真实容量**：外部存储 = zip 16.62 GiB + 解出 16.47 GiB ≈ **33.1 GiB**；内部存储再加 `game/` 的 81.6 MB。
+  → **/data 至少留 35 GiB，建议 40 GiB**。导入完删掉 zip（`adb shell rm /sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`）
+  之后只要 ~17 GiB。
+- **上限核对**（`dm/android/java/org/d2r/android/port/PackageArchive.java`）：
+
+  | 上限 | 代码里的值 | 本包 | 结论 |
+  | --- | --- | --- | --- |
+  | `MAX_ENTRIES` | 600,000 | 328,752 | 过（余量 45%） |
+  | `MAX_TOTAL_BYTES` | 24 GiB | 16.55 GiB | 过（余量 31%） |
+  | `MAX_ENTRY_BYTES` | 12 GiB | 196,302,345（最大文件 `romfs/Event/Movie/Dm_ZN_0033_PreRender.webm`） | 过 |
+  | `MAX_MANIFEST_BYTES` | 1 MiB | 314 | 过 |
+  | 清单自报数 | game 9 / romfs 304,207 / shaders 24,535 | 与实测逐项一致 | `requireCount` 不会拒 |
+
+- **路径长度**：最长 165 字符，最长单段 114 字符 → ext4 与 FUSE 都放得下。
+- **耗时风险（NOT RUN，手机上没有实测过）**：包里**一个目录条目都没有**（328,752 条全是文件），
+  导入时每个文件都要 `mkdirs()` 建父目录 → 约 30 万次目录创建 + 30 万次文件创建，
+  写在 FUSE 支撑的外部存储上。保守估计**十几分钟到一小时**，请预留时间、别中途切后台。
+  进度条按写入字节数每 1% 报一次。
+- **一个容易踩的点**：启动界面用 SAF（`ACTION_OPEN_DOCUMENT`）选包，而 `deploy_totk.py` 把 zip 推到了
+  `/sdcard/Android/data/org.d2r.android.port/files/`。Android/data 对别的应用不可见，
+  DocumentsUI 作为系统应用通常能列出，但**授予的 URI 未必读得到**。
+  → **备选：把 zip 放到 `/sdcard/Download/` 再在启动界面里选**：
+  ```
+  adb push D:\Switch\totk-work\package-totk\totk-package.zip /sdcard/Download/
+  ```
+  选不中或报「无法读取所选文件」就走这条。
+
+### 10. 更新包 BKTR 补丁：2026-10-21 的进展（实测）
+
+本轮的结论分三级写清楚：
+
+- **已排除**（此前会话）：明文 Brotli / 同段 CTR / XTS+头密钥。
+- **本轮新查到（有命令有退出码）**：
+  1. **更新包的 RomFS 段虽然标着 `crypt: bktr`，它的数据其实是普通 AES-CTR**
+     （content key + 段 CTR，与其它段同一套）。证据：这样解出来的 232 字节元数据块
+     是一个**合法**的 IVFC 头（magic `IVFC`、id `0x20000`、master_hash_size `0x20`），
+     随机密钥不可能凑巧；同一个位置在错误密钥下是乱码。
+  2. **BKTR 的两个头在 NCA 头的 fs_header 里**（`fs_header+0x100` 起），不是段数据里 ——
+     整段 456 MiB 扫过一遍，`BKTR` 魔数一个都没有。
+  3. **段内物理布局已经定死**（见下表）。
+  4. **元数据块的自校验通过**：它的 sha256 与 NCA 头里存的那个哈希**逐字节相等**。
+  5. 新增工具 `dm/tools/totk_bktr.py`（本仓库 MIT，自己写的）：一条命令读出并核对上面全部事实。
+
+  ```
+  python dm/tools/totk_bktr.py <更新包的 .nca> --keys <prod.keys>
+  → 退出码 0，末行「布局自洽：True」
+  ```
+
+  段内物理布局（段长 478,557,696 字节）：
+
+  | 区间 | 长度 | 内容 |
+  | --- | --- | --- |
+  | `0x00000000`–`0x1C843400` | 478,426,112 | 补丁数据（被下一段覆盖） |
+  | `0x1C843400`–`0x1C857400` | 81,920 | 重定位 / 校验表 |
+  | `0x1C857400`–`0x1C85F400` | 32,768 | hash 层 1 |
+  | `0x1C85F400`–`0x1C863400` | 16,384 | hash 层 0（主哈希） |
+  | `0x1C863400`–`0x1C8634E8` | 232 | 元数据块（`layer_offset` + IVFC 头，3 层） |
+
+- **仍然没解决**：那 478 MB 的**补丁载荷本身是什么格式**。已排除：段首不是 zstd / xz / gzip / brotli 的帧头
+  （前 1 MiB 扫过），也不是明文。下一步的候选：载荷是**未压缩的 RomFS 片段**（要靠重定位表把它拼回去），
+  或者还有一层密钥/压缩没找到。
+- **这一层对主线的影响**：本体数据已经完整可用（15.87 GiB / 304,207 个文件，逐字节抽样验过），
+  所以**先按「本体数据 + v1.4.2 的模块」开机**，补丁是第二优先级。
+
+### 11. Mac 侧翻译链重建：要在 Mac 上跑的命令与前置（备着，这轮做不了）
+
+**现状**（本机可验）：`dmsh_chain.py` 算出的链版本是 `84d7e6048895`，
+而 `dm/gfx/nvn/dmsh_chain.h` 里写的是 `15cf7ca29eaf` → **头是旧的**。
+链版本只由**仓内源文件**决定，所以 `--header` 在哪台机器上都能重算；
+但**工具锁** `dm/gfx/tools/dmsh_chain.lock` 记的是实际工具的指纹（Ryujinx 着色器 dll、spirv-cross、
+**macOS/iOS 的 metal 编译器版本**），换机器就变 → 锁必须在 Mac 上重生成。
+
+在 Mac 上的顺序（前置：Xcode 命令行工具、`spirv-cross`、.NET SDK、仓内 `dm/gfx/tools/dmsh_xlate/`）：
+
+```bash
+cd <仓库>/dm/gfx/tools/dmsh_xlate
+dotnet build dmsh_xlate.csproj -c Release          # 翻译器要先用仓内 Program.cs 编出来
+cd ..
+python3 dmsh_chain.py --check-tools                 # 看实际工具与锁是否一致（不一致会列出来）
+python3 dmsh_chain.py --update-lock                 # 按 Mac 上的实际工具重写锁（要随提交入仓）
+python3 dmsh_chain.py --header                      # 重写 dm/gfx/nvn/dmsh_chain.h
+python3 dmsh_chain.py                               # 打印新的链版本 V
+```
+
+- 锁和头改完 → **链版本 V 变了** → 宿主要找的 `b-<V>/` 目录也变了 → **必须重出一次着色器库**
+  （`dmsh_build.py`，或 TotK 侧走 `dm/gfx/tools/totk_xlate.py`），否则宿主加载不到旧目录。
+- 本轮 NOT RUN（没有 Mac）。本轮也没有改 `dmsh_chain.h`：改了会在 Mac 侧 `--update-lock` 时再变一次，
+  徒增一次无谓的差异。
+
