@@ -341,6 +341,21 @@ NA-029 按用户要求同步了上游 `jhaizhou-ops/d2r-mobile`：其 `main` 的
 - `die()`（`dm/host/dm.h`）会打一行 `[dm] FATAL ...` 然后 `abort()` → logcat 里会出现
   `Fatal signal 6 (SIGABRT)`，栈顶在 `abort` → 对照 game.log 最后一行即可定位。
 
+### 0.5 开机后会看到的红字里，有一条**不是故障**
+
+| 日志行 | 出处 | 对 TotK 是不是故障 |
+| --- | --- | --- |
+| `[android] 【红】数据包没有 derived.tsv：编年史仓库 / 经验条 / 动态亮度的表将是空的（用新版打包器重新生成数据包）` | `dm/android/native/frontend_activity.c:247` | **不是**。这三张派生表（EXP 经验表 / TAROW 技能图标索引 / 关联亮度）是 **D2R 专属**的游戏系统，TotK 没有；包里的 `derived.tsv` 本来就没有（`build_package.py` 的 `assemble()` 只在 `derived` 不为 None 时才写它）。宿主只在**调试浮层**里用这三张表（`dm/host/dm_hud_exp.h`），游戏本体不读。→ 看到这行**直接忽略**，别去重新出包。 |
+| `[android] 数据包带 derived.tsv：三张派生表在运行时从它读` | 同上第 246 行 | TotK 不会出现（包里没有这个文件）；D2R 包才出现。 |
+
+其它两条开机时就会打出来的信息：
+
+- **游戏的消息文本在包里**：`romfs/Mals/<语言>.Product.100.sarc.zs`（14 个语言，每个 1,510 条，
+  `CNzh/EUde/EUen/EUes/EUfr/EUit/EUnl/EUru/JPja/KRko/TWzh/USen/USes/USfr`）——
+  已实测这 14 个文件都在数据包里（`romfs/` 下），宿主把 `DM_ROMFS` 指到
+  `<外部存储>/d2r-package/romfs`，所以游戏按相对路径就能开到。
+  ⚠️ **别只在 `Pack/` 里找文本** —— 那里没有消息归档。
+
 ### 1. 开机前的静态核对（一条命令：`python dm/android/tools/totk_device_check.py`）
 
 > 本轮新增的工具：设备一接上，先跑它。退出码 **0 = 全绿（可以开机）/ 1 = 有红项（先修）/ 2 = 手机没接上**。

@@ -177,6 +177,12 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
     `FATAL Missing Vulkan shader`。包的闸门原先只查了变体名单里列出的键，
     现在把「名单自身的 .meta/.spv」与「每个 .meta 都有 .spv」一起查了：
     11,447 meta / 11,447 spv / 1,640 份名单（5,913 个完整键）→ **一个都不缺**。
+  - **一条会被误当成故障的红字**（已查清）：`【红】数据包没有 derived.tsv：…` 对 TotK 是**正常**的 ——
+    那三张派生表（经验表 / 技能图标索引 / 关联亮度）是 D2R 专属的游戏系统，TotK 的包里本来就没有这个文件
+    （`build_package.py` 只在 `derived` 不为 None 时才写它），宿主只在调试浮层里用它们。
+    → 看到这行**忽略**，不要重新出包。已写进进度文档的「0.5 不是故障的红字」。
+  - **游戏的消息文本在包里**：`romfs/Mals/<语言>.Product.100.sarc.zs`（14 个语言，已实测都在包里）——
+    找文本时别只看 `Pack/`。
   - **开机前的核对收成了一条命令**（`30bd9e9`）：`python dm/android/tools/totk_device_check.py`
     一次查完设备在不在 / `game_profile` / `subgroup_size` / 模块与布局表 / 外部 manifest+romfs+shaders /
     清单的 format 与 counts / `/data` 可用空间（导入要 ~33 GiB），并能把 `files/game.log` 拉下来。

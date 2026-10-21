@@ -25,6 +25,16 @@
    压缩大小与本体逐个对得上 → **「载荷 = 更新过的文件内容」这个模型成立**。
    顺带一个对移植有用的结论：**游戏的消息文本在 `romfs/Mals/`，不在 `Pack/` 里**（找文本时容易漏）。
 
+3. **查清了一条会被误当成故障的红字**：`【红】数据包没有 derived.tsv：…`
+   —— 对 TotK 是**正常**的：那三张派生表（经验表 / 技能图标索引 / 关联亮度）是 **D2R 专属**的游戏系统，
+   TotK 的包里本来就没有这个文件（`dm/android/tools/build_package.py` 的 `assemble()` 只在 `derived`
+   不为 None 时才写它），宿主只在**调试浮层**里用它们（`dm/host/dm_hud_exp.h`），游戏本体不读。
+   → 看到这行**忽略**，不要重新出包。已写进进度文档的「0.5 不是故障的红字」一节。
+4. **游戏的消息文本确实在包里**：实测数据包里有 `romfs/Mals/<语言>.Product.100.sarc.zs` 14 个
+   （CNzh/EUde/EUen/EUes/EUfr/EUit/EUnl/EUru/JPja/KRko/TWzh/USen/USes/USfr，1,477,675–1,888,200 字节），
+   宿主把 `DM_ROMFS` 指到 `<外部存储>/d2r-package/romfs`，所以游戏按相对路径能开到。
+   ⚠️ 找文本时别只看 `Pack/`（那里没有消息归档）。
+
 ### 证据（命令与退出码）
 
 - `python dm/android/tools/totk_device_check.py` → **exit 2**（手机没接上，按设计如此），
