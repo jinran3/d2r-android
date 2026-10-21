@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-21T20:40:00+08:00
+updated_at: 2026-10-22T00:32:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: e800e97
+observed_head: 93b2d3c
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: e800e9797490c2130de7b09890bd38584e967252
+origin_head_at_checkpoint: 93b2d3c7a2add20a2108ce93852fdcac0fa8d427
 code_worktree: CLEAN
-next_action_id: NA-049
+next_action_id: NA-050
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,8 +140,8 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-21 20:40（Asia/Shanghai）
-- 当前阶段：M0 勘察完成；设备前静态闸门全绿；NA-046 固定路径导入、NA-047 BKTR 运行读取、NA-048 overlay 元数据清单均已提交；下一步 NA-049 只导出 added+changed 正文；NA-044 真机推包开机继续排队
+- 快照时间：2026-10-22 00:32（Asia/Shanghai）
+- 当前阶段：M0 勘察完成；设备前静态闸门全绿；NA-046 固定路径导入、NA-047 BKTR 运行读取、NA-048 overlay 清单、NA-049 替换文件导出均已提交；下一步 NA-050 把 overlay 合进宿主数据包；NA-044 真机推包开机继续排队
 - 当前分支：`totk/scaffold`
 - **本会话（NA-037 ~ NA-044）的结论**：**设备前的全部静态闸门全绿 → 可以推机**；剩下的每一步都要在真机上做。
   - 补上了 TotK 的 NVN 名字表（536 个；此前 13 个取不到 → 会拿到空函数指针而崩）与 **213 个被调接口的全部实现**
@@ -202,17 +202,17 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
     `[4, 818, 818, 818, 204]` → 真正条目 **2,658** 个（= fs_header 里的块总长 0xA62，交叉印证），
     即这条补丁要替换 2,658 个文件（平均 ~180 KB）。
     **还差**：那 2,658 条记录的语义（每条指向哪个文件）与载荷的分块边界。
-- 观测 HEAD：`e800e97`（NA-048 代码提交；控制面提交后的当前 Git HEAD/origin 以最终 `git rev-parse` 为准）
+- 观测 HEAD：`93b2d3c`（NA-049 代码提交；控制面提交后的当前 Git HEAD/origin 以最终 `git rev-parse` 为准）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b38`，17,873,359 字节）
-- 本次会话目标：手机不在，只做不需要真机的工作；NA-048 已把 BKTR 更新表变成宿主可校验的 overlay 清单，下一项把 added+changed 正文导出到仓库外。
+- 本次会话目标：手机不在，只做不需要真机的工作；NA-049 已把被替换的文件正文导出到仓库外并逐文件校验，下一项把 overlay 合进宿主数据包。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：**★ overlay 正文导出与全量包合并**（NA-049；清单已好，正文尚未导出）。**★ 真机推包与开机**（包已就绪：`D:\Switch\totk-work\package-totk\totk-package.zip`，**16.62 GiB**，game 9 / romfs 304,207 / shaders 24,535；手机本会话完全断开）。**★ 运行期仍未验的三件事**：① 变体挑选在真机上命中哪个候选（机器码的运行期地址）；② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。**★ M4 只剩真机校准**（触控 / 存档目录 / 音频 / 手柄映射都是通用件，不用为 TotK 重写）。**★ 更新包的 RomFS 补丁（BKTR）已解开运行读取口径**：重定位按 isPatch 选更新/本体源，子段 offset 是载荷物理偏移并切换 AES-CTR；更新文件表 304,243 / 本体 304,207（新增 763 / 删除 727 / 大小改变 6,978）；样本 Mals/USen.Product.142.sarc.zs 解出 SARC 1,511 条。**还差把更新文件按路径重打包进宿主包**。**★ Mac 侧的翻译链重建**（`dmsh_chain.h` 的版本本来就过期）。
-- 最近一次成功命令：NA-048 `totk_bktr.py --overlay-manifest` exit 0（304,970 行）；`build_package.py overlay` exit 0；`test_overlay_manifest.py` exit 0；`ci_checks.py` 15 项通过 / 0 失败；`build.py --game-run --version trim-b48` exit 0（APK 17,873,359 字节）；`agent_handoff_check.py --verify` exit 0；`git diff --check` exit 0。
-- 最近一次失败命令及原因：NA-048 首次生成因 PowerShell `Out-File` 先于父目录创建而找不到路径，未运行到工具；修正目录后 exit 0。`build_package.py overlay` 首次 exit 1（校验器漏收 `unchanged` 计数键），修正后 exit 0；合成坏尺寸/坏路径负例按设计 exit 1。更早的 BKTR 探针末桶边界错误见上一条日志。
+- 未完成：**★ overlay 与宿主包合并**（NA-050；清单与 14,397 个替换文件已就位，合并包尚未产出）。**★ 真机推包与开机**（包已就绪：`D:\Switch\totk-work\package-totk\totk-package.zip`，**16.62 GiB**，game 9 / romfs 304,207 / shaders 24,535；手机本会话完全断开）。**★ 运行期仍未验的三件事**：① 变体挑选在真机上命中哪个候选（机器码的运行期地址）；② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。**★ M4 只剩真机校准**（触控 / 存档目录 / 音频 / 手柄映射都是通用件，不用为 TotK 重写）。**★ 更新包的 RomFS 补丁（BKTR）已解开运行读取口径**：重定位按 isPatch 选更新/本体源，子段 offset 是载荷物理偏移并切换 AES-CTR；更新文件表 304,243 / 本体 304,207（新增 763 / 删除 727 / 大小改变 6,978）；样本 Mals/USen.Product.142.sarc.zs 解出 SARC 1,511 条。**还差把更新文件按路径重打包进宿主包**。**★ Mac 侧的翻译链重建**（`dmsh_chain.h` 的版本本来就过期）。
+- 最近一次成功命令：NA-049 `totk_bktr.py --overlay-manifest --export-overlay` exit 0（14,397 个文件 / 474,841,307 字节）；`build_package.py overlay --romfs <导出目录> --statuses added,changed` exit 0（checked_against_romfs=14397）；两次独立导出 763/763 逐字节相同；`ci_checks.py` 15 项通过 / 0 失败；`build.py --game-run --version trim-b49` exit 0（APK 17,873,359 字节）；`agent_handoff_check.py --verify` exit 0；`git diff --check` exit 0。
+- 最近一次失败命令及原因：NA-049 首次 `ci_checks.py` exit 1（改了测试文件但没同步 HANDOFF 工作区清单），补清单后 15/0；工具进度行原本写 stdout 会污染 `--json`，已改到 stderr。`build_package.py overlay` 首次 exit 1（校验器漏收 `unchanged` 计数键），修正后 exit 0；合成坏尺寸/坏路径负例按设计 exit 1。更早的 BKTR 探针末桶边界错误见上一条日志。
 - 已验证产物路径：仓库内新增 `dm/gfx/tools/nvn_slots_auto.py`、`dm/gfx/tools/nvn_table.py`、`dm/gfx/tools/nvn_coverage.py`、`dm/gfx/tools/totk_variant_keys.py`；仓库外 `D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，含 5,534 个控制段键 + 5,913 个变体完整键 + 1,640 份变体名单）；仓库内新增 `dm/gfx/tools/nvn_slots_auto.py`（自动定位 NVN 取址函数）、`dm/gfx/tools/nvn_table.py`（只靠名字表重建跳板/计数/原型表）、`dm/gfx/tools/nvn_coverage.py`（覆盖核对）、`dm/gfx/nvn/nvn_names_totk.txt`（TotK 取址名 534 个）、`dm/gfx/nvn/nvn_calls_totk.tsv`（TotK 真正调用的 213 个接口与调用点数）；仓库外：`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.31 GiB，含按 Android 口径重译的着色器** ✓）、`D:\Switch\totk-work\xlate-android\out0..5\`（9,807 个新 SPIR-V）、`D:\Switch\totk-work\package-totk\shaders\`（5,534 套宿主键）、`D:\Switch\totk-work\android-translator\`、`D:\Switch\totk-work\base\romfs.img`+`.ivfc`、`D:\Switch\totk-work\pack-totk\produce\game\`、`D:\Switch\totk-work\package-totk\ambiguity.tsv`；仓库内新增 `dm/android/tools/build_android_translator.py`、`dm/tools/verify_totk_rewrite.py`、`dm/tools/check_guest_imports.py`；APK `dm/android/build/D2R-Android-port.apk`（trim-b30）。
 - 当前阻塞：**手机完全断开**（这不阻塞 NA-049）（`adb devices` 空，05:05 实测）（线插着但 adb 枚举不到，PnP 报 Code 45）—— 推包与开机验证要等设备回来，这是唯一的外部阻塞。**数据侧已能读取 BKTR 更新文件表；还差把更新文件重打包进宿主包**（本体数据已完整且逐条校验过）。c[2] 布局、着色器键口径、着色器翻译口径（子组 64 + 每阶段描述符集）、驱动（系统 Adreno 750）、客体符号解析、数据路径映射都已经验过。
 - 需要用户提供的材料：**无阻塞项**（TotK v1.4.2 合并 XCI、`prod.keys`、一加 12 均已到位）。后续若要真机跑起来，需要把 TotK 数据装进手机（下一步由宿主的「导入数据包」流程完成）。
@@ -272,17 +272,17 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-049
+- ID：NA-050
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：手机不在也能做；HEAD/origin 为 `e800e97`；代码工作区 CLEAN；`D:\Switch\totk-work\overlay\totk-overlay.tsv` 已由 NA-048 生成并校验；TotK 更新 NCA、本体 NCA、`prod.keys` 在仓库外已就位；禁止回显密钥内容。
-- 动作：为 `dm/tools/totk_bktr.py` 增加 `--export-overlay <仓库外目录>`，只读取清单中 `added` 与 `changed` 的 7,741 个虚拟区间，写成与清单同路径的正文文件；逐文件核对大小，并对样本检查 zstd/SARC 魔数。`removed` 只记录，不写正文；`unchanged` 不导出；不生成或替换 16.62 GiB 宿主包。
-- 命令或编辑目标：`dm/tools/totk_bktr.py`；可选把 `dm/android/tools/build_package.py overlay` 扩成只校验指定状态的子集；导出目录必须是 `D:\Switch\totk-work\overlay\export\`。
-- 成功判据：① 导出命令 exit 0；② 正好 7,741 个文件、总字节 455,088,154；③ 每个文件路径/大小与 TSV 一致；④ `Mals/USen.Product.142.sarc.zs` 为 1,798,330 字节且 zstd 头为 `28 b5 2f fd`，`Pack/ZsDic.pack.zs` 为 108,344 字节；⑤ `ci_checks.py`、`agent_handoff_check.py --verify`、`git diff --check` exit 0；⑥ 仓库内无游戏正文。
-- 失败判据：任一路径/大小/魔数不一致，或预计写入超过 1 GiB / 出现仓库内路径，立即停止，不继续合并全量包；不把清单通过写成“补丁包可用”。
-- 回滚点：`e800e97`；不使用 `git reset --hard`，不删除未提交改动，不清理仓库外已有清单。
-- 需要写入的证据：命令与退出码、导出文件数/总字节、两个样本的大小与魔数、产物路径、`ci_checks.py`、`--verify`、`git status --short` 与提交号；全量包合并和真机行为均写 `NOT RUN`。
-- 手机不在时后续队列（不是当前 READY 动作）：全量宿主包合并、Mac 侧翻译链命令清单、NA-044 真机推包开机。
+- 前置条件：手机不在也能做；HEAD/origin 为 `93b2d3c`；代码工作区 CLEAN；基座包 `D:\Switch\totk-work\package-totk\totk-package.zip`（16.62 GiB）在仓库外；清单 `D:\Switch\totk-work\overlay\totk-overlay.tsv` 与导出目录 `D:\Switch\totk-work\overlay\export\`（14,397 个文件 / 474,841,307 字节）已就位；D: 剩余 78.6 GiB，够放合并包；不提交任何包或游戏数据。
+- 动作：把 overlay 合进宿主数据包：新增一个自有工具（`dm/tools/totk_merge_package.py`）读基座包 zip，逐条**原样复制**（STORED，不重新压缩）未被替换的 `romfs/` 条目，用导出目录里的 14,397 个文件替换对应路径、跳过 727 个 removed 路径，并写出新的 `manifest.json`（romfs 计数改成 304,243）。输出到**新文件** `D:\Switch\totk-work\package-totk\totk-package-updated.zip`，绝不覆盖基座包。
+- 命令或编辑目标：新增 `dm/tools/totk_merge_package.py`；验证命令为 `python dm/android/tools/build_package.py inspect <新包>`、`python dm/android/tools/totk_preflight.py --package <新包> --shaders D:\Switch\totk-work\package-totk\shaders`。
+- 成功判据：① 合并工具 exit 0，新包存在且条目为 game 9 / romfs 304,243 / shaders 24,535；② `manifest.json` 的 counts 与实际条目一致；③ 727 个 removed 路径在新包里**不存在**；④ 14,397 个 overlay 路径在新包里的大小与清单一致（抽样逐字节比对）；⑤ `build_package.py inspect` exit 0、`totk_preflight.py` exit 0（7 条闸门全绿）；⑥ 基座包字节数与 mtime 未变。
+- 失败判据：磁盘不足、任一条目计数/大小不符或预检有红项时，删除半成品 `.part`、保留基座包不动，并把失败证据写进 `HANDOFF_LOG.zh-CN.md`；不把"合并成功"写成"真机可用"。
+- 回滚点：`93b2d3c`；合并只新增文件，基座包 `totk-package.zip` 是回滚源；不使用 `git reset --hard`。
+- 需要写入的证据：合并命令与退出码、新包路径与大小、三个目录的条目数、removed/overlay 抽样核对结果、`build_package.py inspect` 与 `totk_preflight.py` 的退出码、`ci_checks.py`、`agent_handoff_check.py --verify`、`git status --short` 与提交号；真机行为写 `NOT RUN`。
+- 手机不在时后续队列（不是当前 READY 动作）：Mac 侧翻译链命令清单、NA-044 真机推包开机。
 
 ## 长操作两阶段日志
 

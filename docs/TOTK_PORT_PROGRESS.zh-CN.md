@@ -702,6 +702,20 @@ NA-029 按用户要求同步了上游 `jhaizhou-ops/d2r-mobile`：其 `main` 的
     python dm/tools/totk_bktr.py <更新包的 .nca> --keys <prod.keys> --base <本体 Program NCA> --json
     ```
     → exit 0；`D:\Switch\totk-work\bktr-updated.json`；`layout.updated_romfs` 含上述计数。
+  - **NA-049 导出与口径修正（有命令、退出码、产物）**：
+    - **口径修正（重要）**：NA-048 的 `changed` 是**按大小**判定的，会漏掉"大小相同但内容被替换"的文件。
+      用重定位表 `isPatch=1` 区间相交重新判定后：**同大小但被替换的 6,656 个**（例
+      `TerrainArc/StartIsland.tscb`、`UI/Map/MainField/U_06-03_04.bntx.zs`）被找回；
+      反向无误报（大小不同的 6,978 个全部被触及）。新口径：
+      added 763 / changed 13,634 / unchanged 289,846 / removed 727。
+    - 导出：`totk_bktr.py --export-overlay D:\Switch\totk-work\overlay\export\` → exit 0，
+      **14,397 个文件、474,841,307 字节**（added+changed），全部在仓库外。
+    - 核对：`build_package.py overlay <清单> --romfs <导出目录> --statuses added,changed` → exit 0，
+      `checked_against_romfs=14397`（每个文件路径与大小都对得上）。
+    - 样本：`Mals/USen.Product.142.sarc.zs` 1,798,330 字节、头 `28 b5 2f fd`、字典 id=1 → SARC 1,511 条；
+      `Pack/ZsDic.pack.zs` 是 unchanged（108,344 字节），**不在导出集内**。
+    - 可复现：用修复后的工具再导一次 added 子集，与首轮导出**763/763 逐字节相同**。
+    - 级别边界：这是"补丁文件清单与正文"证据；**宿主包尚未合并，真机未跑**。
   - **NA-048 清单入口（有命令、退出码、产物）**：
     ```
     python dm/tools/totk_bktr.py <更新 NCA> --keys <prod.keys> --base <本体 NCA> \

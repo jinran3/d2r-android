@@ -3,6 +3,60 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-22 00:32 Asia/Shanghai — [SESSION] NA-049：修正 changed 口径并导出被替换的文件
+
+- 结果：把 `changed` 的判定从"按大小"换成"虚拟区间与重定位表 `isPatch=1` 区域相交"，找回 **6,656 个同大小但内容被替换的文件**（原口径会永久漏掉它们）；清单重算为 added 763 / changed 13,634 / unchanged 289,846 / removed 727。
+- 导出：14,397 个文件、474,841,307 字节到仓库外 `D:\Switch\totk-work\overlay\export\`，逐文件与清单核对一致。
+
+### 证据（命令与退出码）
+
+- `totk_bktr.py ... --overlay-manifest <TSV> --export-overlay <目录> --json` → exit 0。
+- `build_package.py overlay <TSV> --romfs <导出目录> --statuses added,changed` → exit 0，`checked_against_romfs=14397`。
+- 独立复核脚本：样本 zstd→SARC 1,511 条；`TerrainArc/StartIsland.tscb` 与 `UI/Map/MainField/U_06-03_04.bntx.zs` 导出内容与本体**不同**（同大小）；`Pack/ZsDic.pack.zs` 确认为 unchanged、不在导出集。
+- 可复现性：第二次导出 added 子集，与首轮 **763/763 逐字节相同**。
+- `ci_checks.py` → **15 项通过 / 0 失败**；`build.py --game-run --version trim-b49` → **exit 0**（APK 17,873,359 字节，长操作 `[BEGIN]/[END] na-049-trim-b49` 已闭合）；`agent_handoff_check.py --verify` → exit 0；`git diff --check` → exit 0。
+- 代码提交并推送：`93b2d3c totk: export the replaced files and classify them by patch region`。
+
+### 纠错记录
+
+- 首次 `ci_checks.py` exit 1：改了测试文件但没同步 HANDOFF 的工作区清单 → 补清单后 15/0。
+- 工具的导出进度行原本写 stdout，会污染 `--json` 输出 → 改到 stderr；`--json` 现在是纯 JSON。
+- HANDOFF_LOG 的 `[END]` 第一次插到了 `[BEGIN]` 中间 → 已重排为成对且内容完整。
+
+### 还差什么
+
+- **NA-050**：把 overlay 合进宿主数据包（新增 763、替换 13,634、删除 727），产出新包并跑 `inspect` + `totk_preflight.py`。
+- 真机：NOT RUN；外部阻塞仍是一加 12 的 adb/PnP 断开。
+
+### 下一步
+
+唯一 READY 动作：**NA-050 = overlay 合并成宿主数据包**（详见 HANDOFF）。
+
+[BEGIN] na-049-trim-b49
+命令：D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\build.py --game-run --version trim-b49
+工作目录：D:\Switch\d2r-android
+预期结果：构建 exit 0，产出 APK；随后复跑 ci_checks / agent_handoff_check / git diff --check。
+日志路径：D:\Switch\handoff-build-check.log 与本文件对应的 [END] 记录
+记录时间：2026-10-22T00:24:26+08:00
+
+[END] na-049-trim-b49
+结果：exit 0；APK D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk（17,873,359 字节，2026-10-22 00:25:36）。
+结束时间：2026-10-22T00:25:52+08:00
+
+[BEGIN] na-049-export-overlay
+命令：D:\Switch\.tools\venv\Scripts\python.exe dm\tools\totk_bktr.py <更新 NCA> --keys <prod.keys> --base <本体 NCA> --overlay-manifest D:\Switch\totk-work\overlay\totk-overlay.tsv --export-overlay D:\Switch\totk-work\overlay\export --json
+工作目录：D:\Switch\d2r-android
+预期结果：导出 added+changed 共 14,397 个文件、474,841,307 字节到仓库外目录；逐文件大小与清单一致；样本 Mals/USen.Product.142.sarc.zs 头 4 字节为 28b52ffd。
+日志路径：D:\Switch\totk-work\overlay\export\ 与本文件对应的 [END] 记录
+记录时间：2026-10-21T20:52:25+08:00
+
+[END] na-049-export-overlay
+结果：exit 0；导出目录 D:\Switch\totk-work\overlay\export\ 共 14,397 个文件、474,841,307 字节（与清单 added+changed 完全一致）。
+校验：build_package.py overlay <清单> --romfs <导出目录> --statuses added,changed → exit 0，checked_against_romfs=14397。
+样本：Mals/USen.Product.142.sarc.zs 1,798,330 字节、头 28 b5 2f fd、字典 id=1 解出 SARC 1,511 条；Pack/ZsDic.pack.zs 为 unchanged（108,344 字节），不在导出集内。
+发现并修正：工具的进度行原本写 stdout，会污染 --json 输出（已改到 stderr）；导出期间同时确认“按大小判定 changed”会漏 6,656 个同大小但被替换的文件，判定口径已改为重定位表 isPatch=1 区域相交。
+结束时间：2026-10-21T23:37:29+08:00
+
 ## 2026-10-21 20:40 Asia/Shanghai — [SESSION] NA-048：overlay 元数据清单与校验入口完成
 
 - 结果：`totk_bktr.py --overlay-manifest` 生成 26,549,605 字节 TSV，共 304,970 条正文状态行（另有 3 行头）：updated 304,243 / base 304,207 / added 763 / removed 727 / changed 6,978 / unchanged 296,502。样本 `Mals/USen.Product.142.sarc.zs` = added、1,798,330 字节；`Pack/ZsDic.pack.zs` = unchanged、108,344 字节。
