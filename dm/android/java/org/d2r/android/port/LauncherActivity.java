@@ -55,6 +55,9 @@ public final class LauncherActivity extends Activity {
     private static final String PACKAGE_DIRECTORY = "d2r-package";
     private static final String MANIFEST_NAME = PackageArchive.MANIFEST;
     private static final int PICK_PACKAGE = 1;
+    // 固定路径的包名：把 zip 用 adb push 放到外部目录后，从这里直接导入，不用走文件选择器。
+    // The package name at a fixed path: push the zip here with adb and import it directly, no file picker.
+    private static final String FIXED_PACKAGE = "totk-package.zip";
     private static final int EXPORT_SAVE = 2;
     private static final int IMPORT_SAVE = 3;
 
@@ -390,6 +393,11 @@ public final class LauncherActivity extends Activity {
         importItem = item(importLabel(), 19, PARCHMENT, false, true);
         importItem.setOnClickListener(v -> pickPackage());
         column.addView(importItem);
+        // 「从推送的包导入」是给几十 GB 的包用的：推过来就能导，不必用手指在文件选择器里翻。
+        // "Import the pushed package" is for multi-gigabyte packages: push it and import, no picking by hand.
+        TextView fixedImportItem = item(text("dmAndroidLaunchImportFixed"), 19, PARCHMENT, false, true);
+        fixedImportItem.setOnClickListener(v -> importFixedPackage());
+        column.addView(fixedImportItem);
 
         // 存档导入/导出：走系统的文件选择器（应用不需要任何存储权限），包是玩家自己选的路径。
         // Save import/export goes through the system file picker (the app needs no storage permission); the player
@@ -530,8 +538,47 @@ public final class LauncherActivity extends Activity {
         updateStartState();
         setStatus(String.format(text("dmAndroidLaunchImporting"), 0), MUTED);
         new Thread(() -> {
-            try {
-                String summary = extract(uri, documentSize(uri));
+            try (InputStream raw = getContentResolver().openInputStream(uri)) {
+                if (raw == null) throw new IOException("cannot open the selected file");
+                String summary = extract(raw, documentSize(uri));
+                runOnUiThread(() -> {
+                    packageSummary = summary;
+                    writeState();
+                    refreshFromDisk();
+                    setStatus(summary, PARCHMENT);
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> setStatus(String.format(text("dmAndroidLaunchImportFailed"), failureText(error)), WARNING));
+            } finally {
+                importing = false;
+                runOnUiThread(this::updateStartState);
+            }
+        }, "d2r-package-import").start();
+    }
+
+    // 从固定路径导入：把 zip 用 adb push 放到外部目录（/sdcard/Android/data/<包名>/files/totk-package.zip），
+    // 然后点这一项就能导入 —— 不用走文件选择器，几十 GB 的包靠手指点太不现实。
+    // Import from a fixed path: push the zip into the external directory and tap this entry; a multi-gigabyte
+    // package is not something to pick by hand through a file picker.
+    private void importFixedPackage() {
+        File external = getExternalFilesDir(null);
+        File file = external == null ? null : new File(external, FIXED_PACKAGE);
+        if (file == null || !file.isFile()) {
+            setStatus(String.format(text("dmAndroidLaunchImportFixedMissing"), FIXED_PACKAGE), WARNING);
+            return;
+        }
+        if (importing) {
+            setStatus(text("dmAndroidLaunchCancel"), MUTED);
+            cancelImport = true;
+            return;
+        }
+        importing = true;
+        cancelImport = false;
+        updateStartState();
+        setStatus(String.format(text("dmAndroidLaunchImporting"), 0), MUTED);
+        new Thread(() -> {
+            try (InputStream raw = new FileInputStream(file)) {
+                String summary = extract(raw, file.length());
                 runOnUiThread(() -> {
                     packageSummary = summary;
                     writeState();
@@ -560,18 +607,14 @@ public final class LauncherActivity extends Activity {
     // The rules, the acceptance check and the write-the-marker-last ordering all live in PackageArchive (which holds
     // no Android API and is regression-tested on a PC). This supplies only where the stream comes from, how progress
     // is shown, how cancellation is noticed, and how a failure is told to the player.
-    private String extract(Uri uri, long totalBytes) throws IOException {
-        PackageArchive.Counts counts;
-        try (InputStream raw = getContentResolver().openInputStream(uri)) {
-            if (raw == null) throw new IOException("cannot open the selected file");
-            counts = PackageArchive.unpack(raw, packageDirectory(), packageGameDirectory(), totalBytes,
+    private String extract(InputStream raw, long totalBytes) throws IOException {
+        PackageArchive.Counts counts = PackageArchive.unpack(raw, packageDirectory(), packageGameDirectory(), totalBytes,
                                            new PackageArchive.Sink() {
                 @Override public void progress(final int percent) {
                     runOnUiThread(() -> setStatus(String.format(text("dmAndroidLaunchImporting"), percent), MUTED));
                 }
                 @Override public boolean cancelled() { return cancelImport; }
             }, LauncherActivity::declaration);
-        }
         // 显示**实际解出**的数量。清单自报的数只参与校验、不当结果显示 —— 以前正是把它当结果显示，
         // 才让一个只装了一个文件的包报出"46 个资源、20795 个着色器"。
         // Report what was **actually** unpacked. The manifest's own numbers are only compared, never displayed:

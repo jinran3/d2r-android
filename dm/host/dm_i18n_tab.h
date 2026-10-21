@@ -164,6 +164,8 @@ static const struct { const char *k, *zh, *en; } k_dm_i18n[] = {
     { "dmAndroidLaunchNotSet", "未设置", "Not set" },
     { "dmAndroidLaunchStart", "启动游戏", "Start game" },
     { "dmAndroidLaunchImport", "导入数据包", "Import package" },
+    { "dmAndroidLaunchImportFixed", "从推送的包导入", "Import the pushed package" },
+    { "dmAndroidLaunchImportFixedMissing", "外部目录里没有 %s，先用 adb push 推过去", "No %s in the external directory; push it there with adb first" },
     { "dmAndroidLaunchImported", "已导入：%s", "Imported: %s" },
     { "dmAndroidLaunchImporting", "正在导入 %d%%", "Importing %d%%" },
     { "dmAndroidLaunchImportSummary", "%d 个资源、%d 个着色器", "%d assets, %d shaders" },

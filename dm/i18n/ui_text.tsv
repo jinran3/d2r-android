@@ -162,6 +162,8 @@ dmAndroidLaunchConsole	主机 1600×900	Docked 1600×900	Android 启动界面
 dmAndroidLaunchNotSet	未设置	Not set	Android 启动界面
 dmAndroidLaunchStart	启动游戏	Start game	Android 启动界面
 dmAndroidLaunchImport	导入数据包	Import package	Android 启动界面
+dmAndroidLaunchImportFixed	从推送的包导入	Import the pushed package	Android 启动界面
+dmAndroidLaunchImportFixedMissing	外部目录里没有 %s，先用 adb push 推过去	No %s in the external directory; push it there with adb first	Android 启动界面
 dmAndroidLaunchImported	已导入：%s	Imported: %s	Android 启动界面
 dmAndroidLaunchImporting	正在导入 %d%%	Importing %d%%	Android 启动界面
 dmAndroidLaunchImportSummary	%d 个资源、%d 个着色器	%d assets, %d shaders	Android 启动界面
