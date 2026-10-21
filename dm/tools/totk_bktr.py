@@ -65,7 +65,7 @@ def bktr_superblock(fs: bytes) -> dict:
     }
 
 
-def read_plain(nca: S.Nca, section: dict, rel: int, count: int) -> bytes:
+def read_plain(nca: S.Nca, section: dict, rel: int, count: int, ctr32: int = None) -> bytes:
     """读段内 [rel, rel+count) 的解密后数据。
 
     BKTR 段的数据用与其它段相同的 AES-CTR（content key + 段 CTR）解密 —— 实测：这样解出来的
@@ -82,6 +82,8 @@ def read_plain(nca: S.Nca, section: dict, rel: int, count: int) -> bytes:
     for index in range(8):
         ctr[index] = section['section_ctr'][7 - index]
     ctr[8:16] = (aligned >> 4).to_bytes(8, 'big')
+    if ctr32 is not None:
+        ctr[4:8] = ctr32.to_bytes(4, 'big')
     nca.file.seek(aligned)
     raw = nca.file.read(count + skip)
     if len(raw) < count + skip:
@@ -205,6 +207,161 @@ def read_buckets(nca: S.Nca, section: dict) -> list:
     return out
 
 
+def _find_leq(rows: list, value: int) -> int:
+    low, high = 0, len(rows)
+    while low < high:
+        middle = (low + high) // 2
+        if rows[middle][0] <= value:
+            low = middle + 1
+        else:
+            high = middle
+    return low - 1
+
+
+def read_relocation_records(nca: S.Nca, section: dict) -> tuple[list, int]:
+    """读取四个重定位桶并返回记录与补丁映像总长。 | Read the relocation buckets and total patched-image size."""
+    start = struct.unpack_from('<Q', section['fs_header'], 0x100)[0]
+    head = read_plain(nca, section, start, 16)
+    _padding, bucket_count = struct.unpack_from('<II', head, 0)
+    total = struct.unpack_from('<Q', head, 8)[0]
+    records = []
+    for index in range(bucket_count):
+        page = read_plain(nca, section, start + 0x4000 * (index + 1), 0x4000)
+        _pad, count = struct.unpack_from('<II', page, 0)
+        for item in range(count):
+            records.append(struct.unpack_from('<QQI', page, 16 + item * 20))
+    if any(records[i][0] > records[i + 1][0] for i in range(len(records) - 1)):
+        raise SystemExit('重定位记录不是单调的')
+    return records, total
+
+
+def read_subsection_records(nca: S.Nca, section: dict, payload_end: int) -> list:
+    """读取子段桶；offset 是**载荷物理偏移**，不是虚拟偏移。 | Read subsection buckets; offset is a payload-physical offset."""
+    start = struct.unpack_from('<Q', section['fs_header'], 0x120)[0]
+    head = read_plain(nca, section, start, 16)
+    _padding, bucket_count = struct.unpack_from('<II', head, 0)
+    records = []
+    for index in range(bucket_count):
+        page = read_plain(nca, section, start + 0x4000 * (index + 1), 0x4000)
+        _pad, count = struct.unpack_from('<II', page, 0)
+        for item in range(count):
+            records.append(struct.unpack_from('<QII', page, 16 + item * 16))
+    if any(records[i][0] > records[i + 1][0] for i in range(len(records) - 1)):
+        raise SystemExit('子段记录不是单调的')
+    if records and records[-1][0] > payload_end:
+        raise SystemExit('子段记录越过载荷末端')
+    return records
+
+
+def read_virtual(romfs_nca: S.Nca, romfs_section: dict, base_nca: S.Nca, base_section: dict,
+                 relocations: list, subsections: list, total_patch_image_size: int,
+                 offset: int, count: int) -> bytes:
+    """按重定位表读取补丁映像的虚拟区间。 | Read a virtual range through the relocation table."""
+    out = bytearray()
+    position = offset
+    remaining = count
+    payload_end = struct.unpack_from('<Q', romfs_section['fs_header'], 0x100)[0]
+    while remaining:
+        index = _find_leq(relocations, position)
+        if index < 0:
+            raise SystemExit('虚拟偏移在第一条重定位记录之前')
+        virtual, physical, is_patch = relocations[index]
+        end = relocations[index + 1][0] if index + 1 < len(relocations) else total_patch_image_size
+        span = end - position
+        if span <= 0:
+            raise SystemExit('重定位记录没有覆盖请求的虚拟偏移')
+        take = min(remaining, span)
+        source = physical + (position - virtual)
+        if is_patch:
+            left = take
+            while left:
+                sub_index = _find_leq(subsections, source)
+                if sub_index < 0:
+                    raise SystemExit('物理偏移在第一条子段记录之前')
+                sub_offset, _pad, ctr = subsections[sub_index]
+                sub_end = subsections[sub_index + 1][0] if sub_index + 1 < len(subsections) else payload_end
+                piece = min(left, sub_end - source)
+                if piece <= 0:
+                    raise SystemExit('子段记录没有覆盖补丁物理偏移')
+                out.extend(read_plain(romfs_nca, romfs_section, source, piece, ctr))
+                source += piece
+                left -= piece
+        else:
+            out.extend(read_plain(base_nca, base_section, source, take))
+        position += take
+        remaining -= take
+    return bytes(out)
+
+
+def parse_romfs_entries(read, data_start: int) -> tuple[dict, list]:
+    """读取 RomFS 头与目录/文件元数据表，并走成 (路径, 数据偏移, 大小) 列表。 | Parse a RomFS header and walk its metadata."""
+    head = read(data_start, 0x80)
+    fields = struct.unpack_from('<10Q', head, 0)
+    names = ('header_size', 'dir_hash_table_offset', 'dir_hash_table_size',
+             'dir_meta_table_offset', 'dir_meta_table_size', 'file_hash_table_offset',
+             'file_hash_table_size', 'file_meta_table_offset', 'file_meta_table_size', 'data_offset')
+    header = dict(zip(names, fields))
+    if header['header_size'] != 0x50:
+        raise SystemExit('RomFS header_size 不是 0x50')
+    directories = read(data_start + header['dir_meta_table_offset'], header['dir_meta_table_size'])
+    files = read(data_start + header['file_meta_table_offset'], header['file_meta_table_size'])
+    entries = []
+    stack = [(0, b'')]
+    while stack:
+        offset, prefix = stack.pop()
+        _parent, _sibling, child, first, _hash, name_size = struct.unpack_from('<6I', directories, offset)
+        entry = first
+        while entry != 0xFFFFFFFF:
+            _parent, _sibling, file_offset, size, _hash, file_name_size = struct.unpack_from('<IIQQII', files, entry)
+            name = files[entry + 32:entry + 32 + file_name_size].split(b'\x00', 1)[0]
+            entries.append((prefix + name, data_start + header['data_offset'] + file_offset, size))
+            entry = struct.unpack_from('<I', files, entry + 4)[0]
+        child_entry = child
+        while child_entry != 0xFFFFFFFF:
+            _parent, _sibling, _child, _file, _hash, child_name_size = struct.unpack_from('<6I', directories, child_entry)
+            name = directories[child_entry + 24:child_entry + 24 + child_name_size].split(b'\x00', 1)[0]
+            stack.append((child_entry, prefix + (name + b'/' if name else b'')))
+            child_entry = struct.unpack_from('<I', directories, child_entry + 4)[0]
+    return header, entries
+
+
+def inspect_updated_romfs(romfs_nca: S.Nca, romfs_section: dict, base_nca: S.Nca, base_section: dict) -> dict:
+    """只读解析更新后的 RomFS 文件表并与本体比较，不写出任何游戏数据。 | Inspect the patched RomFS table without writing game data."""
+    relocations, total = read_relocation_records(romfs_nca, romfs_section)
+    payload_end = struct.unpack_from('<Q', romfs_section['fs_header'], 0x100)[0]
+    subsections = read_subsection_records(romfs_nca, romfs_section, payload_end)
+    read_updated = lambda offset, count: read_virtual(
+        romfs_nca, romfs_section, base_nca, base_section, relocations, subsections, total, offset, count)
+    # 更新 NCA 的 IVFC level-5 数据区从 0x1FE0000 开始（本体是 0x1FE8000）。
+    data_start = 0x1FE0000
+    updated_header, updated_entries = parse_romfs_entries(read_updated, data_start)
+    base_header, base_entries = parse_romfs_entries(
+        lambda offset, count: read_plain(base_nca, base_section, offset, count), 0x1FE8000)
+    updated_by_path = {path: (offset, size) for path, offset, size in updated_entries}
+    base_by_path = {path: (offset, size) for path, offset, size in base_entries}
+    changed = sum(1 for path in updated_by_path.keys() & base_by_path.keys()
+                  if updated_by_path[path][1] != base_by_path[path][1])
+    samples = []
+    for path in (b'Mals/USen.Product.142.sarc.zs', b'Pack/ZsDic.pack.zs'):
+        if path in updated_by_path:
+            samples.append((path.decode('utf-8', 'replace'), updated_by_path[path][1]))
+    return {
+        'total_patch_image_size': total,
+        'relocation_count': len(relocations),
+        'subsection_count': len(subsections),
+        'updated_data_start': data_start,
+        'updated_header': updated_header,
+        'base_header': base_header,
+        'updated_files': len(updated_entries),
+        'base_files': len(base_entries),
+        'updated_bytes': sum(size for _path, _offset, size in updated_entries),
+        'added_files': len(updated_by_path.keys() - base_by_path.keys()),
+        'removed_files': len(base_by_path.keys() - updated_by_path.keys()),
+        'changed_sizes': changed,
+        'samples': samples,
+    }
+
+
 def compare_base(package: Path, frames: list) -> list:
     """把载荷里解出来的消息归档与本体里 romfs/Mals/*.sarc.zs 对一下（条目数与压缩大小）。
 
@@ -242,6 +399,7 @@ def main() -> int:
     parser.add_argument('--json', action='store_true', help='输出 JSON | print JSON')
     parser.add_argument('--romfs', type=Path,
                         help='本体 RomFS 目录（要带 Pack/ZsDic.pack.zs）：用来读 zstd 字典并扫载荷 | the base RomFS directory (must hold Pack/ZsDic.pack.zs)')
+    parser.add_argument('--base', type=Path, help='本体 Program NCA：读取更新后的 RomFS 文件表并与本体比较')
     parser.add_argument('--compare-base', type=Path,
                         help='数据包 zip：拿本体里的 romfs/Mals/*.sarc.zs 与载荷里的消息归档对大小 | the package zip: compare the base message archives against the payload')
     args = parser.parse_args()
@@ -314,6 +472,13 @@ def main() -> int:
                              'fs_header_total': superblock['relocation']['block_total_size'],
                              'head': relocation_head.hex(' ')}
 
+    if args.base:
+        base = S.Nca(str(args.base), keys)
+        base_sections = [s for s in base.sections if s['partition_type'] == S.PARTITION_ROMFS]
+        if len(base_sections) != 1:
+            raise SystemExit('本体没有唯一的 RomFS 段')
+        layout['updated_romfs'] = inspect_updated_romfs(nca, section, base, base_sections[0])
+
     if args.romfs:
         layout['payload'] = scan_payload(nca, section, args.romfs)
         if args.compare_base:
@@ -384,6 +549,16 @@ def main() -> int:
                 print('  0x%08x  条目 %d  压缩 %s  ->  本体 %s（%d 字节）'
                       % (row['payload_offset'], row['payload_entries'], row['payload_compressed'],
                          row['base_closest'].replace('romfs/', ''), row['base_size']))
+        if 'updated_romfs' in layout:
+            updated = layout['updated_romfs']
+            print('更新映像 RomFS：数据区 0x%x，重定位 %d 条，子段 %d 条' % (
+                updated['updated_data_start'], updated['relocation_count'], updated['subsection_count']))
+            print('  文件表：更新 %d / 本体 %d，更新数据 %d 字节' % (
+                updated['updated_files'], updated['base_files'], updated['updated_bytes']))
+            print('  与本体比较：新增 %d / 删除 %d / 大小改变 %d' % (
+                updated['added_files'], updated['removed_files'], updated['changed_sizes']))
+            for path, size in updated['samples']:
+                print('  样本：%s (%d 字节)' % (path, size))
         print('布局自洽：%s' % layout['consistent'])
     return 0 if layout['consistent'] else 1
 
