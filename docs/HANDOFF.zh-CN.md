@@ -183,6 +183,10 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
     → 看到这行**忽略**，不要重新出包。已写进进度文档的「0.5 不是故障的红字」。
   - **游戏的消息文本在包里**：`romfs/Mals/<语言>.Product.100.sarc.zs`（14 个语言，已实测都在包里）——
     找文本时别只看 `Pack/`。
+  - **模块与数据不是同一次构建**（实测）：本体 main 的 NSO 头构建号 `cef09201…`（36,549,681 字节）、
+    更新 `076db101…`（35,621,994 字节），而包里发的模块带构建号 `5cb42b1c…`
+    → 第一次开机跑的是「v1.4.2 的代码 + 本体的数据」，补丁要替换 **2,658 个文件**。
+    游戏若按数据版本做检查就会拒；不检查的话，进游戏看到的是本体那版内容。
   - **开机前的核对收成了一条命令**（`30bd9e9`）：`python dm/android/tools/totk_device_check.py`
     一次查完设备在不在 / `game_profile` / `subgroup_size` / 模块与布局表 / 外部 manifest+romfs+shaders /
     清单的 format 与 counts / `/data` 可用空间（导入要 ~33 GiB），并能把 `files/game.log` 拉下来。
