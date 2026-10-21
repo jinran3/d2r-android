@@ -341,9 +341,14 @@ NA-029 按用户要求同步了上游 `jhaizhou-ops/d2r-mobile`：其 `main` 的
 - `die()`（`dm/host/dm.h`）会打一行 `[dm] FATAL ...` 然后 `abort()` → logcat 里会出现
   `Fatal signal 6 (SIGABRT)`，栈顶在 `abort` → 对照 game.log 最后一行即可定位。
 
-### 1. 开机前的静态核对（adb 命令，不进游戏就能查）
+### 1. 开机前的静态核对（一条命令：`python dm/android/tools/totk_device_check.py`）
+
+> 本轮新增的工具：设备一接上，先跑它。退出码 **0 = 全绿（可以开机）/ 1 = 有红项（先修）/ 2 = 手机没接上**。
+> 它把下面这张表逐条查完，并在末尾把 `files/game.log` 拉下来（可选 `--pull-log <路径>`）。
+> （本轮实测：手机没接上时它 exit 2 并说明原因 —— 其余检查要设备在场才能做。）
 
 | 查什么 | 命令 | 期望 |
+
 | --- | --- | --- |
 | 游戏档位 | `adb shell run-as org.d2r.android.port cat files/temp/launch-settings.conf` | 里有 `game_profile=totk` |
 | 驱动档位 | `adb shell run-as org.d2r.android.port cat files/temp/gpu-driver.conf` | 用内置 Turnip 时有 `subgroup_size=64` |

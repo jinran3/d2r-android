@@ -3,6 +3,59 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 09:10 Asia/Shanghai — [SESSION] 续二：开机前的核对收成一条命令，消息归档与本体对上了
+
+- 会话目标：接着上一条日志，把「第一次开机」这件事再往前推一步 —— 手机一回来就能一条命令查完，
+  不靠人记那串 adb 命令。
+- 接手核对：`agent_handoff_check.py --resume` exit 0、`--verify` exit 0；分支 `totk/scaffold`、
+  HEAD 与 `origin/totk/scaffold` 一致、工作区干净；`adb devices` 仍为空、PnP 仍查不到设备。
+
+### 做了什么
+
+1. **新增 `dm/android/tools/totk_device_check.py`**（`30bd9e9`）：开机前的一次性核对。
+   查：设备在不在 → `files/temp/launch-settings.conf` 的 `game_profile` 是不是 totk →
+   `files/temp/gpu-driver.conf` 的 `subgroup_size` 是不是 64 → 内部 `d2r-package/game/` 里
+   3 个 `.so` 与 6 份布局表 → 外部 `d2r-package/` 的 `manifest.json`/`romfs`/`shaders` →
+   清单的 `format` 与 `counts`（romfs 304,207 / shaders 24,535）→ `/data` 可用空间够不够 33 GiB →
+   并把 `files/game.log` 拉下来（`--pull-log`）。
+   **退出码 0 = 可以开机 / 1 = 有红项 / 2 = 手机没接上**；只读（只读文件与 `df`）。
+2. **消息归档在本体里找到对应物了**：把本体 RomFS 里 `Pack/` 之外的 203,031 个 `.zs`
+   按 SARC 解开，找出条目带 `Msg/` 的 —— **正好 14 个**：`romfs/Mals/<语言>.Product.100.sarc.zs`
+   （每个 1,510 条）。载荷里对应的 14 个 zstd 帧每个 **1,511 条**（多一条），
+   压缩大小与本体逐个对得上 → **「载荷 = 更新过的文件内容」这个模型成立**。
+   顺带一个对移植有用的结论：**游戏的消息文本在 `romfs/Mals/`，不在 `Pack/` 里**（找文本时容易漏）。
+
+### 证据（命令与退出码）
+
+- `python dm/android/tools/totk_device_check.py` → **exit 2**（手机没接上，按设计如此），
+  打印「adb devices 为空 —— 手机还没接上」；其余各项要设备在场才能查。
+- `python dm/tools/totk_bktr.py <更新包 .nca> --keys <prod.keys> --romfs <本体 RomFS> --compare-base <数据包 zip>`
+  → **exit 0**，打印 14 行「载荷里的消息归档 ↔ 本体 `romfs/Mals/`」的逐个对照（条目 1,511 vs 1,510，压缩大小对得上）。
+- `python dm/android/tools/build.py --game-run --version trim-b43` → **exit 0**，
+  APK `dm/android/build/D2R-Android-port.apk`（17,873,359 字节）。
+- `python dm/android/tools/ci_checks.py` → 14 项通过 / 0 失败；`tools/agent_handoff_check.py --verify` exit 0。
+
+### 本条日志所在这一轮的提交
+
+| 提交 | 内容 |
+| --- | --- |
+| `30bd9e9` | `dm/android/tools/totk_device_check.py`：开机前的一次性核对（代码侧） |
+
+（交接控制面另有一个提交。）
+
+### 还差什么
+
+- **真机的一切**：NOT RUN（推包 / 导入 / 开机 / 出图 / 性能）。
+- **BKTR 仍差最后一步**：那 2,658 条记录每条指向本体哪个文件（试过多种定长记录的解释，
+  没有一种能让「长度之和 = 载荷长度 478,426,112」成立），以及载荷的分块边界。
+- 运行期仍未验的三件事（合并句柄拆分 / 变体挑选的机器码位置 / 预排布贴图内容）不变。
+
+### 下一步
+
+唯一 READY 动作仍是 **NA-044 = 手机接上后推包开机**；开机前的核对已经收成一条命令
+（`python dm/android/tools/totk_device_check.py`），命令序列与判据在
+`docs/HANDOFF.zh-CN.md` 的「下一步唯一动作」里。
+
 ## 2026-10-21 07:35 Asia/Shanghai — [SESSION] 续：着色器回退路径查过了，BKTR 载荷解开了
 
 - 会话目标：接着上一条日志，把「首次开机可能硬失败」的地方再查一遍，并把 BKTR 再往里推一层。
