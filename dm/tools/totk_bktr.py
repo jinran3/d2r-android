@@ -176,6 +176,35 @@ def scan_payload(nca: S.Nca, section: dict, romfs: Path, limit: int = 40) -> lis
     return [{'frame_count': len(frames), 'frames': out}]
 
 
+def read_buckets(nca: S.Nca, section: dict) -> list:
+    """读出 BKTR 的桶：每个桶占一段 16 KB，页头是 {u32 填充, u32 条目数, u64 结束偏移}。
+
+    Read the BKTR buckets: each bucket occupies one 16 KB page whose header is
+    {u32 padding, u32 entry count, u64 end offset}. The relocation buckets hold
+    {u64 virtual offset, u64 physical offset, u32 is-patch} entries -- the virtual
+    offset is where the region sits in the patched image, the physical offset is
+    where its new content sits in this section's payload.
+    """
+    fs = section['fs_header']
+    start = struct.unpack_from('<Q', fs, 0x100)[0]
+    count = struct.unpack_from('<I', fs, 0x114)[0]
+    header = read_plain(nca, section, start, 16)
+    padding, bucket_count = struct.unpack_from('<II', header, 0)
+    total = struct.unpack_from('<Q', header, 8)[0]
+    out = {'offset': start, 'padding': padding, 'bucket_count': bucket_count,
+           'total_patch_image_size': total, 'buckets': []}
+    for index in range(bucket_count):
+        page = read_plain(nca, section, start + 0x4000 * (index + 1), 0x4000)
+        pad, entries = struct.unpack_from('<II', page, 0)
+        end = struct.unpack_from('<Q', page, 8)[0]
+        rows = []
+        for i in range(entries):
+            virtual, physical, is_patch = struct.unpack_from('<QQI', page, 16 + i * 20)
+            rows.append((virtual, physical, is_patch))
+        out['buckets'].append({'padding': pad, 'entries': entries, 'end_offset': end, 'rows': rows})
+    return out
+
+
 def compare_base(package: Path, frames: list) -> list:
     """把载荷里解出来的消息归档与本体里 romfs/Mals/*.sarc.zs 对一下（条目数与压缩大小）。
 
@@ -229,6 +258,7 @@ def main() -> int:
         raise SystemExit('这一段不是 BKTR（crypt=%d）' % section['crypt_type'])
 
     superblock = bktr_superblock(section['fs_header'])
+    buckets = read_buckets(nca, section)
     meta_offset = superblock['metadata_offset']
     meta_size = superblock['metadata_size']
     metadata = read_plain(nca, section, meta_offset, meta_size)
@@ -278,6 +308,7 @@ def main() -> int:
     # sum of the later pages: 818 + 818 + 818 + 204 = 2,658 -- which matches the block total size
     # 0xA62 = 2,658 in the fs_header, so the two agree.
     record_count = sum(relocation_counts[1:])
+    layout['buckets'] = buckets
     layout['relocation'] = {'offset': relocation_start, 'size': superblock['relocation']['size'],
                              'page_counts': relocation_counts, 'record_count': record_count,
                              'fs_header_total': superblock['relocation']['block_total_size'],
@@ -312,6 +343,19 @@ def main() -> int:
         for region in layout['regions']:
             print('  0x%08x .. 0x%08x  %-22s %d 字节' % (
                 region['offset'], region['offset'] + region['size'], region['name'], region['size']))
+        buckets = layout.get('buckets', {})
+        if buckets:
+            print('BKTR 桶：共 %d 个，每个占 16 KB；补丁映像总长 %d' % (
+                buckets['bucket_count'], buckets['total_patch_image_size']))
+            for index, bucket in enumerate(buckets['buckets']):
+                rows = bucket['rows']
+                virtual = [r[0] for r in rows]
+                physical = [r[1] for r in rows]
+                print('  桶 %d：条目 %4d  虚拟 %12d .. %12d  物理 %12d .. %12d  结束偏移 %d'
+                      % (index, bucket['entries'],
+                         virtual[0] if virtual else -1, virtual[-1] if virtual else -1,
+                         physical[0] if physical else -1, physical[-1] if physical else -1,
+                         bucket['end_offset']))
         print('重定位表 @0x%x 长度 0x%x：每 16 KB 一页，各页头里的计数 %s' % (
             relocation_start, superblock['relocation']['size'], relocation_counts[:12]))
         print('  条目数 %d（首页那 4 条是页头，不算记录）；fs_header 里写的块总长 %d（0x%X）'
