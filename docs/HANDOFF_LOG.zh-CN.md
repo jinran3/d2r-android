@@ -3,6 +3,30 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 19:09 Asia/Shanghai — [SESSION] NA-047：BKTR 运行读取口径解开，更新文件表可读
+
+- 会话目标：手机不在，只做不需要真机的工作；把更新包 BKTR 从“结构已定位”推进到“可按虚拟映像读文件表”。
+- 结果：重定位按 `isPatch` 在更新载荷/本体 RomFS 段之间选源；子段表的 offset 是**载荷物理偏移**，每个子段把自己的 `ctr` 写入 AES-CTR 低 32 位，跨子段必须拆读。更新 RomFS 数据区 `0x1FE0000`，文件表解析为 **304,243** 个文件（本体 304,207），新增 763 / 删除 727 / 同名大小改变 6,978。样本 `Mals/USen.Product.142.sarc.zs`（1,798,330 字节）读出 zstd 帧 `28 b5 2f fd`，字典 id=1 解出 SARC 1,511 条。真机：**NOT RUN**。工具代码已提交并推送：`f979784 totk: read the patched romfs through bktr relocations`。
+
+### 证据（命令与退出码）
+
+- `git ls-remote https://github.com/SciresM/hactool.git HEAD` → exit 0；只读参考格式事实，代码未复制。克隆后补 `git config --global --add safe.directory`，`git -C D:\Switch\totk-work\ref-hactool log --oneline -3` → exit 0。
+- `python dm/tools/totk_bktr.py <更新 NCA> --keys <prod.keys> --base <本体 Program NCA> --json`
+  → **exit 0**，产物 `D:\Switch\totk-work\bktr-updated.json`；其中 `updated_romfs` 给出上述文件计数与样本。
+- 只读样本复核脚本（读更新表路径、zstd 字典、SARC 条目）→ exit 0，输出 `dict 1 content 11443096 magic SARC sarc_entries 1511`。
+- `python dm/android/tools/build.py --game-run --version trim-b47` → **exit 0**，APK `dm/android/build/D2R-Android-port.apk`（17,873,359 字节）。
+- `python dm/android/tools/ci_checks.py` → **14 项通过 / 0 失败**；`tools/agent_handoff_check.py --verify` → exit 0；`git diff --check` → exit 0。
+
+### 还差什么
+
+- **NA-048**：把 304,243 条更新路径/大小变成宿主包可用的 overlay 清单，并接到重打包入口；本体数据仍可先开机，补丁不阻塞主线。
+- IVFC 各层哈希尚未逐块重算；这是“运行读取口径”证据，不是哈希树全验。
+- 真机：NOT RUN；外部阻塞仍是一加 12 的 adb/PnP 断开。
+
+### 下一步
+
+唯一 READY 动作：**NA-048 = 更新文件表 → overlay 清单/重打包入口**（详见 HANDOFF）。
+
 ## 2026-10-21 18:06 Asia/Shanghai — [SESSION] NA-046：推送包可直接导入，构建与全部离线闸门通过
 
 - 会话目标：手机不在，只做不需要真机的工作；收口接手时发现的固定路径导入改动。
