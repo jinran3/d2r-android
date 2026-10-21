@@ -3,6 +3,73 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 18:06 Asia/Shanghai — [SESSION] NA-046：推送包可直接导入，构建与全部离线闸门通过
+
+- 会话目标：手机不在，只做不需要真机的工作；收口接手时发现的固定路径导入改动。
+- 结果：启动界面新增「从推送的包导入」，读取应用外部目录的 `totk-package.zip`；缺失文件明确提示先 `adb push`。两条导入路径现在共用同一套 `PackageArchive.unpack(InputStream, ...)` 契约，流由外层 try-with-resources 关闭，取消/异常清理仍由原流程负责。真机行为 **NOT RUN**。
+
+### 证据（命令与退出码）
+
+- `python dm/android/tools/build.py --game-run --version trim-b46` → **exit 0**；
+  APK `dm/android/build/D2R-Android-port.apk`（17,873,359 字节）。
+- `python dm/ios/tools/dm_i18n.py --header > dm/host/dm_i18n_tab.h` → exit 0；
+  `dm/ios/tools/dm_i18n.py --check` → exit 0（206 条）。
+- `python dm/android/tools/ci_checks.py` → **14 项通过 / 0 失败**。
+- `python tools/agent_handoff_check.py --verify` → **exit 0**；`git diff --check` → exit 0。
+- 代码提交并推送：`5376efc totk: import a package pushed to the external directory`；
+  `git rev-parse HEAD origin/totk/scaffold` 同为 `5376efce2f79ccc2e2b2ba3b5bf4ea5a697b6582`。
+
+### 纠错记录
+
+- 用户消息给出的解释器路径 `D:\Switch.tools\venv\Scripts\python.exe` 与工具路径
+  `D:\Switch.tools\android` 均不存在；实际是 `D:\Switch\.tools\venv\Scripts\python.exe`
+  与 `D:\Switch\.tools\android`。第一次按错误路径跑 `--resume/--verify` 与 `build.py` 都是
+  “命令不存在” / `FileNotFoundError`，不是业务失败。
+- 接手时旧 HANDOFF 写着 CLEAN，Git 实际 DIRTY；先按协议修 HANDOFF，`--verify` 回到 exit 0
+  后才处理业务代码。
+
+### 还差什么
+
+- 真机的一切：NOT RUN；唯一外部阻塞仍是一加 12 接不上（adb 空，PnP Code 45）。
+- 更新包 BKTR 补丁、Mac 侧翻译链重建、运行期三件事仍待办。
+
+### 下一步
+
+唯一 READY 动作：**NA-047 = BKTR 虚拟偏移坐标系的离线定位**（详见 HANDOFF）。
+
+## 2026-10-21 17:52 Asia/Shanghai — [SESSION] 接手核对：HANDOFF 与 Git 冲突，已按协议修正交接状态
+
+- 会话目标：继续 TotK 原生移植；手机断开，只做不需要真机的工作。
+- 接手核对：先读 `AGENTS.md` 与 HANDOFF；`agent_handoff_check.py --resume` exit 0、
+  `--verify` exit 1（4 项）——HANDOFF 写着 `observed_head=82d492e` / `CLEAN`，
+  Git 实际是 `totk/scaffold = origin/totk/scaffold = dac588d`，并有两个未提交代码文件。
+  用户消息里的解释器路径 `D:\Switch.tools\venv\Scripts\python.exe` 不存在；
+  实际 3.12 venv 是 `D:\Switch\.tools\venv\Scripts\python.exe`（`--version` = 3.12.14）。
+
+### 修正了什么
+
+- 按「Git 与 HANDOFF 冲突时先修 HANDOFF、不写业务代码」处理：
+  frontmatter 与当前快照已改成真实 HEAD `dac588d`、origin 同 HEAD、代码工作区 `DIRTY`，
+  两个未提交文件已逐条入账：
+  `dm/android/java/org/d2r/android/port/LauncherActivity.java`、`dm/i18n/ui_text.tsv`。
+- 现有改动看起来是未收口的离线原子任务「固定路径导入」（把 zip 推到应用外部目录后直接导入），
+  没有删除或覆盖；唯一 READY 动作改成 **NA-046 = 收口该改动并过构建/CI/交接闸门**。
+  NA-044（手机接上后推包开机）与 BKTR / Mac 清单继续排队。
+
+### 证据（命令与退出码）
+
+- `git rev-parse HEAD origin/totk/scaffold` → 两者均为
+  `dac588dac35580dcfb761a115b76d80ffcc2c447`，exit 0。
+- `git status --porcelain=v1 -b` → `## totk/scaffold...origin/totk/scaffold`，
+  两个 ` M` 文件；`git diff --check` exit 0。
+- `python tools/agent_handoff_check.py --resume` → exit 0；
+  修正前 `--verify` → exit 1（HANDOFF CLEAN vs Git DIRTY）。
+- 真机：`NOT RUN`（设备未连接）；业务构建/CI：在 NA-046 完成时运行。
+
+### 下一步
+
+唯一 READY 动作：**NA-046**（详见 HANDOFF「下一步唯一动作」）。
+
 ## 2026-10-21 11:45 Asia/Shanghai — [SESSION] 续七：子段桶的条目是 16 字节；区域里的载荷不像文件内容
 
 - 会话目标：把「区域 → 文件」再推一步。
