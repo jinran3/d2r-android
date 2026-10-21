@@ -123,21 +123,32 @@ OVERLAY_FORMAT = 1
 OVERLAY_STATUSES = ("added", "changed", "unchanged", "removed")
 
 
-def read_overlay_manifest(manifest_path, romfs=None):
+def read_overlay_manifest(manifest_path, romfs=None, statuses=None):
     """只读校验 BKTR overlay 清单；可选地核对非 removed 条目的文件存在与大小。
 
-    不读取虚拟偏移对应的游戏正文，也不生成 zip —— 这里只验证“清单/差异”入口。
+    清单口径：changed = 内容被补丁替换（虚拟区间与 isPatch=1 区域相交），
+    unchanged = 与本体逐字节相同。不读取虚拟偏移对应的游戏正文，也不生成 zip。
     """
     if not manifest_path.is_file():
         raise PackageError(f"overlay manifest does not exist: {manifest_path}")
     counts = None
     observed = {name: 0 for name in OVERLAY_STATUSES}
     rows = 0
+    checked_rows = 0
     with manifest_path.open(encoding="utf-8", newline="") as source:
         header = source.readline().rstrip("\r\n")
         if header != f"# totk-overlay-manifest {OVERLAY_FORMAT}":
             raise PackageError(f"unsupported overlay manifest header: {header!r}")
-        count_line = source.readline().rstrip("\r\n")
+        count_line = ""
+        while True:
+            line = source.readline()
+            if not line:
+                raise PackageError("overlay manifest has no counts line")
+            line = line.rstrip("\r\n")
+            if line.startswith("#"):
+                continue          # 语义说明行（可选） | optional semantics comment
+            count_line = line
+            break
         if not count_line.startswith("counts\t"):
             raise PackageError("overlay manifest has no counts line")
         try:
@@ -175,12 +186,13 @@ def read_overlay_manifest(manifest_path, romfs=None):
                 raise PackageError(f"overlay row {line_number} has an unsafe path: {relative!r}")
             observed[status] += 1
             rows += 1
-            if romfs is not None and status != "removed":
+            if romfs is not None and status != "removed" and (statuses is None or status in statuses):
                 candidate = romfs.joinpath(*pure.parts)
                 if not candidate.is_file():
                     raise PackageError(f"overlay file is missing: {relative}")
                 if candidate.stat().st_size != size:
                     raise PackageError(f"overlay size mismatch for {relative}: {candidate.stat().st_size} != {size}")
+                checked_rows += 1
     if rows == 0:
         raise PackageError("overlay manifest has no rows")
     for status in ("added", "removed", "changed"):
@@ -190,7 +202,8 @@ def read_overlay_manifest(manifest_path, romfs=None):
         raise PackageError("overlay updated row count does not match updated_files")
     if observed["removed"] != counts["removed"]:
         raise PackageError("overlay removed row count does not match removed")
-    return {"format": OVERLAY_FORMAT, "rows": rows, "counts": counts, "statuses": observed}
+    return {"format": OVERLAY_FORMAT, "rows": rows, "counts": counts, "statuses": observed,
+            "checked_against_romfs": checked_rows}
 
 
 def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False, romfs_layout="data"):
@@ -309,6 +322,8 @@ def main():
     overlay_parser.add_argument("manifest", type=Path)
     overlay_parser.add_argument("--romfs", type=Path, default=None,
                                 help="optional extracted RomFS tree used to verify non-removed path sizes")
+    overlay_parser.add_argument("--statuses", default=None,
+                                help="only verify these statuses against --romfs, e.g. added,changed")
 
     args = parser.parse_args()
     try:
@@ -316,7 +331,13 @@ def main():
             assemble(args.output, args.game, args.romfs, args.shaders, derived=args.derived, note=args.note,
                      romfs_layout=args.romfs_layout)
         elif args.command == "overlay":
-            summary = read_overlay_manifest(args.manifest, args.romfs)
+            statuses = None
+            if args.statuses:
+                statuses = {item.strip() for item in args.statuses.split(",") if item.strip()}
+                unknown = statuses - set(OVERLAY_STATUSES)
+                if unknown:
+                    raise PackageError(f"unknown overlay statuses: {sorted(unknown)}")
+            summary = read_overlay_manifest(args.manifest, args.romfs, statuses)
             print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
         else:
             manifest, groups = inspect(args.archive)

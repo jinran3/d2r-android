@@ -16,11 +16,13 @@ Read-only: this tool writes nothing and never prints key material.
   python dm/tools/totk_bktr.py <update .nca> [--keys <prod.keys>] [--json]
 """
 import argparse
+import bisect
 import hashlib
 import json
+import os
 import struct
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import switch_nca as S
@@ -325,47 +327,123 @@ def parse_romfs_entries(read, data_start: int) -> tuple[dict, list]:
     return header, entries
 
 
-def write_overlay_manifest(path: Path, updated_entries: list, base_entries: list) -> dict:
-    """写一份只含路径/大小/虚拟偏移/状态的 overlay 清单，不写游戏正文。 | Write a metadata-only overlay manifest."""
-    updated_by_path = {entry[0]: entry for entry in updated_entries}
+def patch_regions(relocations: list, total_patch_image_size: int) -> list:
+    """补丁真正替换过的虚拟区间（重定位条目里 isPatch=1 的那些）。
+
+    这是"内容有没有变"的权威口径：isPatch=0 的区间取自本体，逐字节相同；
+    落在 isPatch=1 区间里的字节才来自更新载荷。
+    The virtual ranges the patch actually replaced (relocation entries with isPatch=1).
+    """
+    regions = []
+    for index, (virtual, _physical, is_patch) in enumerate(relocations):
+        if not is_patch:
+            continue
+        end = relocations[index + 1][0] if index + 1 < len(relocations) else total_patch_image_size
+        regions.append((virtual, end))
+    return regions
+
+
+def touches_patch(regions: list, starts: list, offset: int, size: int) -> bool:
+    """虚拟区间 [offset, offset+size) 是否与补丁替换区相交。 | Does the virtual range meet a replaced region?"""
+    end = offset + size
+    index = max(0, bisect.bisect_right(starts, offset) - 1)
+    while index < len(regions) and regions[index][0] < end:
+        if regions[index][1] > offset:
+            return True
+        index += 1
+    return False
+
+
+def classify_overlay(updated_entries: list, base_entries: list, regions: list) -> tuple[list, dict]:
+    """按"路径是否存在"与"内容是否被补丁替换"给每个文件定状态。
+
+    added = 更新里有、本体没有；changed = 两边都有但内容被补丁替换（与 isPatch=1 区域相交）；
+    unchanged = 两边都有且内容逐字节相同；removed = 本体有、更新里没有。
+    """
+    starts = [region[0] for region in regions]
     base_by_path = {entry[0]: entry for entry in base_entries}
+    updated_by_path = {entry[0]: entry for entry in updated_entries}
     counts = {'updated_files': len(updated_entries), 'base_files': len(base_entries),
               'added': 0, 'removed': 0, 'changed': 0, 'unchanged': 0}
     rows = []
-    for entry in updated_entries:
-        path_bytes, offset, size = entry
+    for path_bytes, offset, size in updated_entries:
         if path_bytes not in base_by_path:
             status = 'added'
-            counts['added'] += 1
-        elif base_by_path[path_bytes][2] != size:
+        elif touches_patch(regions, starts, offset, size):
             status = 'changed'
-            counts['changed'] += 1
         else:
             status = 'unchanged'
-            counts['unchanged'] += 1
+        counts[status] += 1
         rows.append((status, size, offset, path_bytes))
     for path_bytes, _offset, size in base_entries:
         if path_bytes not in updated_by_path:
             counts['removed'] += 1
             rows.append(('removed', size, None, path_bytes))
-    lines = ['# totk-overlay-manifest 1']
-    lines.append('counts\t' + '\t'.join('%s=%d' % item for item in counts.items()))
-    lines.append('status\tsize\tvirtual_offset\tpath')
+    return rows, counts
+
+
+def write_overlay_manifest(path: Path, rows: list, counts: dict) -> dict:
+    """写一份只含路径/大小/虚拟偏移/状态的 overlay 清单，不写游戏正文。 | Write a metadata-only overlay manifest."""
+    lines = ['# totk-overlay-manifest 1',
+             '# changed = 内容被补丁替换（虚拟区间与 isPatch=1 区域相交）；unchanged = 与本体逐字节相同',
+             'counts\t' + '\t'.join('%s=%d' % item for item in counts.items()),
+             'status\tsize\tvirtual_offset\tpath']
     for status, size, offset, path_bytes in rows:
         if any(byte in path_bytes for byte in (9, 10, 13)):
             raise SystemExit('路径含制表符或换行，拒绝写清单')
         lines.append('%s\t%d\t%s\t%s' % (status, size, '' if offset is None else offset,
-                                         path_bytes.decode('utf-8', 'surrogateescape')))
+                                             path_bytes.decode('utf-8', 'surrogateescape')))
     temporary = path.with_suffix(path.suffix + '.part')
     temporary.parent.mkdir(parents=True, exist_ok=True)
     temporary.write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
     temporary.replace(path)
-    counts['rows'] = len(rows)
-    return counts
+    return dict(counts, rows=len(rows))
+
+
+def export_overlay(target: Path, rows: list, read_updated, statuses=('added', 'changed'),
+                   max_bytes: int = 1 << 30) -> dict:
+    """把清单里指定状态的文件正文导出到**仓库外**的目录，并逐个核对大小。
+
+    Only metadata-selected file bodies are written, always outside the repository.
+    """
+    repository = Path(__file__).resolve().parents[2]
+    root = target.resolve()
+    if root == repository.resolve() or str(root).lower().startswith(str(repository.resolve()).lower() + os.sep.lower()):
+        raise SystemExit('导出目录必须在仓库外：%s' % root)
+    if root.exists() and any(root.iterdir()):
+        raise SystemExit('导出目录已存在且非空，拒绝混入旧文件：%s' % root)
+    root.mkdir(parents=True, exist_ok=True)
+    written = 0
+    count = 0
+    total = 0
+    samples = {}
+    for status, size, offset, path_bytes in rows:
+        if status not in statuses:
+            continue
+        total += size
+        if total > max_bytes:
+            raise SystemExit('导出总量超过上限 %d 字节，停止' % max_bytes)
+        relative = PurePosixPath(path_bytes.decode('utf-8', 'surrogateescape'))
+        if relative.is_absolute() or '..' in relative.parts or not relative.parts:
+            raise SystemExit('不安全的导出路径：%s' % path_bytes)
+        destination = root.joinpath(*relative.parts)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        data = read_updated(offset, size) if size else b''
+        if len(data) != size:
+            raise SystemExit('导出长度不符：%s（%d != %d）' % (path_bytes, len(data), size))
+        destination.write_bytes(data)
+        written += size
+        count += 1
+        if path_bytes in (b'Mals/USen.Product.142.sarc.zs', b'Pack/ZsDic.pack.zs'):
+            samples[path_bytes.decode('utf-8', 'replace')] = data[:4].hex(' ')
+        if count % 1000 == 0:
+            print('  已导出 %d 个文件（%.1f MiB）' % (count, written / 1048576), file=sys.stderr, flush=True)
+    return {'files': count, 'bytes': written, 'target': str(root), 'samples': samples}
 
 
 def inspect_updated_romfs(romfs_nca: S.Nca, romfs_section: dict, base_nca: S.Nca, base_section: dict,
-                            overlay_manifest: Path = None) -> dict:
+                            overlay_manifest: Path = None, export_dir: Path = None,
+                            export_statuses=('added', 'changed')) -> dict:
     """只读解析更新后的 RomFS 文件表并与本体比较，不写出任何游戏数据。 | Inspect the patched RomFS table without writing game data."""
     relocations, total = read_relocation_records(romfs_nca, romfs_section)
     payload_end = struct.unpack_from('<Q', romfs_section['fs_header'], 0x100)[0]
@@ -377,14 +455,18 @@ def inspect_updated_romfs(romfs_nca: S.Nca, romfs_section: dict, base_nca: S.Nca
     updated_header, updated_entries = parse_romfs_entries(read_updated, data_start)
     base_header, base_entries = parse_romfs_entries(
         lambda offset, count: read_plain(base_nca, base_section, offset, count), 0x1FE8000)
+    regions = patch_regions(relocations, total)
+    rows, counts = classify_overlay(updated_entries, base_entries, regions)
+    manifest_counts = None
     if overlay_manifest is not None:
-        manifest_counts = write_overlay_manifest(overlay_manifest, updated_entries, base_entries)
-    else:
-        manifest_counts = None
+        manifest_counts = write_overlay_manifest(overlay_manifest, rows, counts)
+    export = None
+    if export_dir is not None:
+        export = export_overlay(export_dir, rows, read_updated, statuses=tuple(export_statuses))
     updated_by_path = {path: (offset, size) for path, offset, size in updated_entries}
     base_by_path = {path: (offset, size) for path, offset, size in base_entries}
-    changed = sum(1 for path in updated_by_path.keys() & base_by_path.keys()
-                  if updated_by_path[path][1] != base_by_path[path][1])
+    size_differing = sum(1 for path in updated_by_path.keys() & base_by_path.keys()
+                         if updated_by_path[path][1] != base_by_path[path][1])
     samples = []
     for path in (b'Mals/USen.Product.142.sarc.zs', b'Pack/ZsDic.pack.zs'):
         if path in updated_by_path:
@@ -401,10 +483,16 @@ def inspect_updated_romfs(romfs_nca: S.Nca, romfs_section: dict, base_nca: S.Nca
         'updated_bytes': sum(size for _path, _offset, size in updated_entries),
         'added_files': len(updated_by_path.keys() - base_by_path.keys()),
         'removed_files': len(base_by_path.keys() - updated_by_path.keys()),
-        'changed_sizes': changed,
+        'patch_regions': len(regions),
+        'changed_files': counts['changed'],
+        'unchanged_files': counts['unchanged'],
+        'added_files': counts['added'],
+        'removed_files': counts['removed'],
+        'size_differing_files': size_differing,
         'samples': samples,
         'overlay_manifest': None if manifest_counts is None else str(overlay_manifest),
         'overlay_counts': manifest_counts,
+        'export': export,
     }
 
 
@@ -448,6 +536,10 @@ def main() -> int:
     parser.add_argument('--base', type=Path, help='本体 Program NCA：读取更新后的 RomFS 文件表并与本体比较')
     parser.add_argument('--overlay-manifest', type=Path, default=None,
                         help='只读 overlay 清单输出路径（路径/大小/虚拟偏移/状态，不写游戏正文）')
+    parser.add_argument('--export-overlay', type=Path, default=None,
+                        help='把 added/changed 的正文导出到**仓库外**目录（默认不导出）')
+    parser.add_argument('--export-statuses', default='added,changed',
+                        help='导出哪些状态的文件（默认 added,changed）')
     parser.add_argument('--compare-base', type=Path,
                         help='数据包 zip：拿本体里的 romfs/Mals/*.sarc.zs 与载荷里的消息归档对大小 | the package zip: compare the base message archives against the payload')
     args = parser.parse_args()
@@ -525,8 +617,14 @@ def main() -> int:
         base_sections = [s for s in base.sections if s['partition_type'] == S.PARTITION_ROMFS]
         if len(base_sections) != 1:
             raise SystemExit('本体没有唯一的 RomFS 段')
+        export_statuses = tuple(item.strip() for item in args.export_statuses.split(',') if item.strip())
+        unknown = set(export_statuses) - {'added', 'changed', 'unchanged', 'removed'}
+        if unknown:
+            raise SystemExit('未知的导出状态：%s' % sorted(unknown))
         layout['updated_romfs'] = inspect_updated_romfs(nca, section, base, base_sections[0],
-                                                        overlay_manifest=args.overlay_manifest)
+                                                        overlay_manifest=args.overlay_manifest,
+                                                        export_dir=args.export_overlay,
+                                                        export_statuses=export_statuses)
 
     if args.romfs:
         layout['payload'] = scan_payload(nca, section, args.romfs)
@@ -604,12 +702,18 @@ def main() -> int:
                 updated['updated_data_start'], updated['relocation_count'], updated['subsection_count']))
             print('  文件表：更新 %d / 本体 %d，更新数据 %d 字节' % (
                 updated['updated_files'], updated['base_files'], updated['updated_bytes']))
-            print('  与本体比较：新增 %d / 删除 %d / 大小改变 %d' % (
-                updated['added_files'], updated['removed_files'], updated['changed_sizes']))
+            print('  与本体比较：新增 %d / 删除 %d / 内容被替换 %d / 逐字节相同 %d（补丁替换区 %d 段）' % (
+                updated['added_files'], updated['removed_files'], updated['changed_files'],
+                updated['unchanged_files'], updated['patch_regions']))
             for path, size in updated['samples']:
                 print('  样本：%s (%d 字节)' % (path, size))
             if updated.get('overlay_manifest'):
                 print('  overlay 清单：%s（%s 行）' % (updated['overlay_manifest'], updated['overlay_counts']['rows']))
+            if updated.get('export'):
+                exported = updated['export']
+                print('  导出：%s（%d 个文件，%d 字节）' % (exported['target'], exported['files'], exported['bytes']))
+                for name, magic in exported['samples'].items():
+                    print('    样本 %s 头 4 字节 %s' % (name, magic))
         print('布局自洽：%s' % layout['consistent'])
     return 0 if layout['consistent'] else 1
 

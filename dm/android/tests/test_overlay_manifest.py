@@ -29,6 +29,23 @@ def main():
         assert good["rows"] == 1
         assert good["statuses"]["added"] == 1
         assert good["counts"]["updated_files"] == 1
+        assert good["checked_against_romfs"] == 1
+
+        # A manifest may carry an optional semantics comment between the header and the counts.
+        commented = root / "commented.tsv"
+        write(
+            commented,
+            "# totk-overlay-manifest 1\n"
+            "# changed = content replaced by the patch\n"
+            "counts\tupdated_files=1\tbase_files=0\tadded=1\tremoved=0\tchanged=0\tunchanged=0\n"
+            "status\tsize\tvirtual_offset\tpath\n"
+            "added\t4\t123\tsub/file.bin\n",
+        )
+        assert read_overlay_manifest(commented, root)["rows"] == 1
+
+        # Only the requested statuses are looked up in the tree.
+        subset = read_overlay_manifest(manifest, root, statuses={"changed"})
+        assert subset["checked_against_romfs"] == 0
 
         bad = root / "bad.tsv"
         write(
