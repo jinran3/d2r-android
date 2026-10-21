@@ -3,6 +3,41 @@
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
 
+## 2026-10-21 20:40 Asia/Shanghai — [SESSION] NA-048：overlay 元数据清单与校验入口完成
+
+- 结果：`totk_bktr.py --overlay-manifest` 生成 26,549,605 字节 TSV，共 304,970 条正文状态行（另有 3 行头）：updated 304,243 / base 304,207 / added 763 / removed 727 / changed 6,978 / unchanged 296,502。样本 `Mals/USen.Product.142.sarc.zs` = added、1,798,330 字节；`Pack/ZsDic.pack.zs` = unchanged、108,344 字节。
+- `build_package.py overlay` 只消费清单，不读虚拟偏移正文、不生成 zip；可选 `--romfs` 核对非 removed 文件路径与大小。合成回归覆盖合法清单、坏尺寸、路径逃逸；CI 新增 `t_overlay`。
+
+### 证据（命令与退出码）
+
+- `totk_bktr.py ... --overlay-manifest D:\Switch\totk-work\overlay\totk-overlay.tsv --json` → exit 0。
+- `build_package.py overlay D:\Switch\totk-work\overlay\totk-overlay.tsv` → exit 0；产物 `overlay-check.json`。
+- `dm/android/tests/test_overlay_manifest.py` → exit 0；坏尺寸负例 exit 1（按设计）。
+- `ci_checks.py` → **15 项通过 / 0 失败**；`agent_handoff_check.py --verify` → exit 0；`git diff --check` → exit 0。
+- `build.py --game-run --version trim-b48` → **exit 0**，APK 17,873,359 字节；长操作已闭合 `[BEGIN]/[END] na-048-trim-b48`。
+- 代码提交并推送：`e800e97 totk: validate a metadata-only overlay manifest`。
+
+### 纠错与边界
+
+- 首次生成命令因 PowerShell `Out-File` 先于父目录创建而失败，修正后成功；overlay 校验首次因漏收 `unchanged` 键 exit 1，修正后 exit 0。
+- **这不是覆盖包**：只证明“清单格式与差异统计对”；正文导出、全量包合并、真机运行均为 `NOT RUN`。
+
+### 下一步
+
+唯一 READY 动作：**NA-049 = 只导出 added+changed 的 7,741 个文件（455,088,154 字节）到仓库外并逐文件校验**。
+
+
+[BEGIN] na-048-trim-b48
+命令：D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\build.py --game-run --version trim-b48
+工作目录：D:\Switch\d2r-android
+预期结果：构建 exit 0，产出 APK；随后复跑 CI / agent_handoff_check / git diff --check。
+日志路径：D:\Switch\handoff-build-check.log（控制台构建输出另存于本会话）
+记录时间：2026-10-21T20:34:18+08:00
+
+[END] na-048-trim-b48
+结果：exit 0；APK D:\Switch\d2r-android\dm\android\build\D2R-Android-port.apk（17,873,359 字节，2026-10-21 20:34:18）。
+结束时间：2026-10-21T20:34:56+08:00
+
 ## 2026-10-21 19:09 Asia/Shanghai — [SESSION] NA-047：BKTR 运行读取口径解开，更新文件表可读
 
 - 会话目标：手机不在，只做不需要真机的工作；把更新包 BKTR 从“结构已定位”推进到“可按虚拟映像读文件表”。

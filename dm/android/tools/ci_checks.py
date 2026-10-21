@@ -130,6 +130,7 @@ def main():
         # 数据包里的 RomFS 布局：D2R 的 data/ 与 TotK 的整棵树都要打出游戏要开的路径。
         # The RomFS layout in the package: D2R's data/ and TotK's whole tree must both produce the paths the game opens.
         python_check("数据包 RomFS 布局（t_pkglayout）", "dm/android/tests/test_package_layout.py")
+        python_check("BKTR overlay 清单（t_overlay）", "dm/android/tests/test_overlay_manifest.py")
 
         compile_and_run("方向键/扳机映射（t_padmap）", [REPO / "dm/host/tests/t_padmap.c"], workspace / "t_padmap")
         # TotK 的 NVN 接口面：名字表要覆盖它取址的全部名字，它调用的接口宿主都要有实现。

@@ -702,6 +702,21 @@ NA-029 按用户要求同步了上游 `jhaizhou-ops/d2r-mobile`：其 `main` 的
     python dm/tools/totk_bktr.py <更新包的 .nca> --keys <prod.keys> --base <本体 Program NCA> --json
     ```
     → exit 0；`D:\Switch\totk-work\bktr-updated.json`；`layout.updated_romfs` 含上述计数。
+  - **NA-048 清单入口（有命令、退出码、产物）**：
+    ```
+    python dm/tools/totk_bktr.py <更新 NCA> --keys <prod.keys> --base <本体 NCA> \
+        --overlay-manifest D:\\Switch\\totk-work\\overlay\\totk-overlay.tsv --json
+    ```
+    → exit 0；TSV 26,549,605 字节 / 304,970 条状态行：
+    added 763、removed 727、changed 6,978、unchanged 296,502；
+    样本 `Mals/USen.Product.142.sarc.zs` = added / 1,798,330，
+    `Pack/ZsDic.pack.zs` = unchanged / 108,344。
+    `python dm/android/tools/build_package.py overlay <TSV>` → exit 0，只校验清单 counts/路径安全，
+    可选 `--romfs` 再核对非 removed 文件大小；不读虚拟偏移正文、不生成 zip。
+    合成测试 `dm/android/tests/test_overlay_manifest.py` → exit 0；
+    CI 新增 `BKTR overlay 清单（t_overlay）` 后为 **15 项通过 / 0 失败**；
+    `build.py --game-run --version trim-b48` → exit 0（APK 17,873,359 字节）。
+    **级别边界**：这是“文件格式/清单口径”证据，不是“覆盖包已生成”，更不是“真机跑过”。
   - 参考实现只用于读格式事实：`SciresM/hactool`（git clone 到仓库外
     `D:\Switch\totk-work\ref-hactool`），本仓库代码仍由 `dm/tools/totk_bktr.py` 自己实现。
 - **仍未解决**：
