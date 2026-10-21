@@ -325,7 +325,47 @@ def parse_romfs_entries(read, data_start: int) -> tuple[dict, list]:
     return header, entries
 
 
-def inspect_updated_romfs(romfs_nca: S.Nca, romfs_section: dict, base_nca: S.Nca, base_section: dict) -> dict:
+def write_overlay_manifest(path: Path, updated_entries: list, base_entries: list) -> dict:
+    """写一份只含路径/大小/虚拟偏移/状态的 overlay 清单，不写游戏正文。 | Write a metadata-only overlay manifest."""
+    updated_by_path = {entry[0]: entry for entry in updated_entries}
+    base_by_path = {entry[0]: entry for entry in base_entries}
+    counts = {'updated_files': len(updated_entries), 'base_files': len(base_entries),
+              'added': 0, 'removed': 0, 'changed': 0, 'unchanged': 0}
+    rows = []
+    for entry in updated_entries:
+        path_bytes, offset, size = entry
+        if path_bytes not in base_by_path:
+            status = 'added'
+            counts['added'] += 1
+        elif base_by_path[path_bytes][2] != size:
+            status = 'changed'
+            counts['changed'] += 1
+        else:
+            status = 'unchanged'
+            counts['unchanged'] += 1
+        rows.append((status, size, offset, path_bytes))
+    for path_bytes, _offset, size in base_entries:
+        if path_bytes not in updated_by_path:
+            counts['removed'] += 1
+            rows.append(('removed', size, None, path_bytes))
+    lines = ['# totk-overlay-manifest 1']
+    lines.append('counts\t' + '\t'.join('%s=%d' % item for item in counts.items()))
+    lines.append('status\tsize\tvirtual_offset\tpath')
+    for status, size, offset, path_bytes in rows:
+        if any(byte in path_bytes for byte in (9, 10, 13)):
+            raise SystemExit('路径含制表符或换行，拒绝写清单')
+        lines.append('%s\t%d\t%s\t%s' % (status, size, '' if offset is None else offset,
+                                         path_bytes.decode('utf-8', 'surrogateescape')))
+    temporary = path.with_suffix(path.suffix + '.part')
+    temporary.parent.mkdir(parents=True, exist_ok=True)
+    temporary.write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
+    temporary.replace(path)
+    counts['rows'] = len(rows)
+    return counts
+
+
+def inspect_updated_romfs(romfs_nca: S.Nca, romfs_section: dict, base_nca: S.Nca, base_section: dict,
+                            overlay_manifest: Path = None) -> dict:
     """只读解析更新后的 RomFS 文件表并与本体比较，不写出任何游戏数据。 | Inspect the patched RomFS table without writing game data."""
     relocations, total = read_relocation_records(romfs_nca, romfs_section)
     payload_end = struct.unpack_from('<Q', romfs_section['fs_header'], 0x100)[0]
@@ -337,6 +377,10 @@ def inspect_updated_romfs(romfs_nca: S.Nca, romfs_section: dict, base_nca: S.Nca
     updated_header, updated_entries = parse_romfs_entries(read_updated, data_start)
     base_header, base_entries = parse_romfs_entries(
         lambda offset, count: read_plain(base_nca, base_section, offset, count), 0x1FE8000)
+    if overlay_manifest is not None:
+        manifest_counts = write_overlay_manifest(overlay_manifest, updated_entries, base_entries)
+    else:
+        manifest_counts = None
     updated_by_path = {path: (offset, size) for path, offset, size in updated_entries}
     base_by_path = {path: (offset, size) for path, offset, size in base_entries}
     changed = sum(1 for path in updated_by_path.keys() & base_by_path.keys()
@@ -359,6 +403,8 @@ def inspect_updated_romfs(romfs_nca: S.Nca, romfs_section: dict, base_nca: S.Nca
         'removed_files': len(base_by_path.keys() - updated_by_path.keys()),
         'changed_sizes': changed,
         'samples': samples,
+        'overlay_manifest': None if manifest_counts is None else str(overlay_manifest),
+        'overlay_counts': manifest_counts,
     }
 
 
@@ -400,6 +446,8 @@ def main() -> int:
     parser.add_argument('--romfs', type=Path,
                         help='本体 RomFS 目录（要带 Pack/ZsDic.pack.zs）：用来读 zstd 字典并扫载荷 | the base RomFS directory (must hold Pack/ZsDic.pack.zs)')
     parser.add_argument('--base', type=Path, help='本体 Program NCA：读取更新后的 RomFS 文件表并与本体比较')
+    parser.add_argument('--overlay-manifest', type=Path, default=None,
+                        help='只读 overlay 清单输出路径（路径/大小/虚拟偏移/状态，不写游戏正文）')
     parser.add_argument('--compare-base', type=Path,
                         help='数据包 zip：拿本体里的 romfs/Mals/*.sarc.zs 与载荷里的消息归档对大小 | the package zip: compare the base message archives against the payload')
     args = parser.parse_args()
@@ -477,7 +525,8 @@ def main() -> int:
         base_sections = [s for s in base.sections if s['partition_type'] == S.PARTITION_ROMFS]
         if len(base_sections) != 1:
             raise SystemExit('本体没有唯一的 RomFS 段')
-        layout['updated_romfs'] = inspect_updated_romfs(nca, section, base, base_sections[0])
+        layout['updated_romfs'] = inspect_updated_romfs(nca, section, base, base_sections[0],
+                                                        overlay_manifest=args.overlay_manifest)
 
     if args.romfs:
         layout['payload'] = scan_payload(nca, section, args.romfs)
@@ -559,6 +608,8 @@ def main() -> int:
                 updated['added_files'], updated['removed_files'], updated['changed_sizes']))
             for path, size in updated['samples']:
                 print('  样本：%s (%d 字节)' % (path, size))
+            if updated.get('overlay_manifest'):
+                print('  overlay 清单：%s（%s 行）' % (updated['overlay_manifest'], updated['overlay_counts']['rows']))
         print('布局自洽：%s' % layout['consistent'])
     return 0 if layout['consistent'] else 1
 

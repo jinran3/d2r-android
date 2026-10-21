@@ -14,7 +14,7 @@ import json
 import os
 import sys
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 FORMAT_VERSION = 1
 MANIFEST_NAME = "manifest.json"
@@ -117,6 +117,80 @@ def write_entry(archive, source, name, progress):
             written += len(chunk)
             progress(len(chunk))
     return written
+
+
+OVERLAY_FORMAT = 1
+OVERLAY_STATUSES = ("added", "changed", "unchanged", "removed")
+
+
+def read_overlay_manifest(manifest_path, romfs=None):
+    """只读校验 BKTR overlay 清单；可选地核对非 removed 条目的文件存在与大小。
+
+    不读取虚拟偏移对应的游戏正文，也不生成 zip —— 这里只验证“清单/差异”入口。
+    """
+    if not manifest_path.is_file():
+        raise PackageError(f"overlay manifest does not exist: {manifest_path}")
+    counts = None
+    observed = {name: 0 for name in OVERLAY_STATUSES}
+    rows = 0
+    with manifest_path.open(encoding="utf-8", newline="") as source:
+        header = source.readline().rstrip("\r\n")
+        if header != f"# totk-overlay-manifest {OVERLAY_FORMAT}":
+            raise PackageError(f"unsupported overlay manifest header: {header!r}")
+        count_line = source.readline().rstrip("\r\n")
+        if not count_line.startswith("counts\t"):
+            raise PackageError("overlay manifest has no counts line")
+        try:
+            counts = dict(item.split("=", 1) for item in count_line.split("\t")[1:])
+            counts = {key: int(value) for key, value in counts.items()}
+        except (ValueError, TypeError) as error:
+            raise PackageError(f"invalid overlay manifest counts: {error}")
+        expected_keys = {"updated_files", "base_files", "added", "removed", "changed", "unchanged"}
+        if set(counts) != expected_keys:
+            raise PackageError(f"overlay manifest count keys are {sorted(counts)}, expected {sorted(expected_keys)}")
+        title = source.readline().rstrip("\r\n")
+        if title != "status\tsize\tvirtual_offset\tpath":
+            raise PackageError("overlay manifest has no valid row header")
+        for line_number, line in enumerate(source, 4):
+            line = line.rstrip("\r\n")
+            if not line:
+                continue
+            fields = line.split("\t", 3)
+            if len(fields) != 4:
+                raise PackageError(f"overlay row {line_number} does not have four columns")
+            status, size_text, offset_text, relative = fields
+            if status not in OVERLAY_STATUSES:
+                raise PackageError(f"overlay row {line_number} has unknown status {status!r}")
+            try:
+                size = int(size_text)
+                offset = None if offset_text == "" else int(offset_text)
+            except ValueError as error:
+                raise PackageError(f"overlay row {line_number} has invalid number: {error}")
+            if size < 0 or (offset is not None and offset < 0):
+                raise PackageError(f"overlay row {line_number} has a negative size/offset")
+            if (status == "removed") != (offset is None):
+                raise PackageError(f"overlay row {line_number} has an offset for the wrong status")
+            pure = PurePosixPath(relative)
+            if not relative or pure.is_absolute() or "\\" in relative or ".." in pure.parts or "." in pure.parts:
+                raise PackageError(f"overlay row {line_number} has an unsafe path: {relative!r}")
+            observed[status] += 1
+            rows += 1
+            if romfs is not None and status != "removed":
+                candidate = romfs.joinpath(*pure.parts)
+                if not candidate.is_file():
+                    raise PackageError(f"overlay file is missing: {relative}")
+                if candidate.stat().st_size != size:
+                    raise PackageError(f"overlay size mismatch for {relative}: {candidate.stat().st_size} != {size}")
+    if rows == 0:
+        raise PackageError("overlay manifest has no rows")
+    for status in ("added", "removed", "changed"):
+        if observed[status] != counts[status]:
+            raise PackageError(f"overlay count mismatch for {status}: rows={observed[status]} header={counts[status]}")
+    if observed["added"] + observed["changed"] + observed["unchanged"] != counts["updated_files"]:
+        raise PackageError("overlay updated row count does not match updated_files")
+    if observed["removed"] != counts["removed"]:
+        raise PackageError("overlay removed row count does not match removed")
+    return {"format": OVERLAY_FORMAT, "rows": rows, "counts": counts, "statuses": observed}
 
 
 def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False, romfs_layout="data"):
@@ -231,11 +305,19 @@ def main():
     inspect_parser = subparsers.add_parser("inspect", help="print a package's manifest without touching it")
     inspect_parser.add_argument("archive", type=Path)
 
+    overlay_parser = subparsers.add_parser("overlay", help="validate a metadata-only BKTR overlay manifest")
+    overlay_parser.add_argument("manifest", type=Path)
+    overlay_parser.add_argument("--romfs", type=Path, default=None,
+                                help="optional extracted RomFS tree used to verify non-removed path sizes")
+
     args = parser.parse_args()
     try:
         if args.command == "assemble":
             assemble(args.output, args.game, args.romfs, args.shaders, derived=args.derived, note=args.note,
                      romfs_layout=args.romfs_layout)
+        elif args.command == "overlay":
+            summary = read_overlay_manifest(args.manifest, args.romfs)
+            print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
         else:
             manifest, groups = inspect(args.archive)
             print(json.dumps(manifest, indent=2, ensure_ascii=False))
