@@ -271,11 +271,29 @@ def check_secrets(text: str) -> list[str]:
     return errors
 
 
+def pending_operations() -> set[str]:
+    """正在执行中的长操作（由环境变量点名）。
+
+    为什么需要它：一条正在跑的闸门（例如 totk_preflight）自己会在日志里留一条 [BEGIN]，
+    而它内部又会调用本校验器 —— 于是校验器看到"自己留下的 BEGIN 没闭合"就报红，
+    把"执行环境"错当成"数据缺陷"。点名的操作只在这段时间里被豁免，且必须由人显式指定。
+    Why: a long gate writes its own [BEGIN] and then calls this checker, which would flag
+    that in-flight BEGIN as an error. Only explicitly named operations are exempted.
+
+    用法：设置 DM_HANDOFF_PENDING_OPS=na-051-preflight,na-052-x（逗号分隔）。
+    """
+    raw = os.environ.get("DM_HANDOFF_PENDING_OPS", "")
+    return {name.strip() for name in raw.split(",") if name.strip()}
+
+
 def check_long_operations(log_text: str) -> list[str]:
     errors: list[str] = []
     begins = re.findall(r"\[BEGIN\]\s+([A-Za-z0-9._-]+)", log_text)
     ends = re.findall(r"\[END\]\s+([A-Za-z0-9._-]+)", log_text)
+    pending = pending_operations()
     for op in sorted(set(begins) - set(ends)):
+        if op in pending:
+            continue
         errors.append("长操作 BEGIN 未闭合: " + op)
     for op in sorted(set(ends) - set(begins)):
         errors.append("长操作 END 无对应 BEGIN: " + op)

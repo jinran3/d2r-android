@@ -1,7 +1,103 @@
 # Agent 交接会话日志
 
+[END] na-051-preflight
+结果：exit 0 —— **7 条闸门全绿，结论行「全绿 → 可以推机」**（对象是**更新包** `totk-package-updated.zip`）。
+逐条：APK 17,873,359 字节（绿）| 数据包清单 exit 0（2.3 秒，game 9 / romfs 304,243 / shaders 24,535）|
+数据包条目 exit 0（romfs 17,026,724,605 字节）| 着色器包 exit 0（660.8 秒；11,447 meta / 1,640 份变体名单 / 5,913 个完整键；
+c[2] 偏移 32 个全在 [0x20,0x120) 且 8 字节对齐）| 变体键链 exit 0（358.9 秒；归档里 47,260 个着色器，
+宿主口径完整键/c1/控制段长度不匹配均为 0；变体名单 5,913 个键，缺文件 0、不在索引里 0；「结果：一致 ✓」）|
+NVN 接口覆盖 exit 0（缺名字 0 / 空实现 0 / 缺实现 0）| ci_checks exit 0（**16 项通过 / 0 失败**）|
+交接面 exit 0（VERIFY OK）。
+基座包未被改动：17,842,231,302 字节、mtime 2026-10-21 03:15:32（与合并前一致）。
+输出文件：D:\Switch\totk-work\package-totk\preflight-updated2.txt（2,090 字节）。
+结束时间：2026-10-22T07:06:40+08:00
+
+## 2026-10-22 07:06 Asia/Shanghai — [SESSION] NA-050 / NA-051：overlay 合进宿主包（更新包产出）+ 完整预检全绿
+
+- **NA-050（已完成）**：新增自有工具 `dm/tools/totk_merge_package.py`，把 NA-049 导出的 14,397 个被替换文件
+  合进基座包，跳过 727 个 `removed` 路径，产出**更新包** `D:\Switch\totk-work\package-totk\totk-package-updated.zip`
+  （**17,825,708,024 字节 / 328,788 条目** = game 9 / romfs 304,243 / shaders 24,535）；配套回归
+  `dm/android/tests/test_merge_package.py`（已接进 `ci_checks` 的 `t_mergepkg`）。
+- **NA-051（已完成）**：用更新包跑完整预检，**7 条闸门全绿 → 可以推机**。
+- **附带修掉的一个会自我误报的红**：预检的「变体键链」在 06:23 那次被判「超时 1800 秒」，
+  同一命令单独跑是 exit 0（本机实测 358.9 秒）→ 是执行环境（机器负载/休眠）不是数据缺陷；
+  已把闸门超时放宽到 3600 秒（`totk_preflight.py --gate-timeout`）。
+- **附带修掉的两个坑**：① 长操作留的 `[BEGIN]` 会让**它自己内部**的交接校验报红
+  → 新增 `DM_HANDOFF_PENDING_OPS` 点名豁免（默认行为不变，负向测试仍过）；
+  ② 预检不带 `DM_ANDROID_TOOLS` 时 `ci_checks` 会跳过 JDK 闸门 → 跑预检必须带这个环境变量。
+
+### 证据（命令与退出码）
+
+- `totk_merge_package.py --base-package <基座包> --overlay-manifest <清单> --overlay-dir <导出目录> --output <更新包> --json` → **exit 0**；
+  报告 `merge-report.json`：replaced 14,397 / dropped 727 / entries 328,788 / bytes 17,825,708,024。
+- **独立抽样复核**（本会话，sha256 逐字节比）：240 个随机 `added`/`changed` + 2 个「同大小但内容被替换」的老样本
+  （`TerrainArc/StartIsland.tscb`、`UI/Map/MainField/U_06-03_04.bntx.zs`）与导出目录**全部一致**；
+  40 个随机 `unchanged` 与基座包**逐字节相同**；727 个 `removed` 路径在包里 **0 残留**。
+- **两条独立路径互相印证**：更新包 `manifest.json` 的 `bytes.romfs` = 17,026,724,605，
+  与 BKTR 更新映像文件表总字节**逐字节相等**；条目数 328,752 + 763 − 727 = 328,788 ✓。
+- **代码与数据现在同一次构建**（此前不是）：包里 `game/` 的模块改自**更新**（v1.4.2）的 `main` NSO
+  （`patched-android/main.patched.bin` 头 0x20 build id `f40300aa001440f9f30301aa616301d0`
+  与 `nso/upd_main.img` 逐字节相同，本体的 `base_main.img` 不是它）→ 「v1.4.2 代码 + 本体数据」的错配已消除。
+- 完整预检 → **exit 0，7 条全绿**（逐条见上面那条 `[END] na-051-preflight`）。
+- `ci_checks.py` → **16 项通过 / 0 失败**；`agent_handoff_check.py --verify` → exit 0；`git diff --check` → exit 0。
+- 代码提交并推送：`e2d8f3f totk: merge the BKTR overlay into the host data package`。
+- `build.py --game-run --version trim-b50` → **exit 0**，APK 17,873,359 字节（2026-10-22 07:08:14）。
+- 设备：`adb devices` 为空、`totk_device_check.py` exit 2（手机没接上）→ **真机行为 NOT RUN**。
+
+### 纠错记录
+
+- 第一次写 HANDOFF 时用 `s.index("## 下一步唯一动作")` 定位，命中了正文里带反引号的那一处，
+  把「当前快照」整段冲掉了 → `git checkout -- docs/HANDOFF.zh-CN.md` 还原后改成**按整行精确匹配**定位。
+- 预检第一次跑时 `ci_checks` 报 3 个错，是 HANDOFF 的「代码工作区」清单没跟上新写的文件 → 先提交代码、再同步清单。
+
+### 还差什么
+
+- **真机**：NOT RUN（外部阻塞：一加 12 的 adb/PnP 断开；`adb devices` 空）。
+- **NA-052（下一个 READY 动作）**：把「推包 → 导入 → 开机 → 读日志」做成一条命令 + 一页纸 runbook，
+  并把 `deploy_totk.py` 改到适配更新包（adb 解析、默认外部目录 `/sdcard/Download/`、空间预检、推送后校验、--dry-run）。
+
+### 下一步
+
+唯一 READY 动作：**NA-052 = 推包开机这一段的一键化与 runbook**（详见 HANDOFF）。
+
+
+[BEGIN] na-051-preflight
+命令：D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\totk_preflight.py --package D:\Switch\totk-work\package-totk\totk-package-updated.zip --shaders D:\Switch\totk-work\package-totk\shaders --code D:\Switch\totk-work\shaders-index5\code --bfsha D:\Switch\totk-work\shaders-out --index D:\Switch\totk-work\shaders-index5\shader_index.tsv
+工作目录：D:\Switch\d2r-android
+预期结果：exit 0，7 条闸门全绿，结论"可以推机"（重点看"变体键链"这次是 exit 0 而不是超时）。
+日志路径：D:\Switch\totk-work\package-totk\preflight-updated2.txt 与本文件对应的 [END] 记录
+记录时间：2026-10-22T06:48:32+08:00
+
 > 只追加，不覆盖。最新记录放在最上方。
 > 当前状态以 [HANDOFF](HANDOFF.zh-CN.md) 为准。
+
+[BEGIN] na-050-preflight
+命令：D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\totk_preflight.py --package D:\Switch\totk-work\package-totk\totk-package-updated.zip --shaders D:\Switch\totk-work\package-totk\shaders
+工作目录：D:\Switch\d2r-android
+预期结果：exit 0，7 条闸门全绿，结论"可以推机"。
+日志路径：本文件对应的 [END] 记录
+记录时间：2026-10-22T00:45:46+08:00
+
+[END] na-050-preflight
+结果：exit 1（**不是包的问题**，两个红项都是本次执行方式造成的）：
+  ① 交接面红：预检在运行期间我自己才写入这条 [BEGIN]，它内部的 agent_handoff_check 看到"长操作 BEGIN 未闭合"；
+  ② ci_checks 红：预检没继承 DM_ANDROID_TOOLS，JDK 闸门被跳过（输出里出现 C:\Users\techjin\dm-work\tools\android\jdk）。
+  与包有关的闸门全绿：数据包清单 exit 0（game 9 / romfs 304,243 / shaders 24,535）、数据包条目一致、
+  着色器包 exit 0（584.7 秒）、NVN 覆盖 exit 0、APK 绿；"变体键链"黄项是因为少传 --code/--bfsha/--index。
+  处置：闭合本条后，用**完整档**参数 + DM_ANDROID_TOOLS 重跑（见下一条记录）。
+结束时间：2026-10-22T00:50:57+08:00
+
+[BEGIN] na-050-merge-package
+命令：D:\Switch\.tools\venv\Scripts\python.exe dm\tools\totk_merge_package.py --base-package D:\Switch\totk-work\package-totk\totk-package.zip --overlay-manifest D:\Switch\totk-work\overlay\totk-overlay.tsv --overlay-dir D:\Switch\totk-work\overlay\export --output D:\Switch\totk-work\package-totk\totk-package-updated.zip --json
+工作目录：D:\Switch\d2r-android
+预期结果：exit 0；新包 totk-package-updated.zip，条目 game 9 / romfs 304,243 / shaders 24,535；727 个 removed 路径不在包里；14,397 个 overlay 路径大小与清单一致；基座包不被改动。
+日志路径：D:\Switch\totk-work\package-totk\totk-package-updated.zip 与本文件对应的 [END] 记录
+记录时间：2026-10-22T00:33:38+08:00
+
+[END] na-050-merge-package
+结果：exit 0；新包 D:\Switch\totk-work\package-totk\totk-package-updated.zip（17,825,708,024 字节），条目 328,788 = game 9 / romfs 304,243 / shaders 24,535 / manifest.json 1；替换 14,397、删除 727。
+交叉印证：新包 manifest.bytes.romfs = 17,026,724,605，与 BKTR 更新映像文件表的总字节逐字节相等。
+结束时间：2026-10-22T00:39:00+08:00
 
 ## 2026-10-22 00:32 Asia/Shanghai — [SESSION] NA-049：修正 changed 口径并导出被替换的文件
 

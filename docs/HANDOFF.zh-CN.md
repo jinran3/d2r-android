@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-22T00:32:00+08:00
+updated_at: 2026-10-22T07:07:01+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 93b2d3c
+observed_head: e2d8f3f
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 93b2d3c7a2add20a2108ce93852fdcac0fa8d427
+origin_head_at_checkpoint: e2d8f3f306fec6f27a9d324111ce0dd706cb766b
 code_worktree: CLEAN
-next_action_id: NA-050
+next_action_id: NA-052
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,8 +140,8 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-22 00:32（Asia/Shanghai）
-- 当前阶段：M0 勘察完成；设备前静态闸门全绿；NA-046 固定路径导入、NA-047 BKTR 运行读取、NA-048 overlay 清单、NA-049 替换文件导出均已提交；下一步 NA-050 把 overlay 合进宿主数据包；NA-044 真机推包开机继续排队
+- 快照时间：2026-10-22 07:07（Asia/Shanghai）
+- 当前阶段：M0 勘察完成；设备前静态闸门全绿；NA-046 固定路径导入、NA-047 BKTR 运行读取、NA-048 overlay 清单、NA-049 替换文件导出、NA-050 overlay 合包、NA-051 更新包完整预检均已完成（**7 条闸门全绿 → 可以推机**）；下一步 NA-052 把「推包→导入→开机→读日志」一键化并写 runbook；NA-044 真机推包开机继续排队（外部阻塞：手机未接）
 - 当前分支：`totk/scaffold`
 - **本会话（NA-037 ~ NA-044）的结论**：**设备前的全部静态闸门全绿 → 可以推机**；剩下的每一步都要在真机上做。
   - 补上了 TotK 的 NVN 名字表（536 个；此前 13 个取不到 → 会拿到空函数指针而崩）与 **213 个被调接口的全部实现**
@@ -202,19 +202,19 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
     `[4, 818, 818, 818, 204]` → 真正条目 **2,658** 个（= fs_header 里的块总长 0xA62，交叉印证），
     即这条补丁要替换 2,658 个文件（平均 ~180 KB）。
     **还差**：那 2,658 条记录的语义（每条指向哪个文件）与载荷的分块边界。
-- 观测 HEAD：`93b2d3c`（NA-049 代码提交；控制面提交后的当前 Git HEAD/origin 以最终 `git rev-parse` 为准）
+- 观测 HEAD：`e2d8f3f`（NA-050 代码提交 `totk: merge the BKTR overlay into the host data package`；控制面提交后的当前 Git HEAD/origin 以最终 `git rev-parse` 为准）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
-- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b38`，17,873,359 字节）
-- 本次会话目标：手机不在，只做不需要真机的工作；NA-049 已把被替换的文件正文导出到仓库外并逐文件校验，下一项把 overlay 合进宿主数据包。
+- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b50`，17,873,359 字节，2026-10-22 07:08 构建 exit 0）
+- 本次会话目标：手机不在，只做不需要真机的工作；NA-050 已产出更新包 `totk-package-updated.zip`（17,825,708,024 字节），NA-051 已用更新包跑出 7 条全绿的「可以推机」结论；下一步 NA-052 把推包开机这一段一键化。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：**★ overlay 与宿主包合并**（NA-050；清单与 14,397 个替换文件已就位，合并包尚未产出）。**★ 真机推包与开机**（包已就绪：`D:\Switch\totk-work\package-totk\totk-package.zip`，**16.62 GiB**，game 9 / romfs 304,207 / shaders 24,535；手机本会话完全断开）。**★ 运行期仍未验的三件事**：① 变体挑选在真机上命中哪个候选（机器码的运行期地址）；② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。**★ M4 只剩真机校准**（触控 / 存档目录 / 音频 / 手柄映射都是通用件，不用为 TotK 重写）。**★ 更新包的 RomFS 补丁（BKTR）已解开运行读取口径**：重定位按 isPatch 选更新/本体源，子段 offset 是载荷物理偏移并切换 AES-CTR；更新文件表 304,243 / 本体 304,207（新增 763 / 删除 727 / 大小改变 6,978）；样本 Mals/USen.Product.142.sarc.zs 解出 SARC 1,511 条。**还差把更新文件按路径重打包进宿主包**。**★ Mac 侧的翻译链重建**（`dmsh_chain.h` 的版本本来就过期）。
-- 最近一次成功命令：NA-049 `totk_bktr.py --overlay-manifest --export-overlay` exit 0（14,397 个文件 / 474,841,307 字节）；`build_package.py overlay --romfs <导出目录> --statuses added,changed` exit 0（checked_against_romfs=14397）；两次独立导出 763/763 逐字节相同；`ci_checks.py` 15 项通过 / 0 失败；`build.py --game-run --version trim-b49` exit 0（APK 17,873,359 字节）；`agent_handoff_check.py --verify` exit 0；`git diff --check` exit 0。
-- 最近一次失败命令及原因：NA-049 首次 `ci_checks.py` exit 1（改了测试文件但没同步 HANDOFF 工作区清单），补清单后 15/0；工具进度行原本写 stdout 会污染 `--json`，已改到 stderr。`build_package.py overlay` 首次 exit 1（校验器漏收 `unchanged` 计数键），修正后 exit 0；合成坏尺寸/坏路径负例按设计 exit 1。更早的 BKTR 探针末桶边界错误见上一条日志。
-- 已验证产物路径：仓库内新增 `dm/gfx/tools/nvn_slots_auto.py`、`dm/gfx/tools/nvn_table.py`、`dm/gfx/tools/nvn_coverage.py`、`dm/gfx/tools/totk_variant_keys.py`；仓库外 `D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，含 5,534 个控制段键 + 5,913 个变体完整键 + 1,640 份变体名单）；仓库内新增 `dm/gfx/tools/nvn_slots_auto.py`（自动定位 NVN 取址函数）、`dm/gfx/tools/nvn_table.py`（只靠名字表重建跳板/计数/原型表）、`dm/gfx/tools/nvn_coverage.py`（覆盖核对）、`dm/gfx/nvn/nvn_names_totk.txt`（TotK 取址名 534 个）、`dm/gfx/nvn/nvn_calls_totk.tsv`（TotK 真正调用的 213 个接口与调用点数）；仓库外：`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.31 GiB，含按 Android 口径重译的着色器** ✓）、`D:\Switch\totk-work\xlate-android\out0..5\`（9,807 个新 SPIR-V）、`D:\Switch\totk-work\package-totk\shaders\`（5,534 套宿主键）、`D:\Switch\totk-work\android-translator\`、`D:\Switch\totk-work\base\romfs.img`+`.ivfc`、`D:\Switch\totk-work\pack-totk\produce\game\`、`D:\Switch\totk-work\package-totk\ambiguity.tsv`；仓库内新增 `dm/android/tools/build_android_translator.py`、`dm/tools/verify_totk_rewrite.py`、`dm/tools/check_guest_imports.py`；APK `dm/android/build/D2R-Android-port.apk`（trim-b30）。
-- 当前阻塞：**手机完全断开**（这不阻塞 NA-049）（`adb devices` 空，05:05 实测）（线插着但 adb 枚举不到，PnP 报 Code 45）—— 推包与开机验证要等设备回来，这是唯一的外部阻塞。**数据侧已能读取 BKTR 更新文件表；还差把更新文件重打包进宿主包**（本体数据已完整且逐条校验过）。c[2] 布局、着色器键口径、着色器翻译口径（子组 64 + 每阶段描述符集）、驱动（系统 Adreno 750）、客体符号解析、数据路径映射都已经验过。
+- 未完成：**★ overlay 与宿主包合并已完成**（NA-050：更新包 `totk-package-updated.zip` 已产出，抽样逐字节比对通过）。**★ 完整预检全绿**（NA-051：7 条闸门全绿 → 可以推机）。**★ 真机推包与开机**（包已就绪且预检全绿：**推更新包** `D:\Switch\totk-work\package-totk\totk-package-updated.zip`（17,825,708,024 字节 = 16.60 GiB，game 9 / romfs 304,243 / shaders 24,535）；基座包 `totk-package.zip` 是 v1.4.2 本体、**不要再推它**；手机本会话完全断开，`adb devices` 空、`totk_device_check.py` exit 2）。**★ 运行期仍未验的三件事**：① 变体挑选在真机上命中哪个候选（机器码的运行期地址）；② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。**★ M4 只剩真机校准**（触控 / 存档目录 / 音频 / 手柄映射都是通用件，不用为 TotK 重写）。**★ 更新包的 RomFS 补丁（BKTR）已解开运行读取口径**：重定位按 isPatch 选更新/本体源，子段 offset 是载荷物理偏移并切换 AES-CTR；更新文件表 304,243 / 本体 304,207（新增 763 / 删除 727 / 大小改变 6,978）；样本 Mals/USen.Product.142.sarc.zs 解出 SARC 1,511 条。**更新文件已按路径重打包进宿主包**（NA-050 完成，见下）。**★ Mac 侧的翻译链重建**（`dmsh_chain.h` 的版本本来就过期）。
+- 最近一次成功命令：NA-051 完整预检 `totk_preflight.py --package <更新包> --shaders --code --bfsha --index` **exit 0，7 条闸门全绿，结论「全绿 → 可以推机」**（变体键链 exit 0 / 358.9 秒 / 47,260 个着色器零不匹配；ci_checks 16 通过 0 失败）。NA-050 `totk_merge_package.py --base-package <基座包> --overlay-manifest <清单> --overlay-dir <导出目录> --output <更新包> --json` exit 0（更新包 17,825,708,024 字节 / 328,788 条目 = game 9 / romfs 304,243 / shaders 24,535；替换 14,397、删除 727）；独立抽样 242 个替换文件 + 40 个未变文件与基座逐字节相同（sha256，0 不符）；727 个 removed 路径在包里 0 残留；`manifest.json` 的 romfs 字节数 17,026,724,605 与 BKTR 更新映像文件表总字节相等；变体键链单独跑 exit 0（47,260 个着色器，键/c1/控制段长度不匹配均为 0）。NA-049 `totk_bktr.py --overlay-manifest --export-overlay` exit 0（14,397 个文件 / 474,841,307 字节）；`build_package.py overlay --romfs <导出目录> --statuses added,changed` exit 0（checked_against_romfs=14397）；两次独立导出 763/763 逐字节相同；`ci_checks.py` 15 项通过 / 0 失败；`build.py --game-run --version trim-b49` exit 0（APK 17,873,359 字节）；`agent_handoff_check.py --verify` exit 0；`git diff --check` exit 0。
+- 最近一次失败命令及原因：2026-10-22 06:23 那次完整预检 exit 1，唯一红项是「变体键链 超时（1800 秒）」——**不是数据问题**：同一命令单独跑 exit 0（本机实测 5~6 分钟），判定为执行环境（机器负载/休眠）导致，已把闸门超时上限放宽到 3600 秒（`totk_preflight.py --gate-timeout`），07:06 重跑 exit 0 全绿。另外：本会话第一次写 HANDOFF 时用 `s.index("## 下一步唯一动作")` 定位命中了正文里带反引号的那一处，把「当前快照」冲掉了 → `git checkout --` 还原后改成按整行精确匹配。`ci_checks.py` 在本会话改完代码、还没同步 HANDOFF 工作区清单时 exit 1，补清单后 15/0。NA-049 首次 `ci_checks.py` exit 1（改了测试文件但没同步 HANDOFF 工作区清单），补清单后 15/0；工具进度行原本写 stdout 会污染 `--json`，已改到 stderr。`build_package.py overlay` 首次 exit 1（校验器漏收 `unchanged` 计数键），修正后 exit 0；合成坏尺寸/坏路径负例按设计 exit 1。更早的 BKTR 探针末桶边界错误见上一条日志。
+- 已验证产物路径：仓库内新增 `dm/gfx/tools/nvn_slots_auto.py`、`dm/gfx/tools/nvn_table.py`、`dm/gfx/tools/nvn_coverage.py`、`dm/gfx/tools/totk_variant_keys.py`；仓库外 `D:\Switch\totk-work\package-totk\totk-package-updated.zip`（**17,825,708,024 字节 = 16.60 GiB**，game 9 / romfs 304,243 / shaders 24,535；**NA-050 的更新包，真机要推的是它**）、`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，基座包，含 5,534 个控制段键 + 5,913 个变体完整键 + 1,640 份变体名单）、`D:\Switch\totk-work\package-totk\merge-report.json`、`D:\Switch\totk-work\package-totk\preflight-updated.txt`（06:23 那次，唯一红项是变体键链超时）、`D:\Switch\totk-work\package-totk\preflight-updated2.txt`（**07:06 全绿那次**）；仓库内新增 `dm/gfx/tools/nvn_slots_auto.py`（自动定位 NVN 取址函数）、`dm/gfx/tools/nvn_table.py`（只靠名字表重建跳板/计数/原型表）、`dm/gfx/tools/nvn_coverage.py`（覆盖核对）、`dm/gfx/nvn/nvn_names_totk.txt`（TotK 取址名 534 个）、`dm/gfx/nvn/nvn_calls_totk.tsv`（TotK 真正调用的 213 个接口与调用点数）；仓库外：`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.31 GiB，含按 Android 口径重译的着色器** ✓）、`D:\Switch\totk-work\xlate-android\out0..5\`（9,807 个新 SPIR-V）、`D:\Switch\totk-work\package-totk\shaders\`（5,534 套宿主键）、`D:\Switch\totk-work\android-translator\`、`D:\Switch\totk-work\base\romfs.img`+`.ivfc`、`D:\Switch\totk-work\pack-totk\produce\game\`、`D:\Switch\totk-work\package-totk\ambiguity.tsv`；仓库内新增 `dm/android/tools/build_android_translator.py`、`dm/tools/verify_totk_rewrite.py`、`dm/tools/check_guest_imports.py`；APK `dm/android/build/D2R-Android-port.apk`（trim-b30）。
+- 当前阻塞：**手机完全断开**（这不阻塞 NA-049）（`adb devices` 空，05:05 实测）（线插着但 adb 枚举不到，PnP 报 Code 45）—— 推包与开机验证要等设备回来，这是唯一的外部阻塞。**数据侧已能读取 BKTR 更新文件表；更新文件也已按路径重打包进宿主包（NA-050 完成：新增 763 / 替换 13,634 / 删除 727，独立抽样逐字节核对通过）；设备前 7 条闸门在更新包上全绿（NA-051）**。c[2] 布局、着色器键口径、着色器翻译口径（子组 64 + 每阶段描述符集）、驱动（系统 Adreno 750）、客体符号解析、数据路径映射都已经验过。
 - 需要用户提供的材料：**无阻塞项**（TotK v1.4.2 合并 XCI、`prod.keys`、一加 12 均已到位）。后续若要真机跑起来，需要把 TotK 数据装进手机（下一步由宿主的「导入数据包」流程完成）。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据；**外部项目的代码不要直接搬进来**（`OJZen/totk-mobile` 是 Apache-2.0，本仓库是 MIT；只读思路与格式事实，代码自己写；Ryujinx 是 MIT，可用但要保留声明）。
@@ -272,17 +272,18 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-050
+- ID：NA-052
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：手机不在也能做；HEAD/origin 为 `93b2d3c`；代码工作区 CLEAN；基座包 `D:\Switch\totk-work\package-totk\totk-package.zip`（16.62 GiB）在仓库外；清单 `D:\Switch\totk-work\overlay\totk-overlay.tsv` 与导出目录 `D:\Switch\totk-work\overlay\export\`（14,397 个文件 / 474,841,307 字节）已就位；D: 剩余 78.6 GiB，够放合并包；不提交任何包或游戏数据。
-- 动作：把 overlay 合进宿主数据包：新增一个自有工具（`dm/tools/totk_merge_package.py`）读基座包 zip，逐条**原样复制**（STORED，不重新压缩）未被替换的 `romfs/` 条目，用导出目录里的 14,397 个文件替换对应路径、跳过 727 个 removed 路径，并写出新的 `manifest.json`（romfs 计数改成 304,243）。输出到**新文件** `D:\Switch\totk-work\package-totk\totk-package-updated.zip`，绝不覆盖基座包。
-- 命令或编辑目标：新增 `dm/tools/totk_merge_package.py`；验证命令为 `python dm/android/tools/build_package.py inspect <新包>`、`python dm/android/tools/totk_preflight.py --package <新包> --shaders D:\Switch\totk-work\package-totk\shaders`。
-- 成功判据：① 合并工具 exit 0，新包存在且条目为 game 9 / romfs 304,243 / shaders 24,535；② `manifest.json` 的 counts 与实际条目一致；③ 727 个 removed 路径在新包里**不存在**；④ 14,397 个 overlay 路径在新包里的大小与清单一致（抽样逐字节比对）；⑤ `build_package.py inspect` exit 0、`totk_preflight.py` exit 0（7 条闸门全绿）；⑥ 基座包字节数与 mtime 未变。
-- 失败判据：磁盘不足、任一条目计数/大小不符或预检有红项时，删除半成品 `.part`、保留基座包不动，并把失败证据写进 `HANDOFF_LOG.zh-CN.md`；不把"合并成功"写成"真机可用"。
-- 回滚点：`93b2d3c`；合并只新增文件，基座包 `totk-package.zip` 是回滚源；不使用 `git reset --hard`。
-- 需要写入的证据：合并命令与退出码、新包路径与大小、三个目录的条目数、removed/overlay 抽样核对结果、`build_package.py inspect` 与 `totk_preflight.py` 的退出码、`ci_checks.py`、`agent_handoff_check.py --verify`、`git status --short` 与提交号；真机行为写 `NOT RUN`。
-- 手机不在时后续队列（不是当前 READY 动作）：Mac 侧翻译链命令清单、NA-044 真机推包开机。
+- 前置条件：手机不在也能做；HEAD/origin 为 `e2d8f3f`；代码工作区 CLEAN；更新包 `D:\Switch\totk-work\package-totk\totk-package-updated.zip`（17,825,708,024 字节 / 328,788 条目）已就位且预检 7 条全绿；`dm/android/tools/deploy_totk.py` 在仓内。
+- 动作：把「推包 → 导入 → 开机 → 读日志」这一段做成**一条命令 + 一页纸 runbook**，并把 `deploy_totk.py` 改到适配更新包：
+  ① adb 解析（优先 `DM_ANDROID_TOOLS`/仓内约定路径，再退回 PATH 上的 adb）；② 默认把包推到 `/sdcard/Download/`（SAF 读 `Android/data` 未必读得到）；③ 推之前查外部存储与 `/data` 剩余空间（至少 35 GiB，建议 40 GiB）；④ 推完校验手机上的字节数与本地一致；⑤ 加 `--dry-run` 干跑模式（没有手机也能验脚本本身没坏）；⑥ 把这套步骤写进 `docs/TOTK_PORT_PROGRESS.zh-CN.md` 的「开机操作手册」一节（含每一步该看到什么日志、失败了怎么回退）。
+- 命令或编辑目标：改 `dm/android/tools/deploy_totk.py`（新增 `--dry-run`、空间预检、推送后校验、adb 路径解析、默认外部目录参数）；文档写进 `docs/TOTK_PORT_PROGRESS.zh-CN.md`；回归加进 `dm/android/tools/ci_checks.py` 或 `dm/android/tests/`。
+- 成功判据：① `deploy_totk.py --dry-run --package <更新包>` exit 0，把要执行的 adb 命令原样打出来；② 干跑与真跑走同一条代码路径（只有一个 `main`，干跑只把 `adb` 调用换成打印）；③ runbook 写进进度文档，含推包、导入、开机、读 `files/game.log`、失败回退（回退到基座包）五步；④ `ci_checks.py` 16 项通过 / 0 失败；⑤ `agent_handoff_check.py --verify` exit 0。
+- 失败判据：改完任何一项没过闸门就别提交，把失败命令与退出码写进 `HANDOFF_LOG.zh-CN.md`；**不推包、不动基座包**。
+- 回滚点：`e2d8f3f`；只用 `git checkout -- <文件>` 回退单个文件，不用 `git reset --hard`。
+- 需要写入的证据：`deploy_totk.py --dry-run` 的完整输出与退出码、`ci_checks.py` 与 `agent_handoff_check.py --verify` 的退出码、`git status --short` 与提交号；真机行为写 `NOT RUN`。
+- 手机回来时的下一个动作（不是当前 READY 动作）：NA-044 真机推包开机（目标包 = `totk-package-updated.zip`）。
 
 ## 长操作两阶段日志
 

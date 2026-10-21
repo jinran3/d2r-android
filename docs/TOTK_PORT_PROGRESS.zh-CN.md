@@ -12,6 +12,17 @@
 
 ## 当前状态（继续开发先看这里）
 
+**2026-10-22 07:06（Asia/Shanghai）—— 交接点：更新包（本体 + v1.4.2 补丁）已产出，设备前的 7 条闸门在它上面全绿 → 可以推机。**
+- **NA-050**：overlay 合进宿主包完成 → 更新包 `D:\Switch\totk-work\package-totk\totk-package-updated.zip`
+  （**17,825,708,024 字节 / 328,788 条目** = game 9 / romfs 304,243 / shaders 24,535；替换 14,397、删除 727）。
+- **NA-051**：完整预检 **exit 0，7 条全绿**，结论行是「全绿 → 可以推机」。
+- **代码与数据现在是同一次构建**（此前不是）：包里 `game/` 的模块改自**更新**（v1.4.2）的 `main` NSO，
+  数据侧也是 v1.4.2 → 「v1.4.2 代码 + 本体数据」的错配已消除。
+- 细节见下面「9.5 NA-050/NA-051」一节；**下一件事只有一个**：NA-052 把「推包→导入→开机→读日志」一键化并写 runbook，
+  手机回来后立刻做 NA-044 真机推包开机。
+下一次接手先读 [交接文档（HANDOFF）](HANDOFF.zh-CN.md) 的「当前快照」与「下一步唯一动作」。
+
+
 **2026-10-21 04:30（Asia/Shanghai）—— 交接点：设备前的静态闸门全绿，可以推机；真机验证全部待做。**
 下述 NA-037 ~ NA-043 的条目是本会话完成的（接口面对齐、接口覆盖清零、歧义控制键的解法、预排布贴图、包重建、
 M4 核对、预检脚本）；**下一件事只有一个**：手机接上后按交接文档 NA-044 的步骤推包开机。
@@ -491,14 +502,18 @@ NA-029 按用户要求同步了上游 `jhaizhou-ops/d2r-mobile`：其 `main` 的
 
 ### 9. 手机端导入流程的离线核对（2026-10-21 实测）
 
-**包的真实结构**（用 `zipfile` 逐条读 `D:\Switch\totk-work\package-totk\totk-package.zip`）：
+**包的真实结构**（用 `zipfile` 逐条读 `D:\Switch\totk-work\package-totk\totk-package-updated.zip`，2026-10-22；
+下面是**基座包** `totk-package.zip` 的旧数据，条目数差在 overlay 上）：
 
-| 类别 | 条目数 | 压缩后 | 解压后 |
+| 类别 | 条目数（基座 → 更新包） | 压缩后（更新包） | 解压后 |
 | --- | --- | --- | --- |
-| `game/` | 9 | 81,598,218 | 81,598,218 |
-| `romfs/` | 304,207 | 17,043,238,905 | 17,043,238,905 |
-| `shaders/` | 24,535 | 646,871,659 | 646,871,659 |
-| 合计 | **328,752** | **17,771,709,096（16.55 GiB）** | **同左** |
+| `game/` | 9 → 9 | 81,598,218 | 81,598,218 |
+| `romfs/` | 304,207 → **304,243** | 17,026,724,605 | 17,026,724,605 |
+| `shaders/` | 24,535 → 24,535 | 646,871,659 | 646,871,659 |
+| 合计 | 328,752 → **328,788** | **17,825,708,024（16.60 GiB）** | **同左** |
+
+> **真机要推的是更新包** `totk-package-updated.zip`（本体 v1.4.2 + v1.4.2 补丁的 overlay）；
+> 基座包 `totk-package.zip` 只是「只有本体数据」的旧包，**别再推它**。
 
 - **全部条目是 stored（压缩方法 0）**，也就是**包里没有压缩** → 解开后还是 16.55 GiB。
   → HANDOFF 里「zip 17 GiB + 解开 ~34 GiB」是按「解压会变小」估的，**偏大**。
@@ -525,9 +540,46 @@ NA-029 按用户要求同步了上游 `jhaizhou-ops/d2r-mobile`：其 `main` 的
   DocumentsUI 作为系统应用通常能列出，但**授予的 URI 未必读得到**。
   → **备选：把 zip 放到 `/sdcard/Download/` 再在启动界面里选**：
   ```
-  adb push D:\Switch\totk-work\package-totk\totk-package.zip /sdcard/Download/
+  adb push D:\Switch\totk-work\package-totk\totk-package-updated.zip /sdcard/Download/
   ```
   选不中或报「无法读取所选文件」就走这条。
+
+### 9.5 NA-050/NA-051：overlay 合进宿主包（2026-10-22）
+
+- **合包工具**：`dm/tools/totk_merge_package.py`（本仓库 MIT，自己写的）。读基座包 zip，
+  逐条**原样复制**（STORED，不重新压缩）未被替换的条目，用 NA-049 导出的正文替换对应路径、
+  跳过 727 个 `removed` 路径，并重写 `manifest.json`。
+  **只读基座包、只写新文件**：输出路径不能等于基座包，也不能落在仓库内（工具自己拒绝）。
+- **产物**：`D:\Switch\totk-work\package-totk\totk-package-updated.zip`
+  = **17,825,708,024 字节（16.60 GiB）**，**328,788** 条目 = game 9 / romfs 304,243 / shaders 24,535 /
+  `manifest.json` 1；替换 **14,397**、删除 **727**。
+  条目数自洽：基座 328,752 + 新增 763 − 删除 727 = 328,788 ✓。
+- **交叉印证**：更新包 `manifest.json` 的 `bytes.romfs` = 17,026,724,605，
+  与 BKTR 更新映像文件表的总字节**逐字节相等**（两条独立路径算出同一个数）。
+- **独立抽样核对**（本会话，sha256 逐字节比）：
+  随机 240 个 `added`/`changed` + 强制包含两个「同大小但内容被替换」的老样本
+  （`TerrainArc/StartIsland.tscb`、`UI/Map/MainField/U_06-03_04.bntx.zs`）→ **全部与导出目录一致**；
+  随机 40 个 `unchanged` → **与基座包逐字节相同**；727 个 `removed` 路径在包里 **0 残留**。
+- **代码与数据现在是同一次构建**（此前不是，NA-050 修好的）：
+  包里 `game/` 的模块是从**更新**（v1.4.2）的 `main` NSO 改出来的
+  （`patched-android/main.patched.bin` 头 0x20 的 build id 与 `nso/upd_main.img` **逐字节相同**：
+  `f40300aa001440f9f30301aa616301d0`；本体的 `base_main.img` 不是这个）；
+  数据侧现在也是 v1.4.2 → **「v1.4.2 的代码 + 本体的数据」这个错配已经不存在**。
+- **变体键链那条闸门**：2026-10-22 06:23 那次完整预检里它是**唯一红项**（「超时 1800 秒」），
+  但**同一命令单独跑是 exit 0**（本机实测 5~6 分钟，47,260 个着色器，键/c1/控制段长度不匹配均为 0）
+  → 判定为**执行环境**（机器负载/休眠）而不是数据缺陷。
+  已把闸门超时上限从 1800 秒放宽到 3600 秒（`totk_preflight.py --gate-timeout`，可调）。
+- **两条会自我误报的坑，已修**：
+  1. 一条正在跑的长操作会在日志里留 `[BEGIN]`，而它内部又调 `agent_handoff_check.py --verify`
+     → 校验器看到「自己留下的 BEGIN 没闭合」就报红。现在可以用环境变量点名豁免：
+     `DM_HANDOFF_PENDING_OPS=na-051-preflight`（默认行为不变，负向测试仍过）。
+  2. 预检的 `ci_checks` 闸门不继承 `DM_ANDROID_TOOLS` 时会跳过 JDK 闸门 →
+     跑预检**必须**带上 `DM_ANDROID_TOOLS=D:\Switch\.tools\android`。
+- **不在 Android 关键路径上的一件事**（省下别人去 Mac 的时间）：
+  `dm/gfx/nvn/dmsh_chain.h` 的翻译链锁 `15cf7ca29eaf` 与本机算出的 `84d7e6048895` 不一致，
+  以前记成「Mac 侧必须重建」。**实测 `DMSH_CHAIN` 只被 `nvn_mtl.m`（iOS/macOS 的 Metal 路径）引用，
+  `dm/host` 与 `dm/android` 里一次都没有** → 它是 **iOS 侧**的事，**不影响 Android 首次开机**。
+  Android 的着色器是出包时翻好的 SPIR-V，随包走（`shaders/*.spv`），运行期直接读包。
 
 ### 10. 更新包 BKTR 补丁：2026-10-21 的进展（实测）
 
