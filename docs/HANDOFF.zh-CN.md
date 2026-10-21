@@ -1,12 +1,12 @@
 ---
 protocol: 1
-updated_at: 2026-10-21T09:05:00+08:00
+updated_at: 2026-10-21T11:30:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 30bd9e9
+observed_head: 82d492e
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 30bd9e9ecd89b04db4ccf1628c1f8142dc23e357
+origin_head_at_checkpoint: 82d492e1667bcf7a9b53825b3c1dcbff99964446
 code_worktree: CLEAN
 next_action_id: NA-044
 ---
@@ -140,7 +140,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-21 09:05（Asia/Shanghai；**本文件里几条较新的时间戳是按会话顺序写的，可能与本机时钟不一致 —— 以 git 提交时间为准**）
+- 快照时间：2026-10-21 11:30（Asia/Shanghai；**本文件里几条较新的时间戳是按会话顺序写的，可能与本机时钟不一致 —— 以 git 提交时间为准**）
 - 当前阶段：M0 勘察完成；NA-033/034/035 收口；NA-036 数据/着色器/符号解析三条前置已验；NA-037 NVN 接口面对齐；NA-038 接口覆盖清零（103 → 0）；NA-039 5 个空实现补成真实现；NA-040 歧义控制键（43.6% 风险）给出运行期解法；NA-041 包重建 + M4 核对（触控/存档/音频/手柄都是通用件）；NA-042 预检脚本（结论：全绿 → 可以推机）；NA-043 变体挑选的运行期假设写清并加命中/退回计数；NA-045 首次开机预演清单 + 导入流程离线核对 + BKTR 布局定位（见下）；**下一步 NA-044 = 手机接上后推包开机**；更新包的 BKTR 补丁的**载荷格式**仍待办（布局已定死）
 - 当前分支：`totk/scaffold`
 - **本会话（NA-037 ~ NA-044）的结论**：**设备前的全部静态闸门全绿 → 可以推机**；剩下的每一步都要在真机上做。
@@ -202,7 +202,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
     `[4, 818, 818, 818, 204]` → 真正条目 **2,658** 个（= fs_header 里的块总长 0xA62，交叉印证），
     即这条补丁要替换 2,658 个文件（平均 ~180 KB）。
     **还差**：那 2,658 条记录的语义（每条指向哪个文件）与载荷的分块边界。
-- 观测 HEAD：见 frontmatter `observed_head`（`30bd9e9` 开机前的核对工具；再往前是 `abca535` BKTR 段布局工具、`1b84d4e` 着色器回退路径检查、`5bfa14b` 载荷扫描、`2a82939` 重定位表计数、`482985d` 消息归档对照；再往前是 `df23175` 完整预检全绿的记录）
+- 观测 HEAD：见 frontmatter `observed_head`（`82d492e` 解开 BKTR 的桶结构；再往前是 `30bd9e9` 开机前的核对工具；再往前是 `abca535` BKTR 段布局工具、`1b84d4e` 着色器回退路径检查、`5bfa14b` 载荷扫描、`2a82939` 重定位表计数、`482985d` 消息归档对照；再往前是 `df23175` 完整预检全绿的记录）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
 - 代码工作区：`CLEAN`（排除交接控制面）
 - 未提交代码文件：无
@@ -323,14 +323,16 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
      段数据是普通 AES-CTR；两个 BKTR 头在 NCA 头的 fs_header+0x100；232 字节元数据块的 sha256
      与 fs_header+0x1B0 相等；载荷是**用游戏自己的 zstd 字典（id=1）压的 SARC 归档**
      （= 一批更新过的 pack 归档）。
-     **还差**：① 每个载荷块对应本体哪个文件（映射在 `0x1C843400`–`0x1C85F400` 那 114,688 字节里，
-     2,658 条记录；**该表里没有本体文件的偏移** —— 去掉值为 0 的项之后，整个区域只有 15 处能命中
-     本体文件的数据起点，基本是巧合；区域里也没有任何文件名字；
-     114,688 = 3,584 × 32 正好等于元数据块的 `level[1].hash_data_size`，所以它更可能是
-     **第 1 层的 IVFC 哈希树**）；
-     另外「按内容哈希映射」这条路**已排除**：本体 RomFS 的 `file_hash_table`
-     （28 字节头 + 304,200 × 4 字节）里**根本不存哈希**，每项是 `0xFFFFFFFF`（空桶）
-     或一个**元数据表偏移** → 本体里没有内容哈希可用）；
+     **BKTR 的结构已经解开**（`abca535` 之后的这一版工具里）：fs_header 里有**两个 BKTR 头**，
+    重定位区是「4 个桶、每桶一个 16 KB 页」，条目是
+    **`{u64 虚拟偏移, u64 物理偏移, u32 isPatch}`**（2,658 条）：
+    虚拟偏移 = 这一段在补丁后映像里的位置，物理偏移 = 它的内容在段载荷里的位置。
+    虚拟偏移单调从 0 到 17,062,338,768。
+    **还差**：① 怎么把「区域」还原成「文件」——需要**虚拟映像自己的文件表**
+    （本体那张表布局已错位：本体数据区起点 0x1FE8000，更新是 0x1FE0000）；
+    ② 载荷的分帧方式；③ 子段桶（646 条）的语义；
+    另外「按内容哈希映射」这条路**已排除**（本体的 `file_hash_table` 是
+    28 字节头 + 304,200 × 4 字节，每项是 `0xFFFFFFFF` 或一个元数据表偏移，**不存哈希**）；
      ② 载荷的分块边界（16 个 zstd 帧之间只隔 3–15 字节，其余 2,642 个块是未压缩的二进制）。
      **网络实测**：`git` 到 github.com 通，但 `api.github.com` 与 `raw.githubusercontent.com` 超时不通
      → 取参考实现要走 `git clone`（走 github.com 的 git 通路），不要走 raw/api；
