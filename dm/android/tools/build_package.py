@@ -123,7 +123,7 @@ OVERLAY_FORMAT = 1
 OVERLAY_STATUSES = ("added", "changed", "unchanged", "removed")
 
 
-def read_overlay_manifest(manifest_path, romfs=None, statuses=None):
+def read_overlay_manifest(manifest_path, romfs=None, statuses=None, rows_out=None):
     """只读校验 BKTR overlay 清单；可选地核对非 removed 条目的文件存在与大小。
 
     清单口径：changed = 内容被补丁替换（虚拟区间与 isPatch=1 区域相交），
@@ -186,6 +186,8 @@ def read_overlay_manifest(manifest_path, romfs=None, statuses=None):
                 raise PackageError(f"overlay row {line_number} has an unsafe path: {relative!r}")
             observed[status] += 1
             rows += 1
+            if rows_out is not None:
+                rows_out.append((status, size, relative))
             if romfs is not None and status != "removed" and (statuses is None or status in statuses):
                 candidate = romfs.joinpath(*pure.parts)
                 if not candidate.is_file():

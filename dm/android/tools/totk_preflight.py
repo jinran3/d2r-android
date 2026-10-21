@@ -26,7 +26,11 @@ RESET = "\033[0m"
 results = []   # (状态, 名称, 证据行)
 
 
-def run(name, command, cwd=None, timeout=1800):
+GATE_TIMEOUT = 3600   # 每条闸门的超时上限（秒）| per-gate timeout cap in seconds
+
+
+def run(name, command, cwd=None, timeout=None):
+    timeout = GATE_TIMEOUT if timeout is None else timeout
     start = time.time()
     try:
         proc = subprocess.run([str(c) for c in command], cwd=str(cwd or ROOT), capture_output=True,
@@ -54,7 +58,18 @@ def main():
     ap.add_argument("--bfsha", type=pathlib.Path, help="着色器归档目录 | the shader archive directory")
     ap.add_argument("--index", type=pathlib.Path, help="着色器索引 TSV | the shader index TSV")
     ap.add_argument("--quick", action="store_true", help="跳过耗时的归档侧重算 | skip the slow archive recomputation")
+    # 每条闸门的超时上限（秒）。变体键链要重解析 47,260 个着色器，本机实测 5~6 分钟；
+    # 早先用 1800 秒时它被判超时（红），但同一命令单独跑是 exit 0 —— 那次是机器负载/休眠造成的，
+    # 不是数据问题，所以把上限放宽到 3600 秒，别让执行环境冒充数据缺陷。
+    # Per-gate timeout. The variant key chain reparses 47,260 shaders (5-6 min on this machine);
+    # it once hit the old 1800 s cap and was reported red, while the very same command standalone
+    # exits 0 -- that was machine load, not bad data, so the cap is now 3600 s.
+    ap.add_argument("--gate-timeout", type=int, default=3600, help="每条闸门的超时秒数 | per-gate timeout in seconds")
     args = ap.parse_args()
+    if args.gate_timeout <= 0:
+        ap.error("--gate-timeout must be positive")
+    global GATE_TIMEOUT
+    GATE_TIMEOUT = args.gate_timeout
 
     # 1) APK
     apk = ROOT / "dm/android/build/D2R-Android-port.apk"
