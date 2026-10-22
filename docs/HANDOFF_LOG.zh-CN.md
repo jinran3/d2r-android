@@ -1,5 +1,47 @@
 # Agent 交接会话日志
 
+## 2026-10-23 07:36 Asia/Shanghai — [SESSION] NA-045 收尾：fs 句柄接缝修好，卡点前移到 nn::vi（阶段 B 门口）
+
+- **NA-045 根因（定案）**：`nn::fs::ReadFile` 在本作有**三个重载**，而 `hle_fs.c` 只接管了 D2R 那个 5 参版本
+  （`_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvm`）。本作多出来的
+  `…ElPvmRKNS0_10ReadOptionE`（6 参）与 `…ENS0_10FileHandleElPvm`（4 参）**名字不匹配强制接管表 → 没接管**，
+  客体就走 sdk 自己的实现，而 sdk 那条路把**宿主发的句柄当 `detail::FileAccessor*`** 解引用：
+  真机 `CRASH sig=11 addr=0xc0 pc=sdk+0xa5940`，指令 `ldr w8,[x0,#0x24]`，x0 = 句柄 0x9c。
+  反汇编证据：`nn::fs::ReadFile`(0xa93b0, size 0x84) 是薄包装 —— `mov x0,x1`（句柄）+ `mov x1,x8`（out）→
+  `bl 桩 0x647f40` → 槽 `0xb6d280` = `_ZN2nn2fs6detail12FileAccessor4ReadEPmlPvmRKNS0_10ReadOptionE`（把 x0 当 this）。
+  系统核对：本作未定义的 fs/fssrv 符号 33 个、接管表 24 条，**差集 11 个**（见下）。
+- **修复**：把两个重载都接进 `hle_fs.c`，共用同一个 `h_fs_ReadFile`（pread）；`ReadOption` 只影响缓存/优先级，宿主直读用不上。
+- **真机证据（trim-b60，build exit 0 + install exit 0 + `deploy_totk.py --no-push` exit 0，日志 92 行）**：
+  `[dm] >>> nnMain` → `fs 挂载 content: → …/d2r-package/romfs（只读）` → `oe::SetFocusHandlingMode 2` →
+  `oe::SetPerformanceConfiguration mode=0 cfg=0x92220008（忽略）` → 崩在**新位置**（`FileAccessor` 那条不再出现）。
+- **新卡点**：`CRASH sig=11 addr=0 pc=sdk+0x44f3f4 lr=sdk+0x44f3f4`。
+  `pc 原文` = `aa1403e0 94083290 f94002a8 aa0003e2` ⇒ pc 处是 `ldr x8,[x21]`，**x21 = 0**（刚 `bl` 回来，x30 即 pc）。
+  符号 `sdk+0x44f3c0` = `_ZN2nn2vi20GetDisplayVsyncEventEPNS_2os15SystemEventTypeEPNS0_7DisplayE`（size 0xbc），函数体：
+  `bl 0x65be40`（槽 `0xb77200` = **`nn::vi::GetService()`**）→ `ldr x21,[sp,#8]`（**服务对象 = 0**）→
+  `bl 0x65be30`（槽 `0xb771f8` = `nn::vi::GetDisplayIdWithValidation`）→ `ldr x8,[x21]` 崩。
+  ⇒ **宿主完全没有 `nn::vi` 接管面**（`grep -rn 'HLE_FORCE("_ZN2nn2vi' dm/host/` 为空），而本作在 nnMain 早期就要 vi 的 vsync 事件。
+- **可复用设施（下一批直接用）**：`dm/host/hle_thread.c:661 hle_bind_system_event()`（在客体线程上调 SDK 自己的
+  `nn::os::CreateSystemEvent(跨进程=1)` 并记下写端句柄）与 `:676 hle_signal_system_event()`（任何线程可触发）。
+- **仍欠的 fs 接管（记住）**：`MountCacheStorage` / `CreateCacheStorage` / `DeleteCacheStorage` / `OpenCacheStorageList` /
+  `ReadCacheStorageList` / `CloseCacheStorageList` / `IsSaveDataExisting` / `MountSaveDataReadOnly` / `SetPriorityOnCurrentThread`。
+  现在没接管的走桩（返回 0），存档相关迟早要真实现。
+- 分级：「文件格式对」已核；「运行口径对」——DT_INIT + nnMain + romfs 挂载 + oe 初始化都过了；
+  「真机跑过」仍未出图，**阶段 B 的第一个动作（vi/vsync）就是现在的卡点**，B–F 仍 NOT RUN。
+
+[END] na-045-readfile-b60
+退出码：`build.py --game-run --version trim-b60` exit 0；`adb install -r` Success；`deploy_totk.py --no-push` exit 0
+产物：`dm/android/build/D2R-Android-port.apk`（trim-b60）；真机日志 `D:/Switch/totk-work/device/game_b60.log`（92 行）
+结果：SUCCESS（fs 重载接缝修好，卡点前移到 nn::vi）
+
+[BEGIN] na-045-readfile-b60
+命令：`build.py --game-run --version trim-b60`；`adb install -r`；`deploy_totk.py --package <更新包> --dest fixed --device 3b864e51 --no-push --log-out …`
+工作目录：D:\Switch\d2r-android
+前置：HEAD=origin=cbddac8、工作区 CLEAN、机内 trim-b59、数据包已导入（`--no-push` 不重导）
+改动：`dm/host/hle_fs.c` 新增两个 `nn::fs::ReadFile` 重载的强制接管（6 参带 ReadOption / 4 参无 out），共用 `h_fs_ReadFile`
+预期结果：不再在 `nn::fs::detail::FileAccessor::Read` 里把句柄当 this；日志推进到读完 romfs / 进 NVN
+日志路径：`D:\Switch\totk-work\device\game_b60.log`
+回滚点：机内 trim-b59；代码 `git checkout cbddac8 -- dm/host/hle_fs.c`
+
 ## 2026-10-23 07:25 Asia/Shanghai — [SESSION] NA-044 定案并越过 DT_INIT：`>>> nnMain` 出证，新卡点进 nn::fs
 
 - **NA-044 根因（定案，非推测）**：`dm/host/hle_svc.c` 里被接管的 `nn::mem::StandardAllocator::Allocate`

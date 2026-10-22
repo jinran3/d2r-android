@@ -1,6 +1,6 @@
 ---
 protocol: 1
-updated_at: 2026-10-23T07:30:00+08:00
+updated_at: 2026-10-23T07:38:00+08:00
 phase: M0
 state: READY_FOR_HANDOFF
 branch: totk/scaffold
@@ -8,7 +8,7 @@ observed_head: ceb813a
 origin_ref: origin/totk/scaffold
 origin_head_at_checkpoint: ceb813aa98072d9d497686aa44d463b56c57bfe9
 code_worktree: CLEAN
-next_action_id: NA-045
+next_action_id: NA-046
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,8 +140,9 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-23 07:30（Asia/Shanghai）
-- 当前阶段：**NA-044 已收尾 —— main/sdk/subsdk0 三个模块的 DT_INIT 全部走完，真机出现 `[dm] >>> nnMain`（trim-b58 / trim-b59 各一次，可复现）**。
+- 快照时间：2026-10-23 07:38（Asia/Shanghai）
+- 本轮（NA-045）：`hle_fs.c` 补两个 `ReadFile` 重载（细节与证据见 HANDOFF_LOG 07:36 条）；卡点从 fs 前移到 vi。仓库已有 `hle_bind_system_event`/`hle_signal_system_event` 可直接用。
+- 当前阶段：**NA-045 已收尾 —— fs 的 ReadFile 重载接缝修好，卡点前移到 `nn::vi`（阶段 B 门口）**。trim-b60 日志：`>>> nnMain` → `fs 挂载 content: → …/romfs（只读）` → `oe::SetFocusHandlingMode 2` → `oe::SetPerformanceConfiguration`→ `CRASH sig=11 addr=0 pc=sdk+0x44f3f4`。**仍未出图；阶段 B–F NOT RUN。**
   现在卡在 nnMain 里读文件：`CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`。**仍未出图；阶段 B–F 仍 NOT RUN。**
 - **NA-044 根因与修复（定案，证据见 HANDOFF_LOG 07:25 条）**：宿主 `dm/host/hle_svc.c` 的 `hle_stdalloc_allocate` 把「原版入口」
   写死成 D2R 的 `sdk+0x2f9974`；TotK 的 sdk 里该符号在 `0x1375f0`，`0x2f9974` 落在 `nn::codec::pcmDmx_ApplyFrame` 中间、恰是一条 `b`
@@ -252,7 +253,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
   另外首跑还修了三处部署脚本缺陷：adb 守护横幅被当设备、`get-state` 走 `adb shell`（exit 127）、
   完成标记轮询内部路径（实际在外部）+ 导入不幂等；启动行「▸  」前缀与 3168×1440 列表截断靠后缀匹配 + 滚动解决。
 - 已验证产物路径：**真机侧**：手机 `/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`（17,825,708,024 字节）+ 同目录 `d2r-package/`（manifest counts game 9 / romfs 304,243 / shaders 24,535；bytes.romfs 17,026,724,605）；内部 `files/d2r-package/game/`（9 个文件，78 MB）；`D:\Switch\totk-work\device\game.log`（首跑日志，拉起时 11 行、FATAL 时 14 行）。**仓库外**：`D:\Switch\totk-work\package-totk\totk-package-updated.zip`（**17,825,708,024 字节 = 16.60 GiB**，game 9 / romfs 304,243 / shaders 24,535；**真机推的就是它**）、`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，基座包 = v1.4.2 本体，**回退点，别推它首发**）、`preflight-updated2.txt`（07:06 全绿）、`merge-report.json`。**仓库内**：`dm/android/tools/deploy_totk.py` + `dm/android/tests/test_deploy_totk.py` + `dm/android/native/runtime.c`（NA-044 修复）；此前新增 `dm/gfx/tools/nvn_slots_auto.py`、`nvn_table.py`、`nvn_coverage.py`、`totk_variant_keys.py`、`dm/gfx/nvn/nvn_names_totk.txt`、`dm/gfx/nvn/nvn_calls_totk.tsv`；APK `dm/android/build/D2R-Android-port.apk`（**trim-b52**）。
-- 当前阻塞：**无外部阻塞**（手机在线）。**「往 main 代码段写」已定案并修复**（宿主把 `sdk+0x2f9974` 当作原版 `Allocate` 入口）。新卡点 `CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`（b58 为 `addr=0xaa`，同一指令、不同句柄）：`pc 原文` 的 `b9402408` = `ldr w8,[x0,#0x24]`；`sdk+0xa5940` = `nn::fs::detail::FileAccessor::Read`（首条真指令就解引用 this），`sdk+0xa93d0` = `nn::fs::ReadFile`；链 `nnMain → main+0x20fe7c → ReadFile → FileAccessor::Read`。x0 是**句柄值**（0x86→读 0xaa；0x9c→读 0xc0）⇒ 宿主 fs 接管发的句柄 ≠ sdk 内部句柄表里的 `FileAccessor*`。
+- 当前阻塞：**无外部阻塞**（手机在线）。**`nn::fs::ReadFile` 三重重载只接管了一个**（D2R 的 5 参版）已修好：本作多出的 6 参（带 `ReadOption`）与 4 参两个重载已接进 `hle_fs.c`，共用 `h_fs_ReadFile`；`FileAccessor::Read` 把句柄当 this 的崩溃（`addr=0xc0 pc=sdk+0xa5940`）不再出现。**新卡点**：`CRASH sig=11 addr=0 pc=sdk+0x44f3f4 lr=sdk+0x44f3f4`，pc 处 `ldr x8,[x21]`、x21=0；符号 `nn::vi::GetDisplayVsyncEvent`(0x44f3c0)，内部先调 `nn::vi::GetService()`（槽 0xb77200）拿到 0 —— **宿主没有任何 `nn::vi` 接管面**。
   - 已根因定案（2026-10-23 00:30）：宿主 `relocate()` 只处理 `DT_RELA`/`DT_JMPREL`，**没有实现 `DT_RELR`**（tag 35/36/37）。
     TotK 三模块的相对重定位全部走这张压缩包式表（main 9,357 个编码字 → **499,074 个槽**；sdk 15,007；subsdk0 3,424），
     显式 RELA 里一条 `R_AARCH64_RELATIVE` 都没有，所以日志一直是 `relative=0`。
@@ -340,26 +341,26 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-045
+- ID：NA-046
 - 状态：READY
-- 工作目录：`D:\Switch\d2r-android`
-- 前置条件：手机在线；`trim-b59` 已装；数据包已导入（**不要重导**）；已出证：三个模块 DT_INIT 走完、`[dm] >>> nnMain`（`game_b58.log` / `game_b59.log`）。
-- 动作：**定性 `nn::fs::detail::FileAccessor::Read` 的 `x0`（句柄被当对象指针）**。
-  新崩溃 `CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`（b58 为 `addr=0xaa`）；`pc 原文` = `ldr w8,[x0,#0x24]`，`x0` 是**句柄值**（0x86 / 0x9c）。
-  符号：`sdk+0xa5924` = `_ZN2nn2fs6detail12FileAccessor4ReadEPmlPvmRKNS0_10ReadOptionE`（size 0x278），
-  `sdk+0xa93b0` = `_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvmRKNS0_10ReadOptionE`（size 0x84）。
-  按此顺序走，一次只落一个假设：
-  1. 反汇编 `nn::fs::ReadFile`（0xa93b0–0xa9434），看它怎么把 `FileHandle`（x1）变成 `FileAccessor*`：查 sdk 自己的内部表（哪个全局/函数），
-     还是直接把句柄当指针用（那正好解释 `x0` 恰等于句柄值）。
-  2. 查 `dm/host/hle_fs.c` 现有的 fs 接管面：宿主发的句柄编号空间与 sdk 内部表是否**同一张表**。TotK 新出现的是「客体自己调 sdk 的 ReadFile」这条路，
-     D2R 全程走宿主 HLE，所以这条路从来没被验过。
-  3. 若确认「句柄空间不一致」→ 优先修**接管面**（把 `nn::fs::ReadFile` / `FileAccessor` 一族接进既有 fs HLE、共用一套句柄），不要伪造 sdk 内部表。
-- 命令或编辑目标：`llvm-objdump -D --start-address=0xa93b0 --stop-address=0xa9434`（sdk）、`--start-address=0xa5924 --stop-address=0xa59c0`（Read 头部）；
-  改动只允许落在 `dm/host/hle_fs.c`（或新增的 fs HLE 条目）。
-- 成功判据：不再在 `FileAccessor::Read` 里解引用小整数；日志推进到下一阶段（romfs 读成功 / 进 NVN 初始化）。
-- 失败判据：仍崩 `sdk+0xa5940` → 说明 sdk 内部表那条路确实被调用，改按「补 sdk 内部表登记」；pc 换别处 → 已推进，按新 pc/lr 继续。
-- 回滚点：`trim-b59`（机内）；代码 `git checkout <本批业务提交> -- dm/host/hle_fs.c`；包不动。
-- 需要写入的证据：`ReadFile` 的 x1→this 转换反汇编、宿主 fs 句柄空间的定义位置、`game_b58.log` / `game_b59.log` 与新构建号。
+- 工作目录：`D://Switch//d2r-android`
+- 前置条件：手机在线；`trim-b60` 已装；数据包已导入（**不要重导**）；已出证：DT_INIT 三模块走完、`>>> nnMain`、romfs 挂载、oe 初始化，
+  现崩在 `nn::vi::GetDisplayVsyncEvent`（`game_b60.log` 92 行）。
+- 动作：**给阶段 B 开一个最小的 `nn::vi` 接管面，先只解决 vsync 事件**。
+  1. 反汇编确认 `nn::vi::GetDisplayVsyncEvent`（0x44f3c0–0x44f47c）的完整语义：它把服务对象虚表 `+0xb8` 当什么方法、
+     往 `SystemEventType*`（x0 的出参）里写什么。
+  2. 实现 `HLE_FORCE("_ZN2nn2vi20GetDisplayVsyncEventEPNS_2os15SystemEventTypeEPNS0_7DisplayE", …)`：
+     在客体线程上用 `hle_bind_system_event(out_event, 0)` 让 SDK 自己建出跨进程事件（`hle_thread.c:661`），返回 0。
+  3. **谁按帧触发**：先找现有呈现/交换回调（NVN 的 `nvnWindowPresentTexture`/Android Choreographer 那条）挂
+     `hle_signal_system_event()`；**没有可用回调时**才退到宿主 60 Hz 定时线程（并在日志里写明走的是哪条）。
+  4. 如果 `nn::vi::GetService` 还被别处调用（先 grep 其它 vi 导入），同样用「返回静态对象 + 全 0 虚表」的老办法兜住，
+     **不要**去伪造 sf 代理对象。
+- 命令或编辑目标：`llvm-objdump -D --start-address=0x44f3c0 --stop-address=0x44f47c`（sdk）；
+  改动只允许落在 `dm/host/hle_vi.c`（新建）或 `dm/host/hle_thread.c` 的最小增量；不许动数据侧与包。
+- 成功判据：不再崩 `sdk+0x44f3f4`；日志推进到 NVN 初始化（出现 `[vulkan]`/`[nvn]` 之类新行或画面有清屏色）。
+- 失败判据：仍崩同址 → 说明别处也在解引用 vi 服务对象，按新 pc 继续；卡在事件等待（无 CRASH 但无进展）→ 换触发源。
+- 回滚点：机内 `trim-b60`；代码 `git checkout <本批控制面提交> -- dm/host/hle_vi.c dm/host/hle_thread.c`。
+- 需要写入的证据：`GetDisplayVsyncEvent` 的虚表偏移语义、触发源选择（回调 or 定时）、新构建号与 `game_b61.log`。
 
 ## 长操作两阶段日志
 
