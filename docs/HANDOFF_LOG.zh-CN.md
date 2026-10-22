@@ -1,5 +1,24 @@
 # Agent 交接会话日志
 
+## 2026-10-22 21:51 Asia/Shanghai — [SESSION] 对账修正：HANDOFF ↔ Git 不一致（NA-052 开工前）
+
+- **发现的不一致**（`agent_handoff_check.py --verify` exit 1，4 个 FAIL）：
+  ① frontmatter `observed_head: e2d8f3f` 旧于实际 HEAD —— `e2d8f3f` 之后还有两个纯控制面提交
+  （`4d95b12 docs: checkpoint NA-050...`、`eeb1c1f docs: refresh the device blocker evidence`）；
+  ② frontmatter `code_worktree: CLEAN` 与实际 DIRTY 不符；③「代码工作区」清单为空，实际有
+  ` M dm/android/tools/deploy_totk.py`。
+- **原因**：上次会话上下文耗尽，交接没写完 —— 它 09:30 把 `deploy_totk.py` 重写成 NA-052 要的
+  「推包→导入→开机→读日志」一条命令（+530 行，含 adb 解析、`--dry-run`、空间预检、推送后字节校验），
+  没提交、没写 runbook、没接回归，只留在了工作区。
+- **处置**（按 AGENTS.md 第 6/14 条：先修 HANDOFF、不丢未提交改动、不用 `git reset --hard`）：
+  更新 frontmatter（`observed_head`/`origin_head_at_checkpoint` → `eeb1c1f`、`code_worktree` → `DIRTY`）、
+  当前快照与「代码工作区」清单登记该 WIP，控制面单独提交推送；`--verify` 复跑 exit 0 后才动业务代码。
+- **证据**：`git rev-parse HEAD` / `git rev-parse origin/totk/scaffold` 均为
+  `eeb1c1fffbb68fd88846930d805a68344559703d`；`git status --short --untracked-files=all` 仅
+  ` M dm/android/tools/deploy_totk.py`；`stat` 该文件 mtime 2026-10-22 09:30:00。
+- **下一步**：NA-052 继续 —— 审查 WIP → 用更新包跑 `--dry-run` → 补回归（`dm/android/tests/` +
+  `ci_checks`）→ 写「开机操作手册」→ 闸门 → 业务提交。**不推包、不动基座包**（真机推包是 NA-044）。
+
 [END] na-051-preflight
 结果：exit 0 —— **7 条闸门全绿，结论行「全绿 → 可以推机」**（对象是**更新包** `totk-package-updated.zip`）。
 逐条：APK 17,873,359 字节（绿）| 数据包清单 exit 0（2.3 秒，game 9 / romfs 304,243 / shaders 24,535）|

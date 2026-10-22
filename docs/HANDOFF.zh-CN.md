@@ -1,13 +1,13 @@
 ---
 protocol: 1
-updated_at: 2026-10-22T07:07:01+08:00
+updated_at: 2026-10-22T21:51:15+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: e2d8f3f
+observed_head: eeb1c1f
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: e2d8f3f306fec6f27a9d324111ce0dd706cb766b
-code_worktree: CLEAN
+origin_head_at_checkpoint: eeb1c1fffbb68fd88846930d805a68344559703d
+code_worktree: DIRTY
 next_action_id: NA-052
 ---
 # TotK 移植交接文档（HANDOFF）
@@ -140,8 +140,8 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-22 07:07（Asia/Shanghai）
-- 当前阶段：M0 勘察完成；设备前静态闸门全绿；NA-046 固定路径导入、NA-047 BKTR 运行读取、NA-048 overlay 清单、NA-049 替换文件导出、NA-050 overlay 合包、NA-051 更新包完整预检均已完成（**7 条闸门全绿 → 可以推机**）；下一步 NA-052 把「推包→导入→开机→读日志」一键化并写 runbook；NA-044 真机推包开机继续排队（外部阻塞：手机未接）
+- 快照时间：2026-10-22 21:51（Asia/Shanghai）
+- 当前阶段：M0 勘察完成；设备前静态闸门全绿；NA-046 固定路径导入、NA-047 BKTR 运行读取、NA-048 overlay 清单、NA-049 替换文件导出、NA-050 overlay 合包、NA-051 更新包完整预检均已完成（**7 条闸门全绿 → 可以推机**）；本会话先做了一次 HANDOFF↔Git 对账修正（HEAD `e2d8f3f`→`eeb1c1f`、工作区登记上次会话留下的 `deploy_totk.py` 未提交改动），随后继续 NA-052：审查该 WIP → 干跑 → 回归测试 → runbook → 闸门 → 提交；NA-044 真机推包开机继续排队（外部阻塞：手机未接）
 - 当前分支：`totk/scaffold`
 - **本会话（NA-037 ~ NA-044）的结论**：**设备前的全部静态闸门全绿 → 可以推机**；剩下的每一步都要在真机上做。
   - 补上了 TotK 的 NVN 名字表（536 个；此前 13 个取不到 → 会拿到空函数指针而崩）与 **213 个被调接口的全部实现**
@@ -202,13 +202,13 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
     `[4, 818, 818, 818, 204]` → 真正条目 **2,658** 个（= fs_header 里的块总长 0xA62，交叉印证），
     即这条补丁要替换 2,658 个文件（平均 ~180 KB）。
     **还差**：那 2,658 条记录的语义（每条指向哪个文件）与载荷的分块边界。
-- 观测 HEAD：`e2d8f3f`（NA-050 代码提交 `totk: merge the BKTR overlay into the host data package`；控制面提交后的当前 Git HEAD/origin 以最终 `git rev-parse` 为准）
-- origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter
-- 代码工作区：`CLEAN`（排除交接控制面）
-- 未提交代码文件：无
+- 观测 HEAD：`eeb1c1f`（`docs: refresh the device blocker evidence`；此前快照写的 `e2d8f3f` 之后又有两个纯控制面提交 `4d95b12`/`eeb1c1f`，本会话已对账修正；代码业务提交 `e2d8f3f totk: merge the BKTR overlay into the host data package` 不变）
+- origin 对应分支：`origin/totk/scaffold`，与本地 HEAD 一致（`eeb1c1f`），检查点见 frontmatter
+- 代码工作区：`DIRTY`（排除交接控制面；唯一改动是上次会话留下的 NA-052 WIP）
+- 未提交代码文件：`dm/android/tools/deploy_totk.py`（NA-052 WIP：上次会话 2026-10-22 09:30 把该脚本重写为「推包→导入→开机→读日志」一条命令，含 adb 解析、`--dry-run`、空间预检、推送后字节校验；上下文耗尽未提交、未写 runbook、未接回归。本会话的工序：先对账提交控制面 → 审查 WIP → 干跑 → 补回归与 runbook → 闸门 → 业务提交）
 - 未跟踪代码文件：无
 - 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（`trim-b50`，17,873,359 字节，2026-10-22 07:08 构建 exit 0）
-- 本次会话目标：手机不在，只做不需要真机的工作；NA-050 已产出更新包 `totk-package-updated.zip`（17,825,708,024 字节），NA-051 已用更新包跑出 7 条全绿的「可以推机」结论；下一步 NA-052 把推包开机这一段一键化。
+- 本次会话目标：手机不在，只做不需要真机的工作；更新包 `totk-package-updated.zip`（17,825,708,024 字节）已就绪且 NA-051 预检 7 条全绿；本会话把 NA-052（推包开机一键化 + runbook）收尾：先修正 HANDOFF 与 Git 的不一致，再基于上次会话的 `deploy_totk.py` WIP 干跑验证、补回归与「开机操作手册」。
 - 已完成（带证据）：见下方「已完成清单」。
 - 未完成：**★ overlay 与宿主包合并已完成**（NA-050：更新包 `totk-package-updated.zip` 已产出，抽样逐字节比对通过）。**★ 完整预检全绿**（NA-051：7 条闸门全绿 → 可以推机）。**★ 真机推包与开机**（包已就绪且预检全绿：**推更新包** `D:\Switch\totk-work\package-totk\totk-package-updated.zip`（17,825,708,024 字节 = 16.60 GiB，game 9 / romfs 304,243 / shaders 24,535）；基座包 `totk-package.zip` 是 v1.4.2 本体、**不要再推它**；手机本会话完全断开，`adb devices` 空、`totk_device_check.py` exit 2）。**★ 运行期仍未验的三件事**：① 变体挑选在真机上命中哪个候选（机器码的运行期地址）；② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。**★ M4 只剩真机校准**（触控 / 存档目录 / 音频 / 手柄映射都是通用件，不用为 TotK 重写）。**★ 更新包的 RomFS 补丁（BKTR）已解开运行读取口径**：重定位按 isPatch 选更新/本体源，子段 offset 是载荷物理偏移并切换 AES-CTR；更新文件表 304,243 / 本体 304,207（新增 763 / 删除 727 / 大小改变 6,978）；样本 Mals/USen.Product.142.sarc.zs 解出 SARC 1,511 条。**更新文件已按路径重打包进宿主包**（NA-050 完成，见下）。**★ Mac 侧的翻译链重建**（`dmsh_chain.h` 的版本本来就过期）。
 - 最近一次成功命令：NA-051 完整预检 `totk_preflight.py --package <更新包> --shaders --code --bfsha --index` **exit 0，7 条闸门全绿，结论「全绿 → 可以推机」**（变体键链 exit 0 / 358.9 秒 / 47,260 个着色器零不匹配；ci_checks 16 通过 0 失败）。NA-050 `totk_merge_package.py --base-package <基座包> --overlay-manifest <清单> --overlay-dir <导出目录> --output <更新包> --json` exit 0（更新包 17,825,708,024 字节 / 328,788 条目 = game 9 / romfs 304,243 / shaders 24,535；替换 14,397、删除 727）；独立抽样 242 个替换文件 + 40 个未变文件与基座逐字节相同（sha256，0 不符）；727 个 removed 路径在包里 0 残留；`manifest.json` 的 romfs 字节数 17,026,724,605 与 BKTR 更新映像文件表总字节相等；变体键链单独跑 exit 0（47,260 个着色器，键/c1/控制段长度不匹配均为 0）。NA-049 `totk_bktr.py --overlay-manifest --export-overlay` exit 0（14,397 个文件 / 474,841,307 字节）；`build_package.py overlay --romfs <导出目录> --statuses added,changed` exit 0（checked_against_romfs=14397）；两次独立导出 763/763 逐字节相同；`ci_checks.py` 15 项通过 / 0 失败；`build.py --game-run --version trim-b49` exit 0（APK 17,873,359 字节）；`agent_handoff_check.py --verify` exit 0；`git diff --check` exit 0。
@@ -268,6 +268,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 ### 代码工作区（排除交接控制面）
 
 ```text
+ M dm/android/tools/deploy_totk.py
 ```
 
 ## 下一步唯一动作
