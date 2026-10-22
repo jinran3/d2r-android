@@ -20,6 +20,17 @@
 - `build.py --game-run --version trim-b55` → exit 0（APK 17,873,359 字节）。
 - 本地反汇编与符号解析（`llvm-objcopy` 包 ELF + `llvm-objdump`）：`0x1eade4`/`0x1ce4e0` 两处均已核对。
 
+### 已排除 / 待查（本轮末尾的两个只读事实）
+
+- **init_array 本身没有空项**：本地 `main.patched.bin` 的 `DT_INIT_ARRAY=0x3557000`、size `0x14ee8`
+  （10,717 项），逐项扫描 **0 个空项**；项值是**镜像相对地址**（0x10bee00 / 0x10bee60 / 0x10c0510 …）。
+- **`main: reloc relative=0`** —— 宿主对 main 应用了 0 条 RELATIVE 重定位，而 init_array 的项按常理要靠
+  RELATIVE 变成运行期绝对地址。崩溃在 `blr x8` 且 x8=0、pc=0，与「项值是相对地址未加基址」并不完全吻合 →
+  下一步要一起查：① 设备上那个模块的该区域字节（本轮按 `guest_elf.py` 的 `0x4000 + 0x3557000` 去 dd，
+  读到的不是数组内容，说明**打包器放置与 guest_elf.py 不一致**，先确认实际放置再比）；② 宿主是否在某处把该区清零
+  （`install_key_page` 只清键页 0x3ad0000..0x3ae0000，理论上不重叠）。
+- 结论：**空指针来源还没定**，但范围已缩到「init_array 的运行期内容」这一处，不是数组项缺失。
+
 ### 还差什么
 
 - 定位 init_array 里的空项（或 init 函数内部的空回调）→ 见 HANDOFF「下一步唯一动作」。
