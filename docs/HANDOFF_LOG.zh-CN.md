@@ -5,6 +5,7 @@
 - 本轮未改业务代码（全程只读情报 + 方案起草）。NA-044 的执行计划已定稿并写进本文件顶部与 HANDOFF「当前阻塞」：第 1 步反汇编 sdk+0x2f98e8 / main 调用链 → A–D 四分支 → trim-b57 复跑；**弱导入分道（上游 #66）与 svc 0x02 的 RELRO 语义故意不进第一批**（行为变化单批做）。
 - 外部巡检全文见上条 01:15 [SESSION]。源码级核对补一条：本机 `walk_relr`（dm/host/loader.c:274–319）与 totk-mobile `host/relr.h`、rhythm-heaven-android 补丁三方语义逐条一致（偶项加基址 / 位图 bit−1 映射 / 位图后无条件推进 63 槽 / 0 槽跳过无效），且真机 relr 计数与本地逐位吻合 —— **RELR 修复定案，不再是嫌疑**。
 - 控制面：HANDOFF 进入 `READY_FOR_HANDOFF`；observed_head = origin_head_at_checkpoint = `ec3a67e`（ec3a67efc86fb6bf73a15a922e961ec0bd2932cf）。
+  本条提交后最终 HEAD = origin = **`c180b01`**（交接提示词按它写）。
 - 提示词文件：`D:\Switch\TOTK_NEXT_PROMPT.md`（已重写为当前状态；旧版写 cd4c045 已过时）。
 - 新会话首动作必须是读 `AGENTS.md` → `HANDOFF.zh-CN.md` → `agent_handoff_check.py --resume` + `--verify`（Administrator 环境变量带上 `DM_ANDROID_TOOLS`、`PYTHONIOENCODING`、`PYTHONUTF8`）。
 
