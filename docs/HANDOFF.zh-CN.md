@@ -1,12 +1,12 @@
 ---
 protocol: 1
-updated_at: 2026-10-22T23:31:00+08:00
+updated_at: 2026-10-23T00:35:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: 78243ef
+observed_head: cd4c045
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: f7d7fa7371751368dab5760c63d25e38e8a8798c
+origin_head_at_checkpoint: cd4c0457f19961ac8edff4ade91bb885051988a2
 code_worktree: CLEAN
 next_action_id: NA-044
 ---
@@ -245,9 +245,22 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
   另外首跑还修了三处部署脚本缺陷：adb 守护横幅被当设备、`get-state` 走 `adb shell`（exit 127）、
   完成标记轮询内部路径（实际在外部）+ 导入不幂等；启动行「▸  」前缀与 3168×1440 列表截断靠后缀匹配 + 滚动解决。
 - 已验证产物路径：**真机侧**：手机 `/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`（17,825,708,024 字节）+ 同目录 `d2r-package/`（manifest counts game 9 / romfs 304,243 / shaders 24,535；bytes.romfs 17,026,724,605）；内部 `files/d2r-package/game/`（9 个文件，78 MB）；`D:\Switch\totk-work\device\game.log`（首跑日志，拉起时 11 行、FATAL 时 14 行）。**仓库外**：`D:\Switch\totk-work\package-totk\totk-package-updated.zip`（**17,825,708,024 字节 = 16.60 GiB**，game 9 / romfs 304,243 / shaders 24,535；**真机推的就是它**）、`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，基座包 = v1.4.2 本体，**回退点，别推它首发**）、`preflight-updated2.txt`（07:06 全绿）、`merge-report.json`。**仓库内**：`dm/android/tools/deploy_totk.py` + `dm/android/tests/test_deploy_totk.py` + `dm/android/native/runtime.c`（NA-044 修复）；此前新增 `dm/gfx/tools/nvn_slots_auto.py`、`nvn_table.py`、`nvn_coverage.py`、`totk_variant_keys.py`、`dm/gfx/nvn/nvn_names_totk.txt`、`dm/gfx/nvn/nvn_calls_totk.tsv`；APK `dm/android/build/D2R-Android-port.apk`（**trim-b52**）。
-- 当前阻塞：**无外部阻塞**（手机在线）。技术卡点 = **main 的 init_array 里跳空指针**：
-  `CRASH sig=11 addr=0 pc=0 lr=main+0x10b9ec8`，bt `run_module_inits+0x94`。10,717 项里有一项（或某项内部）
-  调用了空函数指针。分级：「运行口径对」——四道闸门 + SetHeapSize + 进 init_array 已真机跑过；「真机跑过」——**未出图**，阶段 B–F NOT RUN。
+- 当前阻塞：**无外部阻塞**（手机在线）。技术卡点变了（见下）——**「init_array 跳空指针」已解决**，新卡点是 main 的 DT_INIT 首次调用里往 main 代码段写。
+  - 已根因定案（2026-10-23 00:30）：宿主 `relocate()` 只处理 `DT_RELA`/`DT_JMPREL`，**没有实现 `DT_RELR`**（tag 35/36/37）。
+    TotK 三模块的相对重定位全部走这张压缩包式表（main 9,357 个编码字 → **499,074 个槽**；sdk 15,007；subsdk0 3,424），
+    显式 RELA 里一条 `R_AARCH64_RELATIVE` 都没有，所以日志一直是 `relative=0`。
+    本地实测：init_array 的 10,717 项 **100% 落在 RELR 里**，连 `__init_array_start/end` 两个边界槽（main+0x394b7b0/0x394b7a8）也在表里
+    ⇒ 客体拿到的是链接期地址 0x3557000，于是 `ldr x8,[x20],#8` 读低地址 0x3557008 得 0 → `blr x8` → `pc=0`。
+    已推翻的旧假设：①「打包器放置与 guest_elf.py 不一致」不成立（`.so` 里落位 0x4000+0x3557000 与 patched.bin 逐字节一致）；
+    ②「设备上被清过」不成立（`install_key_page` 在 Android 分支根本不调用，Android 只写键槽并封键页 0x3ad0000..0x3ad4000）。
+  - trim-b56 真机出证：`main: reloc relative=0 relr=499074 abs/glob=1421 jump=649`、`sdk relr=15007`、`subsdk0 relr=3424`；
+    `main: init_array 体检 base 0x7284a57000 数组 0x7287fae000 共 10717 项：零项 0、仍是相对值 0；首三项 0x7285b15e00 0x7285b15e60 0x7285b17510`。
+  - 新崩溃：`CRASH sig=11 addr=main+0x408 pc=sdk+0x2f98e8 lr=0x730a2e666c`，
+    bt `main+0x99d04 sdk+0x98f24 main+0x10b9e64 run_module_inits+0xa4`；崩溃指令 `strb w0,[x14,x1]`（x14=main 基址，x1=0x408）。
+  - 分级（照旧三级，别混着说）：
+    「文件格式对」已核；
+    「运行口径对」**本轮才真正对齐**——相对重定位语义补齐后程序才走到 DT_INIT 内部；
+    「真机跑过」：**仍未出图**，未到 `>>> nnMain`，阶段 B–F 全部 NOT RUN。
 - 需要用户提供的材料：**无**（TotK v1.4.2 合并 XCI、`prod.keys`、一加 12 都已到位；包已导入手机）。
   唯一要注意的：手机别开省电/保持唤醒策略变化导致 adb 掉线；若 `adb devices` 为空，重插数据线并在手机上确认 USB 调试授权。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
@@ -312,21 +325,28 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 ## 下一步唯一动作
 
 - ID：NA-044
-- 状态：READY
+- 状态：READY（本轮已完成「init_array 相对重定位」这一步，下面是新的一步）
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：手机在线；`trim-b55` 已装；启动已到 main 的 `DT_INIT`（init_array 10,717 项）；包已导入（counts 一致）。
-- 动作：**查 main init_array 里的空函数指针** —— 崩溃 `pc=0 lr=main+0x10b9ec8`（bt `run_module_inits+0x94`），
-  即 main 的 DT_INIT 在遍历 init_array 时 `blr` 了 0。先反汇编 `main.patched.bin` 的 `0x10b9ec0` 附近看它从哪张表取指针
-  （是 init_array 本身的空项，还是某个「注册回调」表没被填）；再统计 `main.patched.bin` 里 init_array 有多少项为 0
-  （DT_INIT_ARRAY/DT_INIT_ARRAYSZ 在镜像 MOD0 动态段里，解析方式见本会话日志）。**注意**：宿主的 `run_module_inits`
-  自己就是遍历者，空项应当被跳过并记一行日志（这是安全的加固，不改变非空项的行为）。
-- 命令或编辑目标：本地解析 `D://Switch//totk-work//patched-android//main.patched.bin` 的 MOD0/DT_INIT_ARRAY；
-  `llvm-objcopy -I binary -O elf64-littleaarch64` 包一层后 `llvm-objdump -D --start-address=0x10b9e80`；
-  必要时改 `dm/host/main.c` 的 `run_module_inits`（空项跳过 + 计数日志），`build.py --game-run --version trim-bNN` 复跑。
-- 成功判据：`run_module_inits` 走完 10,717 项（日志给出跳过数），出现 `[dm] >>> nnMain`。
-- 失败判据：同一 `pc=0` 再次出现 → 说明空指针来自 init 函数内部而非数组项（继续按 lr 反汇编该 init 函数）。
-- 回滚点：`trim-b55`；代码单文件 `git checkout c8e75df -- <文件>`；包不动。
-- 需要写入的证据：init_array 的总项数与空项数、`0x10b9ec8` 附近的反汇编、跳过日志行、构建号与 `game.log` 路径。
+- 前置条件：手机在线；`trim-b56` 已装；**已出证**：三个模块 `DT_RELR` 应用成功
+  （`main: reloc relative=0 relr=499074 abs/glob=1421 jump=649`、`sdk relr=15007`、`subsdk0 relr=3424`），
+  main 的 init_array 体检 **零项 0、仍是相对值 0**，首项已是 `base+0x10bee00`（base 0x7284a57000）。
+- 动作：**追 main 的 DT_INIT 首次调用里那个被污染的目的指针** —— 新崩溃
+  `CRASH sig=11 addr=main+0x408 pc=sdk+0x2f98e8 lr=0x730a2e666c`，bt `main+0x99d04 sdk+0x98f24 main+0x10b9e64 run_module_inits+0xa4`。
+  崩溃指令 `sdk+0x2f98e8: strb w0,[x14,x1]`（同循环还有 `strb w18,[x15,x1]`、`add x18,x13,x11`），
+  x14 = **main 基址 0x7284a57000**、x1 = 0x408 ⇒ 往 main 镜像偏移 0x408 写字节，而那里是**代码**
+  （本地 `main.patched.bin` 的 0x400 就是 `87 e5 01 94` = 一条 `bl`），必崩。
+  先反汇编 sdk+0x2f98e8 所在完整函数，确认 x14 是「某个被调用方返回的指针」还是「某个全局槽被加了基址」；
+  重点排查：① 重定位是否过应用（例如本该保持空的槽被加成了基址，三模块各有约 5 个 RELR 槽原值为 0）；
+  ② HOST HLE 是否把 main 基址当成了某个对象的地址返回。
+- 命令或编辑目标：`llvm-objcopy -I binary -O elf64-littleaarch64` 包 ELF 后
+  `llvm-objdump -D --start-address=0x2f9800 --stop-address=0x2f9980` 看 sdk 那个函数的完整取指针过程；
+  必要时在宿主侧对返回指针打点（`dm/host/hle_*.c` 里新加 UNIMPL / 计数日志），`build.py --game-run --version trim-b57` 复跑。
+- 成功判据：main 的 DT_INIT 走完（不再写 main 的代码段），10,717 项 init_array 走完并出现 `[dm] >>> nnMain`。
+- 失败判据：仍写 `main+0x408` → 说明 x14 来源在宿主侧（按 sdk 那个函数的取指针指令反查槽偏移，本地查该槽是否属于 RELR/ABS64）；
+  pc 换成别处 → 已推进，按新 pc/lr 反汇编继续。
+- 回滚点：`trim-b56`（机内）；代码单文件 `git checkout cd4c045 -- <文件>`；包不动。
+- 需要写入的证据：`sdk+0x2f98e8` 所在函数的完整反汇编、x14 的来源（槽偏移或返回值）、
+  该槽在重定位表里的归属、`D:\Switch\totk-work\device\game.log` 与新构建号。
 
 
 ## 长操作两阶段日志
