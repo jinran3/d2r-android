@@ -1,6 +1,6 @@
 ---
 protocol: 1
-updated_at: 2026-10-23T00:35:00+08:00
+updated_at: 2026-10-23T01:15:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
@@ -257,6 +257,10 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
     `main: init_array 体检 base 0x7284a57000 数组 0x7287fae000 共 10717 项：零项 0、仍是相对值 0；首三项 0x7285b15e00 0x7285b15e60 0x7285b17510`。
   - 新崩溃：`CRASH sig=11 addr=main+0x408 pc=sdk+0x2f98e8 lr=0x730a2e666c`，
     bt `main+0x99d04 sdk+0x98f24 main+0x10b9e64 run_module_inits+0xa4`；崩溃指令 `strb w0,[x14,x1]`（x14=main 基址，x1=0x408）。
+  - 2026-10-23 01:15 外部巡检补充三条（详见 HANDOFF_LOG 顶部 [SESSION]）：**已在别处独立跑通的同类事实**——
+    ① totk-mobile / MacNativeGames 已把 TotK 1.4.3 跑到 Mac/iPad 可读档（RELR 在其改写器侧预展开，54.4 万项数量级与我们吻合）；
+    ② TotK 1.4.3 的 SDK-21 新增 RELRO/PermissionLocked 的 svc 0x02 语义，我们 `dm/host/hle_svc.c:260` 目前是空操作返回 0 —— 漏实现**不会导致写坏**（只会把可写区锁成只读的反面），列为诊断线索不当根因；
+    ③ 上游 #66 的弱导入分道（weak 未解析→0）是候选修复，与我们嫌疑「HLE 返回坏对象」同族；rhythm-heaven-android 的 DM_SLOTLOG/DM_TLSHOOK/DM_ALLOCHOOK 三套宿主钩子是定位 x14 来源的现成方法学（结构学自读自写，不搬代码）。
   - 分级（照旧三级，别混着说）：
     「文件格式对」已核；
     「运行口径对」**本轮才真正对齐**——相对重定位语义补齐后程序才走到 DT_INIT 内部；

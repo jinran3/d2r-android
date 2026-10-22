@@ -1,5 +1,24 @@
 # Agent 交接会话日志
 
+## 2026-10-23 01:15 Asia/Shanghai — [SESSION] 上游同步 + 外部 TotK 移植巡检（只读情报，不改业务代码）
+
+- **上游 `jhaizhou-ops/d2r-mobile` 自 NA-029 之后的新增**（gh 未登录，本机全用 GitHub 匿名 REST API；`gh auth login` 待用户补，恢复命令见下）：
+  - **#66 `b84657b2` fix(loader): preserve null unresolved weak imports —— 对本项目有用**。`resolve_import` 增加 `weak` 参数：未解析的**弱**导入保持 0（guest 可感知“该可选函数不存在”），**强**导入才补桩；diff 里 `relocate()` 调用处传 `(s->st_info >> 4) == 2`，并带合成 ELF 的单测 `t_loader_weak.c`。我们 `dm/host/hle.c:33 resolve_import` / `dm/host/loader.c:135 resolve_sym` **没有弱符号分道**（NOP 未采纳于 NA-029，因当时 D2R 无此需求）；TotK 的可能力检测 API 若拿桩可能行为漂移，列为实施候选 —— 与「下一步唯一动作」里的“宿主 HLE 返回坏对象”嫌疑同族，实现时一并核对。
+  - 以下上游改动**对本项目无用**（都是 D2R 产品侧）：西班牙语/俄语、Mac 悬停提示、Mac 打包、iCloud 启动、LiveContainer 代码签名区（`3af961d3`）、iOS 音频混音（`9393b00e`，将来 M4 音频可回看）、帧率无关。
+  - `86b1315a` fix(nvn): honor image stride in buffer texture copies（#68）——**留给阶段 B/D 复核**：我们的 `nvn_vulkan` 拷贝路径若同样不认 stride，场的贴图拷贝可能坏。属“有用但非当前卡点”。
+- **GitHub 全网搜 TotK / Switch 原生移植（按 AGENTS.md 第 12 条，只读思路与格式事实，代码一律不搬）**：
+  - `OJZen/totk-mobile`（144★，Apache-2.0，最后推 2026-10-21）：**TotK v1.4.3 在 Apple silicon Mac/iPad 原生可读档游玩**，自述“装载器/改写器/NVN→Metal 沿用 d2r-mobile 设计”。`core/host/loader.c` 的 `relocate()` 仍只有 RELA/JMPREL **没有 RELR** —— 但他们也不会因此到不了 init_array，因为（见下条）他们在**改写器/准备链侧预展开 RELR**，装载时以普通重定位应用。
+  - `kitcatkode/MacNativeGames`（同一家族社区仓，README 77 KB；描述写 totk android port wip，但目前出货是 Mac/iPhone/iPad）：`docs/v1.4.3-port.md`（46 KB）是 TotK 1.4.3 移植日志，**对我们当下最有价值的三条原文**：
+    1. “新主模块与 SDK 的 RELR 重定位已展开，加载时共应用 554,281 项重定位” —— 数量级与我们（main 499,074 + sdk 15,007 + subsdk0 3,424 + rtld）吻合，**NA-044 的 RELR 语义获得独立印证**：偶地址项本身加基址、位图项覆盖后续 63 槽、处理完**无条件前移 63 槽**。`rhythm-heaven-android` 的补丁还记载了反例教训：按置位个数推进就整体错位（实测 sdk 6,383 个槽写坏地址、虚表全歪）——我们的 `walk_relr` 复核时按这条对账（本地已抽验，加载期计数与真机一致即为成立）。
+    2. “新 SDK 的 GetInfo 28 返回没有额外 alias 保留区；新增 RELRO 只读权限及 PermissionLocked 处理；原生探针验证完整宿主页确实只读、4 KiB 逻辑边界、相邻可写页面保持可用、权限锁及无效请求拒绝” —— **TotK 1.4.3 的 SDK-21 新增了 RELRO/PermissionLocked 的 svc 语义**。我们 `dm/host/hle_svc.c:260` 对 `svc 0x02 SetMemoryPermission` 是**空操作直接返回 0**（D2R 够用）；Android 宿主页 4 KiB 与客体同粒度，比 Mac 的 16 KiB 页并集简单，可作为实施候选。**注意 RELRO 只是“把可写改只读”，漏实现不会导致写坏 —— 把它作为诊断线索之一，不当成根因**。
+    3. “补齐单一应用的 applet resource id、直接启动时无前序程序、无启动参数及无 DLC 列表的语义” —— 与我们 `am::GetCommonStateGetter` 接管同族，将来真机出更栈深的 am 系问题时回来取。
+  - `todwang96/rhythm-heaven-android`（**d2r-mobile 的 Android 补丁**，`patches/d2r-mobile-android.patch` 4 MB，Rhythm Heaven Switch v0 在 Android 可玩）：同一 loader 家族落到 Android 的完整记录。与我们当前реди-stage 相同的设施已验证：`mprotect(base, rx, R|X)` 封代码区、`mprotect(base+patch_off…, R|X)` 封补丁区、RELR 展开、`__builtin___clear_cache`、`force_check()` 的“条目未被引用”宽容模式、以及 **DM_SLOTLOG / DM_TLSHOOK / DM_ALLOCHOOK 三套宿主诊断钩子**（重点排查“导入槽被 HLE 换成宿主函数、宿主再用 sdk 内偏移转调 → 换游戏后偏移落在别的函数里”，与本会话 HANDOFF 中嫌疑 ② 同源）。其中 `DM_ALLOCHOOK` 直接验证 `nn::mem::StandardAllocator::Allocate` / `nn::nlibsdk::heap::CentralHeap::Alloc` / `nn::os::GetTlsValue` 三跳 —— 若 disasm 显示 x14 来自分配器/TLS 链，按这套钩子打点。
+  - `rootrd/dontstarve-harmony`（Don't Starve Together 在 HarmonyOS，同一作者系，NVN→Vulkan 已到场景内可走）：同架构在第三台平台上跑通，佐证“这模型跨安卓系可行”；其 host 侧 `knsv` svc 表含 4.0 前信号量族 0x1A–0x1D 全集。
+  - 移植雷达 `catoncat/d2r-port-radar` **已 404**（API、仓库都取不到了）：AGENTS.md 第 11 条的“定期看雷达”入口暂失效，改为上面四个仓库 + 搜索关键词人工巡检。
+- **对本轮下一动作（NA-044 disasm）的直接增益**：反汇编 sdk+0x2f98e8 所在函数时，除 HANDOFF 已列两条嫌疑外，新增一条要顺带看的：**x14 若来自「分配器 / TLS / 系统对象链」或「宿主返回的对象」**，用 rhythm-heaven 的三套钩子方法（或者直接 `dm/host/hle_*` 现有 UNIMPL 计数）定位到具体哪个接口；若是函数指针表，「重定位结果像裸偏移（<16MB）**装载期就该报**」也在他们补丁里实现过，装载期红线提示可居低成本复用。
+
+- 备忘：GH CLI 未登录，本巡检 API 配额（匿名 60/h）用去约 2/3；恢复登录命令：`gh auth login`（交互式，需要用户在浏览器授权）。巡检产物已在会话临时目录（`totk-relr.h`、`totk_kernel.c`、`totk_loader.c`、`macng_v143.md`、`d2r-android.patch` 等），**不进仓库、不提交**（保持“外部内容不落库”纪律），如需长期引用以 URL 为主。
+
 ## 2026-10-23 00:35 Asia/Shanghai — [SESSION] NA-044 续三：根因是宿主没实现 DT_RELR，补齐后过 init_array，新崩溃进了 sdk
 
 - **根因定案**：`dm/host/loader.c` 的 `relocate()` 只遍历 `DT_RELA` / `DT_JMPREL`，**完全没有实现 `DT_RELR`**（tag 35=`DT_RELRSZ` / 36=`DT_RELR` / 37=`DT_RELRENT`）。TotK 三模块的相对重定位全部打包在这张表里，所以日志一直是 `relative=0`。
