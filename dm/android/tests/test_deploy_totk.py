@@ -92,7 +92,7 @@ def test_dry_run_same_path():
             assert fragment in out, "缺命令片段：%s\n%s" % (fragment, out)
         # 干跑也必须真的走完字节校验与 counts 比对（fake 返回值参与了判断）
         assert "字节校验通过" in out and "counts 与本地包一致" in out
-        assert "共执行 21 条 adb 命令" in out
+        assert "共执行 22 条 adb 命令" in out
 
 
 def test_dry_run_fixed_dest():
@@ -104,7 +104,7 @@ def test_dry_run_fixed_dest():
         assert code == 0, out
         assert "/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip" in out
         assert "shell input tap 1650 650" in out, out  # 「从推送的包导入」行的中心点
-        assert "共执行 24 条 adb 命令" in out, out  # 比 download 模式多点一次 dump+cat+tap
+        assert "共执行 25 条 adb 命令" in out, out  # 比 download 模式多点一次 dump+cat+tap
 
 
 def test_row_centre_tolerates_prefix():
@@ -122,6 +122,43 @@ def test_row_centre_tolerates_prefix():
     assert dt.row_centre('<hierarchy><node text="Start game" bounds="[0,0][10,10]"/></hierarchy>',
                          dt.START_ROW) == ("5", "5")
     assert dt.row_centre("<hierarchy></hierarchy>", dt.START_ROW) is None
+
+
+def test_launcher_row_scrolls():
+    """行在屏幕外时要滚一屏再找（真机 3168×1440 横屏，导入行在「游戏」行以下就被截断）。
+
+    uiautomator dump 只含可见节点 —— 首跑就是因此没找到「从推送的包导入」。
+    """
+    top_only = ('<hierarchy><node text="" bounds="[0,0][1000,500]"/>'
+                '<node text="▸  启动游戏" bounds="[0,0][100,50]"/></hierarchy>')
+    bottom_only = ('<hierarchy><node text="" bounds="[0,0][1000,500]"/>'
+                   '<node text="从推送的包导入" bounds="[100,200][300,300]"/></hierarchy>')
+
+    class Seq(StubAdb):
+        def __init__(self, dumps):
+            super().__init__()
+            self.dumps = list(dumps)
+
+        def run(self, args, timeout=120, check=True):
+            self.calls.append(list(args))
+            if list(args[:2]) == ["shell", "cat"] and any("totk-window.xml" in str(a) for a in args):
+                return dt.Result(0, self.dumps.pop(0) if self.dumps else "")
+            return dt.Result(0, "")
+
+    # 导入行在下方：先 dump 找不到 → 往下滚 → 找到并点击
+    adb = Seq([top_only, bottom_only])
+    assert dt.launcher_row(adb, dt.IMPORT_ROW, "导入") is True
+    swipes = [c for c in adb.calls if list(c[:3]) == ["shell", "input", "swipe"]]
+    assert len(swipes) == 1, adb.calls
+    assert int(swipes[0][4]) > int(swipes[0][6]), swipes  # down: 从下往上滑（y1 > y2）
+    # 启动行在上方：往反方向滚
+    adb = Seq([bottom_only, top_only])
+    assert dt.launcher_row(adb, dt.START_ROW, "启动", direction="up") is True
+    swipes = [c for c in adb.calls if list(c[:3]) == ["shell", "input", "swipe"]]
+    assert len(swipes) == 1 and int(swipes[0][4]) < int(swipes[0][6]), swipes  # up: y1 < y2
+    # 屏幕尺寸从 dump 根节点取
+    assert dt.screen_size(top_only) == (1000, 500)
+    assert dt.screen_size("") == (0, 0)
 
 
 def test_parse_free_kib():
@@ -244,6 +281,27 @@ def test_adb_resolution_priority():
             os.environ["DM_ANDROID_TOOLS"] = old_tools
 
 
+def test_manifest_marker_is_external():
+    """完成标记必须在**外部**包目录：真机首跑确认内部只有 game/，manifest 跟着 romfs/shaders 落外部。"""
+    assert dt.DEVICE_MANIFEST.startswith("/sdcard/Android/data/"), dt.DEVICE_MANIFEST
+    assert "run-as" not in dt.DEVICE_MANIFEST
+    adb = StubAdb({"shell ls": dt.DEVICE_MANIFEST + "\n"})
+    assert dt.import_manifest(adb) == dt.DEVICE_MANIFEST
+    assert adb.calls[0] == ["shell", "ls", dt.DEVICE_MANIFEST], adb.calls
+    manifest = {"format": 1, "subgroup_size": 64,
+                "counts": {"game": 9, "romfs": 304243, "shaders": 24535}}
+    adb = StubAdb({"shell cat": json.dumps(manifest)})
+    assert dt.check_imported_manifest(adb, manifest) == manifest
+    assert adb.calls[0] == ["shell", "cat", dt.DEVICE_MANIFEST], adb.calls
+    wrong = dict(manifest, subgroup_size=32)
+    try:
+        dt.check_imported_manifest(StubAdb({"shell cat": json.dumps(wrong)}), manifest)
+    except dt.DeployError as error:
+        assert error.code == 5, error
+    else:
+        raise AssertionError("subgroup 不一致被放过了")
+
+
 def test_rewrite_key_value_keeps_unknown():
     """改档位时保留界面自己写的其它键与注释，只动目标键。"""
     text = "# comment\npackage_summary=旧包\ndriver=system\ngame=d2r\nframe_counter=1\n"
@@ -267,8 +325,10 @@ def main():
     test_dry_run_same_path()
     test_dry_run_fixed_dest()
     test_row_centre_tolerates_prefix()
+    test_launcher_row_scrolls()
     test_parse_free_kib()
     test_verify_remote_size_mismatch()
+    test_manifest_marker_is_external()
     test_check_space_gate()
     test_select_device_requires_phone()
     test_adb_resolution_priority()

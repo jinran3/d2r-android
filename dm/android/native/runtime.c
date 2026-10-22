@@ -157,7 +157,13 @@ int dm_android_load(dm_android_module *m, const char *library, const char *layou
     m->image = dlsym(m->handle, "dm_guest_image");
     if (!m->image) { snprintf(error, cap, "Missing dm_guest_image"); dm_android_unload(m); return -1; }
     uint8_t *end = dlsym(m->handle, "dm_guest_image_end");
-    if (!end || end <= m->image || m->patch_off >= (size_t)(end - m->image)) {
+    // 允许 PATCH_OFF 正好等于镜像长度：没有补丁点的模块（subsdk0 的 sites.tsv 为空）不会追加补丁区，
+    // 重写器只补 16 KiB 键页，于是 patched.bin 长度 == PATCH_OFF（真机首跑 2026-10-22 因此 FATAL）。
+    // 键页本身仍由上面的 layout 校验保证落在镜像内（key_page_off + 0x4000 <= patch_off <= size）。
+    // PATCH_OFF may equal the image length: modules with no patch sites (subsdk0 has an empty sites.tsv) get
+    // no patch area, only the 16 KiB key page, so patched.bin length == PATCH_OFF. The key page is still
+    // proven in bounds by the layout check above (key_page_off + 0x4000 <= patch_off <= size).
+    if (!end || end <= m->image || m->patch_off > (size_t)(end - m->image)) {
         snprintf(error, cap, "Invalid image bounds"); dm_android_unload(m); return -1;
     }
     m->size = end - m->image;

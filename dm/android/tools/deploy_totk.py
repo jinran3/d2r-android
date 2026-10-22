@@ -48,8 +48,10 @@ LAUNCHER_ACTIVITY = PACKAGE + "/.LauncherActivity"
 STATE_FILE = "files/launcher-state.conf"     # 启动界面自己的状态（game= / driver=）
 SETTINGS_FILE = "files/temp/launch-settings.conf"   # native 严格解析的那份
 DEVICE_TMP = "/data/local/tmp/totk-deploy.conf"
-DEVICE_MANIFEST = "files/d2r-package/manifest.json"
-GAME_LOG = "files/game.log"
+# 完成标记在**外部**包目录：导入把 game/ 落内部、romfs/ 与 shaders/ 落外部，
+# manifest.json 跟着外部目录走（真机首跑确认：内部只有 game/，外部才有 manifest.json）。
+DEVICE_MANIFEST = APP_EXTERNAL + "/d2r-package/manifest.json"
+GAME_LOG = "files/game.log"            # 内部存储，run-as 才读得到；每次开机 O_TRUNC
 MIN_FREE_GIB = 35.0                    # 包 16.60 GiB + 解出 16.47 GiB ≈ 33.1 GiB
 WARN_FREE_GIB = 40.0
 IMPORT_ROW = ("从推送的包导入", "Import the pushed package")
@@ -191,15 +193,24 @@ class Adb(object):
             return DRY_WINDOW_DUMP
         if "launcher-state.conf" in joined and words[:2] == ["run-as", PACKAGE]:
             return "# 仅供界面显示 | display only\npackage_summary=干跑占位\ndriver=system\ngame=d2r\n"
-        if words[:1] == ["run-as"] and DEVICE_MANIFEST in joined and "cat" in words:
-            return json.dumps(self.dry_manifest, ensure_ascii=False) + "\n" if self.dry_manifest else "{}\n"
-        if words[:1] == ["run-as"] and DEVICE_MANIFEST in joined and "ls" in words:
-            return DEVICE_MANIFEST + "\n"
+        if words[:1] == ["input"] and words[1:2] == ["tap"]:
+            self.imported = True        # 真机上第一次点击就是「从推送的包导入」
+            return ""
+        if DEVICE_MANIFEST in joined and "ls" in words:
+            # 干跑时序：第一次探测（导入前的幂等检查）落空；之后视为导入完成、标记出现。
+            # 这样 --dest fixed（脚本代点）与 --dest download（SAF 自己选）两种真机路径都能干跑走完。
+            self.manifest_probes += 1
+            return (DEVICE_MANIFEST + "\n") if (self.imported or self.manifest_probes > 1) else ""
+        if DEVICE_MANIFEST in joined and "cat" in words:
+            ready = self.imported or self.manifest_probes > 1
+            return json.dumps(self.dry_manifest, ensure_ascii=False) + "\n" if ready and self.dry_manifest else "{}"
         if words[:1] == ["run-as"] and GAME_LOG in joined:
             return "[dry-run] 占位日志：真跑这里就是 files/game.log 的内容\n"
         return ""
 
     dry_manifest = {}
+    imported = False        # 干跑里「点过导入行」之后完成标记才出现，与真机时序一致
+    manifest_probes = 0
     # 干跑的设备清单 = 本机包里的清单，这样 counts 比对这条代码路径也是真的在比。
     def set_dry_manifest(self, manifest):
         self.dry_manifest = manifest or {}
@@ -386,8 +397,38 @@ def force_profile(adb, profile, driver):
     print("  游戏档位已锁到 %s%s" % (profile, ("，驱动 %s" % driver) if driver else ""))
 
 
-def launcher_row(adb, texts, label, attempts=5):
-    """在启动界面里按文字找到一行并点它；找不到返回 False（调用方降级成人工提示）。"""
+def screen_size(xml):
+    """从 dump 的根节点取屏幕尺寸（bounds 面积最大的那个）；拿不到返回 (0, 0)。"""
+    best = (0, 0)
+    for node in re.finditer(r'<node\b[^>]*\bbounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml or ""):
+        width, height = int(node.group(3)), int(node.group(4))
+        if width * height > best[0] * best[1]:
+            best = (width, height)
+    return best
+
+
+def scroll(adb, xml, direction):
+    """把界面滚一屏：down = 露出下方内容，up = 露出上方内容。
+
+    uiautomator dump 只含**屏幕上可见**的节点：真机 3168×1440 横屏时列表在「游戏」那行就被截断，
+    「从推送的包导入」在屏幕外 —— 不滚动永远匹配不到（真机首跑踩过）。
+    """
+    width, height = screen_size(xml)
+    if not width or not height:
+        return
+    x = width // 2
+    if direction == "down":
+        adb.shell(["input", "swipe", x, int(height * 0.8), x, int(height * 0.25), 300], check=False)
+    else:
+        adb.shell(["input", "swipe", x, int(height * 0.25), x, int(height * 0.8), 300], check=False)
+
+
+def launcher_row(adb, texts, label, attempts=6, direction="down"):
+    """在启动界面里按文字找到一行并点它；找不到返回 False（调用方降级成人工提示）。
+
+    direction 决定找不到时往哪边滚：导入行在列表下方（down），启动行在顶部（up）。
+    """
+    xml = ""
     for attempt in range(attempts):
         adb.shell(["uiautomator", "dump", "/sdcard/totk-window.xml"], check=False)
         xml = adb.shell(["cat", "/sdcard/totk-window.xml"], check=False).stdout
@@ -396,8 +437,9 @@ def launcher_row(adb, texts, label, attempts=5):
             adb.shell(["input", "tap", point[0], point[1]])
             return True
         if attempt + 1 < attempts:
-            print("  等启动界面画出来（第 %d 次没找到「%s」）..." % (attempt + 1, label))
-            time.sleep(3)
+            print("  等启动界面画出来（第 %d 次没找到「%s」），滚一屏再找..." % (attempt + 1, label))
+            scroll(adb, xml, direction)
+            time.sleep(1)
     return False
 
 
@@ -439,7 +481,8 @@ def wait_for(adb, probe, what, timeout, interval=10, extra=None):
 
 
 def import_manifest(adb):
-    result = adb.shell(["run-as", PACKAGE, "ls", DEVICE_MANIFEST], check=False)
+    """导入完成标记：外部包目录的 manifest.json（导入最后才写它）。"""
+    result = adb.shell(["ls", DEVICE_MANIFEST], check=False)
     return DEVICE_MANIFEST if result.returncode == 0 and result.stdout.strip() else None
 
 
@@ -450,7 +493,7 @@ def game_log_text(adb):
 
 def check_imported_manifest(adb, expected):
     """导入完成后拿手机上的清单与本地包对一遍：抓的就是「推成基座包了」这类低级错误。"""
-    raw = adb.shell(["run-as", PACKAGE, "cat", DEVICE_MANIFEST], check=False).stdout
+    raw = adb.shell(["cat", DEVICE_MANIFEST], check=False).stdout
     try:
         start = raw.index("{")
         actual = json.loads(raw[start:])
@@ -551,22 +594,28 @@ def main():
         return 0
 
     print("-- 4/6 导入 --")
-    if import_mode == "fixed":
-        print("  目标是应用外部目录的固定名，走界面的「从推送的包导入」")
-        if not launcher_row(adb, IMPORT_ROW, IMPORT_ROW[0]):
-            print("  ! 没能在界面上找到「%s」，请自己点这一行；脚本继续等 manifest.json" % IMPORT_ROW[0])
+    if import_manifest(adb):
+        # 幂等：已经导入过就不重复解 16.5 GiB（重导一次要好几分钟到一小时）。
+        print("  手机上已有导入完成的包：%s" % DEVICE_MANIFEST)
+        check_imported_manifest(adb, manifest)
+        print("  跳过重复导入（要强制重导：先删外部 d2r-package 与内部 files/d2r-package）")
     else:
-        print("  包在 %s —— SAF 选择器请自己选这个文件（脚本等 manifest.json）" % remote)
-    wait_for(adb, lambda: import_manifest(adb), "导入完成（files/d2r-package/manifest.json）",
-             args.import_timeout, extra=5)
-    check_imported_manifest(adb, manifest)
+        if import_mode == "fixed":
+            print("  目标是应用外部目录的固定名，走界面的「从推送的包导入」")
+            if not launcher_row(adb, IMPORT_ROW, IMPORT_ROW[0]):
+                print("  ! 没能在界面上找到「%s」，请自己点这一行；脚本继续等 manifest.json" % IMPORT_ROW[0])
+        else:
+            print("  包在 %s —— SAF 选择器请自己选这个文件（脚本等 manifest.json）" % remote)
+        wait_for(adb, lambda: import_manifest(adb), "导入完成（%s）" % DEVICE_MANIFEST,
+                 args.import_timeout, extra=5)
+        check_imported_manifest(adb, manifest)
 
     if args.no_boot:
         print("-- 5/6 跳过开机（--no-boot）：在启动界面点「启动游戏」--")
         return 0
 
     print("-- 5/6 开机 --")
-    if not launcher_row(adb, START_ROW, START_ROW[0]):
+    if not launcher_row(adb, START_ROW, START_ROW[0], direction="up"):
         print("  ! 没能在界面上找到「%s」，请自己点这一行；脚本继续等 files/game.log" % START_ROW[0])
     text = wait_for(adb, lambda: game_log_text(adb), "游戏日志 files/game.log",
                     args.boot_timeout, interval=5, extra=6)
