@@ -1,5 +1,46 @@
 # Agent 交接会话日志
 
+## 2026-10-22 23:40 Asia/Shanghai — [SESSION] NA-044 续：连过三道启动闸门，卡在 nninitStartup 空指针虚调用
+
+- **起点**：用户手动点启动闪退，日志确认是 trim-b51 上的同一个 `Invalid image bounds`（修复未装）。
+- **trim-b52（加载器边界修复）装上后**：`subsdk0: base 0x71fe11e000 size 0x670000` —— 三模块全装载，
+  `main: reloc relative=0 abs/glob=1421 jump=649` 也过了；下一道是 `FATAL 强制接管清单有误`
+  （`nnssl*`/`nnsocket*`/`oe*`/`time*` 等 D2R 专属服务「无任何引用」）。
+- **修复 2**：`dm/host/loader.c` 的 `force_check` 改成**按导入事实判定** —— 逐条目查「本作是否有这个未定义符号导入」：
+  有导入却没接管 → 仍 `die`（真 bug）；本作不导入 → 记超集、不再拦。trim-b53 实测
+  `force: 132 条命中，116 条本作未导入（共享表的超集，非故障）`。
+- **下一道**：`FATAL 产物没有 UI 观测门 OBS_UIMSG（需 r6 起的产物）` —— 该门是 **D2R main 0xb1dc60** 的固定点，
+  TotK 的 main 没有（`main.gates.tsv` 为空）。
+- **修复 3**：`dm/host/diag.c` 的 `uimsg_subscribe` 缺门时改为**提示 + 返回**（消息类诊断不工作），不再 abort；
+  D2R 有门，行为不变。trim-b54 装上后启动推进到：Vulkan 初始化（surface 3168×1440、pipeline cache、PSO manifest）、
+  `>>> nnosInitialize`、guest AS/heap/alias/stack、`>>> nninitInitializeSdkModule` + 7 个 init 接管（空操作）、
+  `>>> nninitStartup`。
+- **当前卡点（本轮终点）**：`CRASH sig=11 addr=0 pc=lr=sdk+0x1ead5c`（SIGSEGV，跳 0）。
+  反汇编 `sdk+0x1ead58` 段：`bl 0x64f5a0` → `ldr x8,[x0]`（x0=0）→ `ldr x8,[x8,#0x130]` → `blr x8`；
+  `0x64f5a0` 是 PLT 跳板（`adrp x16,0xb70000; ldr x17,[x16,#0xdb0]; br x17`），即**某个导入返回了空对象**。
+  日志里**没有任何 UNIMPL 行** → 该符号被解析到了真实 HLE/强接管函数，是它返回了 0，而不是落到记名桩。
+
+### 证据（命令与退出码）
+
+- `adb install -r` trim-b52 → exit 0；`deploy_totk.py --no-push` → exit 0（导入已存在自动跳过、counts 一致）。
+- 首跑日志 `D:\Switch\totk-work\device\game.log`：14 行（subsdk0 FATAL）→ trim-b53 22 行（force 通过）→
+  trim-b54 **70 行**（Vulkan + nninitStartup + CRASH）。
+- `llvm-objcopy -I binary ... sdk.patched.bin → sdk_raw.elf` + `llvm-objdump -D --start-address=0x1ead30`：
+  得到 `0x1ead58 bl 0x64f5a0` / `0x1ead5c ldr x8,[x0]`；`0x64f5a0` 为 PLT 跳板（槽 0xb70db0）。
+- `build.py --game-run --version trim-b52 / b53 / b54` → 三次均 exit 0（APK 17,873,359 字节）。
+
+### 纠错记录
+
+- 第一次读崩溃偏移用了 `llvm-objdump -b binary`（LLVM 不支持），改用 `llvm-objcopy` 包一层 ELF 再反汇编。
+- 试图从包里 sdk 模块的 `.dynamic` 找 reloc 符号失败：guest `.so` 由 `guest_elf.py` 生成，只有 HASH/STRTAB/SYMTAB/SONAME，
+  **没有 DT_RELA/DT_JMPREL** → 槽位→符号名的映射不在 `.so` 里（在改写器的重定位产物里），下一步要换路子。
+
+### 还差什么 / 下一步
+
+- 认出槽 `0xb70db0` 对应的导入符号（建议：`DM_IMPORTS=1` 跑一次看解析表，或解析改写器给 sdk 的重定位表），
+  再修那个返回 0 的 HLE/强接管函数。**阶段 B–F 仍 NOT RUN**（Vulkan 已初始化，但没有出图）。
+
+
 [END] na-044-device-run
 结果：**推包与导入成功，开机在 subsdk0 加载处 FATAL；修复已构建（trim-b52），待真机复验。**
 不是 exit 0 —— 流程在「点启动游戏→等 game.log」这段被宿主的硬失败截断（宿主 `die()` → abort），

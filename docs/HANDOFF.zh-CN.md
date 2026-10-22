@@ -6,7 +6,7 @@ state: ACTIVE
 branch: totk/scaffold
 observed_head: 78243ef
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: 78243efb44d8fcb2343ad9e677dc1b450d724f6f
+origin_head_at_checkpoint: c8e75dfe3731e78888234777642664a0ea8f157d
 code_worktree: CLEAN
 next_action_id: NA-044
 ---
@@ -140,10 +140,10 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-22 23:24（Asia/Shanghai）
-- 当前阶段：**NA-044 真机首跑进行中**。推包（16.60 GiB，字节校验一致）与导入（约 13 分钟，counts 逐项一致）都已成功；
-  开机在 subsdk0 加载处 FATAL（`Invalid image bounds`，根因 = 无补丁区模块的 `PATCH_OFF == 镜像长度` 被加载器误判越界），
-  修复已编译进 **trim-b52**（构建 exit 0），**尚未装到手机复验**；阶段 B–F 全部 NOT RUN。
+- 快照时间：2026-10-22 23:40（Asia/Shanghai）
+- 当前阶段：**NA-044 真机启动进行中**。推包/导入/counts 校验全部通过；启动已连过三道闸门
+  （subsdk0 边界 → 强制接管表 → OBS_UIMSG 门），现推进到 **`nninitStartup` 内 SIGSEGV**：
+  `bl 0x64f5a0`（PLT，槽 0xb70db0）返回 x0=0 → `ldr x8,[x0]` 空指针虚调用。**阶段 B–F 仍 NOT RUN**。
 - 当前分支：`totk/scaffold`
 - **本会话（NA-037 ~ NA-044）的结论**：**设备前的全部静态闸门全绿 → 可以推机**；剩下的每一步都要在真机上做。
   - 补上了 TotK 的 NVN 名字表（536 个；此前 13 个取不到 → 会拿到空函数指针而崩）与 **213 个被调接口的全部实现**
@@ -228,25 +228,25 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
     写成点号路径 `D:\Switch.tools\android` 时该目录不存在，`ci_checks` 会跳过 JDK 闸门 → 假绿。
 - 观测 HEAD：`78243ef`（真机首跑修复：加载器无补丁区 + 部署脚本加固；此前 `aa0be14` 两处解析修复、`3990687` NA-052 业务；NA-050 合包 `e2d8f3f` 不变）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter（控制面提交后以最终 `git rev-parse` 为准）
-- 代码工作区：`CLEAN`（排除交接控制面；NA-044 首跑修复已提交 `78243ef`）
+- 代码工作区：`CLEAN`（排除交接控制面；三处启动闸门修复已分别提交 `78243ef` / `c8e75df`）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
-- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（**`trim-b52`**，17,873,359 字节，2026-10-22 23:15 构建 exit 0，含加载器修复；手机当前装的是 `trim-b51`）
-- 本次会话目标：手机接上后执行 NA-044 —— 推更新包、导入、开机、读日志，按「首次开机预演清单」分级记录；已完成推包与导入，开机首跑暴露 subsdk0 加载闸门并修复（trim-b52 未装）。
+- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（**`trim-b54`**，17,873,359 字节，23:34 构建 exit 0；**手机已装 b54**）
+- 本次会话目标：NA-044 真机启动 —— 推包/导入已通过；启动连过三道闸门（subsdk0 边界、强制接管表、OBS_UIMSG），现卡在 `nninitStartup` 内的空指针虚调用。
 - 已完成（带证据）：见下方「已完成清单」。
 - 未完成：**★ 真机复验（下一步唯一动作）**：装 trim-b52 → `deploy_totk.py --no-push` → 读到阶段 B–F。**★ 运行期仍未验的三件事**：① 变体挑选在真机上命中哪个候选（机器码的运行期地址）；② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。**★ M4 只剩真机校准**（触控 / 存档目录 / 音频 / 手柄映射都是通用件，不用为 TotK 重写）。**★ Mac 侧的翻译链重建**（不是 Android 关键路径，`DMSH_CHAIN` 只被 `nvn_mtl.m` 引用）。已完成的部分见下方「已完成清单」。
 - 最近一次成功命令：NA-044 真机 `deploy_totk.py --package <更新包> --dest fixed --no-push --log-out D:\Switch\totk-work\device\game.log` → **exit 0**（外部 manifest counts 与本地包一致 ✓、跳过重导、点「启动游戏」、拉回 game.log）；此前推包 `adb push` 后 `stat -c %s` = 17,825,708,024 与本机一致；`build.py --game-run --version trim-b52` exit 0（APK 17,873,359 字节）；`test_deploy_totk.py` exit 0（13 用例）。NA-052 的 17/0、NA-051 的 7 条闸门全绿结论不变。
-- 最近一次失败命令及原因：**真机首跑 `[dm] FATAL Invalid image bounds`**（subsdk0 加载处，宿主 `die()` → abort）。
+- 最近一次失败命令及原因：**`CRASH sig=11 addr=0 pc=lr=sdk+0x1ead5c`**（nninitStartup 内，跳 0）。反汇编：`bl 0x64f5a0`（PLT 跳板，槽 0xb70db0）→ `ldr x8,[x0]`（x0=0）→ `blr x8`；日志无 UNIMPL 行 → 某导入被解析到真实 HLE/强接管函数并返回了空对象。此前的 subsdk0 `FATAL Invalid image bounds`（已修）详见下一段。
   根因：subsdk0 的 `sites.tsv` 为空 → 重写器不追加补丁区，`patched.bin` 长度 = `PATCH_OFF` = 0x670000；
   `runtime.c` 的边界检查写 `patch_off >= 镜像长度` 判死，把「没有补丁区」误判成越界（`guest_elf.py` 自己的校验允许 `<=`）。
   已改成 `>`（键页仍由 layout 校验保证在界内），trim-b52 构建 exit 0，**待装到手机复验**。
   另外首跑还修了三处部署脚本缺陷：adb 守护横幅被当设备、`get-state` 走 `adb shell`（exit 127）、
   完成标记轮询内部路径（实际在外部）+ 导入不幂等；启动行「▸  」前缀与 3168×1440 列表截断靠后缀匹配 + 滚动解决。
 - 已验证产物路径：**真机侧**：手机 `/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`（17,825,708,024 字节）+ 同目录 `d2r-package/`（manifest counts game 9 / romfs 304,243 / shaders 24,535；bytes.romfs 17,026,724,605）；内部 `files/d2r-package/game/`（9 个文件，78 MB）；`D:\Switch\totk-work\device\game.log`（首跑日志，拉起时 11 行、FATAL 时 14 行）。**仓库外**：`D:\Switch\totk-work\package-totk\totk-package-updated.zip`（**17,825,708,024 字节 = 16.60 GiB**，game 9 / romfs 304,243 / shaders 24,535；**真机推的就是它**）、`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，基座包 = v1.4.2 本体，**回退点，别推它首发**）、`preflight-updated2.txt`（07:06 全绿）、`merge-report.json`。**仓库内**：`dm/android/tools/deploy_totk.py` + `dm/android/tests/test_deploy_totk.py` + `dm/android/native/runtime.c`（NA-044 修复）；此前新增 `dm/gfx/tools/nvn_slots_auto.py`、`nvn_table.py`、`nvn_coverage.py`、`totk_variant_keys.py`、`dm/gfx/nvn/nvn_names_totk.txt`、`dm/gfx/nvn/nvn_calls_totk.tsv`；APK `dm/android/build/D2R-Android-port.apk`（**trim-b52**）。
-- 当前阻塞：**无外部阻塞**（手机已接上，`adb devices` = `3b864e51`；PJD110 / Android 16）。当前阻塞是**技术闸门**：
-  subsdk0 的加载检查（已修、已编进 trim-b52，**待装到手机复验**）。分级现状：
-  「文件格式对」——包内 328,788 条目 / counts / 字节数已核对；「运行口径对」——main、sdk 装载 + 键页写入已真机跑过；
-  「真机跑过」——只到 sdk 装载为止，阶段 B–F NOT RUN。
+- 当前阻塞：**无外部阻塞**（手机在线，`adb devices` = `3b864e51`）。技术卡点 = `nninitStartup` 内的空指针虚调用
+  （`sdk+0x1ead5c`，PLT 槽 `0xb70db0` 解析到的导入返回 0）。分级：「文件格式对」已核（包/counts）；
+  「运行口径对」——三模块装载 + 重定位 + 强制接管 + Vulkan 初始化 + SDK 初始化入口已真机跑过；
+  「真机跑过」——**未出图**，阶段 B–F（NVN 接管后的描述符集/着色器/句柄拆分/变体/贴图）全部 NOT RUN。
 - 需要用户提供的材料：**无**（TotK v1.4.2 合并 XCI、`prod.keys`、一加 12 都已到位；包已导入手机）。
   唯一要注意的：手机别开省电/保持唤醒策略变化导致 adb 掉线；若 `adb devices` 为空，重插数据线并在手机上确认 USB 调试授权。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
@@ -298,11 +298,10 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - NA-032 收尾（`04ca834` + 本条）：**TotK 的 9,807 个着色器全部翻成 SPIR-V，0 失败** —— 新增 `dm/gfx/tools/totk_xlate.py`（索引 → 事实 → 作业 → SPIR-V → 统计一条命令），**关键修正是「图形机器码必须带 0x30 字节的 SPH」**：先前那 3 个 `IndexOutOfRangeException` 就是漏了 SPH；带上 SPH 后 3 个全过，**9,807 个键 100% 翻译成功**（SPIR-V 共 539,816,056 字节，`res.json` 9,807 个，报告 `xlate_report.tsv` 里全 OK）。实测速率约 180 键/分（6 分片并行），全量约 55 分钟。事实按方案 A：18 个计算着色器的线程组与共享内存来自控制头 0x748（写进 `xlate-full\shader_facts_totk.tsv`，**在仓库外**），其余 9,789 个键按缺省作答（2D / R8G8B8A8Unorm / float）。
 - `agent_handoff_check.py --verify`：exit 0；负向测试确认 HEAD 不一致、密钥样式、未闭合 BEGIN 均被拒绝。
 - NA-052 推包开机一键化（`3990687`）：`deploy_totk.py` 重写为「推包→导入→开机→读日志」一条命令（adb 解析 / 默认 `/sdcard/Download/` 且 `--dest fixed` 可走界面一键导入 / 空间预检 35·40 GiB / 推送后字节校验 / `--dry-run` 与真跑同一 `main()`）；对真实更新包干跑 exit 0（21 条命令原样打印，`--dest fixed` 24 条）；修掉 WIP 的「▸  」前缀失配 bug（`row_centre` 改后缀匹配）；回归 `dm/android/tests/test_deploy_totk.py`（10 用例）入 `ci_checks` 的 `t_deploy` → 17 项通过 / 0 失败；runbook 写进 `docs/TOTK_PORT_PROGRESS.zh-CN.md` 第 12 节；`build.py --game-run --version trim-b51` exit 0（APK 17,873,359 字节）。**真机行为 NOT RUN**。
-- NA-044 真机首跑（进行中，修复已构筑未复验）：**推包** 16.60 GiB → 字节校验 17,825,708,024 一致；**导入** 约 13 分钟完成，
-  外部 manifest counts 与本地包逐项一致（romfs 304,243 / shaders 24,535 / romfs 字节 17,026,724,605）；
-  **开机** main 与 sdk 装载成功（`main: base 0x733b297000 size 0x3aecb80`、`sdk: base 0x733a0a8000 size 0xc63cc0`），
-  subsdk0 `FATAL Invalid image bounds` → 定位为「无补丁区模块」的 `PATCH_OFF == 镜像长度` 被 `>=` 误判，
-  改 `>` 后 `trim-b52` 构建 exit 0。首跑另修三处部署脚本缺陷（守护横幅 / `get-state` / 完成标记位置 + 幂等）与启动行滚动查找。
+- NA-044 真机启动（进行中）：推包 16.60 GiB 字节校验一致；导入约 13 分钟、counts 逐项一致；
+  启动连过三道闸门 —— ① subsdk0 无补丁区（`PATCH_OFF == 镜像长度` 被 `>=` 误判，改 `>`）；
+  ② 强制接管表按导入事实判定（132 命中 / 116 条本作未导入）；③ `OBS_UIMSG`（D2R main 0xb1dc60 的门）缺失时降级为提示。
+  现在推进到 Vulkan 初始化 + `nninitStartup`，卡在空指针虚调用（`sdk+0x1ead5c`）。
 
 ### 代码工作区（排除交接控制面）
 
@@ -314,13 +313,19 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - ID：NA-044
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：手机已接上（`adb devices` = `3b864e51`，PJD110 / Android 16）；更新包已推到手机并导入完成（外部 manifest counts 与本地包逐项一致）；`trim-b52` 已构建（`dm/android/build/D2R-Android-port.apk`，17,873,359 字节，含 subsdk0 加载修复）**但还没装到手机** —— 手机上现在是 `trim-b51`。
-- 动作：**复验 subsdk0 修复并继续读启动日志** —— 装 trim-b52 → 用 `deploy_totk.py --no-push` 续跑（导入已存在会自动跳过，直接点「启动游戏」）→ 拉 `files/game.log`，对照「首次开机预演清单」阶段 A–F 逐段判定（重点：subsdk0 装载行、`[dm] >>> nnMain`、NVN 接管与着色器装载）。**不要重推包、不要重导、不要动基座包**。
-- 命令或编辑目标：`adb install -r dm/android/build/D2R-Android-port.apk` → `python dm/android/tools/deploy_totk.py --package D:\Switch\totk-work\package-totk\totk-package-updated.zip --dest fixed --no-push --log-out D:\Switch\totk-work\device\game.log`（环境变量照「标准验证命令」设：`PYTHONIOENCODING=utf-8`、`PYTHONUTF8=1`、`DM_ANDROID_TOOLS=D:\Switch\.tools\android`）。
-- 成功判据：trim-b52 装机成功（`dumpsys package` 显示 `trim-b52-android-port`）；`deploy_totk.py` exit 0 且日志里出现 subsdk0 的 `base/size` 行（不再有 `Invalid image bounds`）；继续推进到 `[dm] >>> nnMain` 与阶段 B（NVN 接管）；结论按「真机跑过」分级写进 HANDOFF 与日志。
-- 失败判据：仍出现 `FATAL` → 记录最后一行与新错误串，按根因修（**不要先回退**：当前包与数据已证明一致）；若阶段 B/C 出现 `FATAL Missing Vulkan shader` / `subgroup profile 64 differs` → 按「首次开机预演清单」阶段 B/C 的处置（换内置 Turnip / 核对包内着色器键）；任何回退都按进度文档 12.5（基座包 + 上一版 APK）。
-- 回滚点：APK `trim-b51`（当前机内版本）；基座包 `D:\Switch\totk-work\package-totk\totk-package.zip`；代码单文件回退用 `git checkout aa0be14 -- <文件>`（不用 `git reset --hard`）。
-- 需要写入的证据：`dumpsys package` 的 versionName；`deploy_totk.py` 退出码；`D:\Switch\totk-work\device\game.log` 的路径与关键行（含 subsdk0 装载行、`nnMain`、任何 FATAL）；分级结论（「真机跑过」≠「文件格式对」≠「运行口径对」）。
+- 前置条件：手机在线（`3b864e51`）；`trim-b54` 已装且启动推进到 `nninitStartup`；包已导入（counts 一致）。
+- 动作：**认出崩溃的导入符号并修它** —— 槽 `0xb70db0` 经 PLT `0x64f5a0` 调用后返回 0，调用方随即 `ldr x8,[x0]` 崩。
+  取证：① `DM_IMPORTS=1` 跑一次，日志会打印 `import <名字> -> <宿主函数>`，与 `0x64f5a0`/`0xb70db0` 对照
+  （或临时在 `resolve_import`/`force_lookup` 按名字打点）；② 解析改写器给 sdk 的重定位产物拿槽位→名字
+  （`.so` 的 `.dynamic` 里没有 DT_RELA，符号名不在那里）。认出后判断：是 `HLE_FORCE` 里返回 0 的空实现，
+  还是 `swhle` 里本该返回对象的函数 —— 前者按真实语义补齐，后者返回有效对象。
+- 命令或编辑目标：`DM_IMPORTS=1` + `deploy_totk.py --no-push` → 读 `files/game.log`；需要时改 `dm/host/hle.c` 对应条目；
+  改完 `build.py --game-run --version trim-bNN` 再复跑。
+- 成功判据：`nninitStartup` 不再崩，日志出现 `③ 各模块 init_array` 与 `>>> nnMain`；随后按「首次开机预演清单」阶段 B 判 NVN 接管。
+- 失败判据：同一 PC 再次 SIGSEGV → 认错符号或对象另有来源（查 `nninitStartup` 上文对 x19 的赋值）；不要盲目改包或重导。
+- 回滚点：`trim-b54`（当前可用）、`trim-b51`；代码单文件 `git checkout 78243ef -- <文件>`；包不动。
+- 需要写入的证据：`DM_IMPORTS=1` 的解析行（名字 + 宿主函数名）、崩溃前后 10 行日志、修改点与构建号、`D://Switch//totk-work//device//game.log` 路径。
+
 
 ## 长操作两阶段日志
 
