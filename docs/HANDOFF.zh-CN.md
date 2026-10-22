@@ -325,7 +325,8 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 ## 下一步唯一动作
 
 - ID：NA-044
-- 状态：READY（本轮已完成「init_array 相对重定位」这一步，下面是新的一步）
+- 状态：READY
+- 本轮已完成「init_array 相对重定位」这一步，下面是新的一步（证据见「当前阻塞」）。
 - 工作目录：`D:\Switch\d2r-android`
 - 前置条件：手机在线；`trim-b56` 已装；**已出证**：三个模块 `DT_RELR` 应用成功
   （`main: reloc relative=0 relr=499074 abs/glob=1421 jump=649`、`sdk relr=15007`、`subsdk0 relr=3424`），
