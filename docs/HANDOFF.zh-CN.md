@@ -6,7 +6,7 @@ state: ACTIVE
 branch: totk/scaffold
 observed_head: 78243ef
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: c8e75dfe3731e78888234777642664a0ea8f157d
+origin_head_at_checkpoint: f7d7fa7371751368dab5760c63d25e38e8a8798c
 code_worktree: CLEAN
 next_action_id: NA-044
 ---
@@ -141,9 +141,11 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 ## 当前快照
 
 - 快照时间：2026-10-22 23:40（Asia/Shanghai）
-- 当前阶段：**NA-044 真机启动进行中**。推包/导入/counts 校验全部通过；启动已连过三道闸门
-  （subsdk0 边界 → 强制接管表 → OBS_UIMSG 门），现推进到 **`nninitStartup` 内 SIGSEGV**：
-  `bl 0x64f5a0`（PLT，槽 0xb70db0）返回 x0=0 → `ldr x8,[x0]` 空指针虚调用。**阶段 B–F 仍 NOT RUN**。
+- 当前阶段：**NA-044 真机启动进行中**。推包/导入/counts 已通过；启动已连过四道闸门：
+  subsdk0 边界 → 强制接管表 → OBS_UIMSG 门 → `am::GetCommonStateGetter` 返回 null。
+  现在进到 **main 的 DT_INIT / init_array（10,717 项）**，崩在 `pc=0 lr=main+0x10b9ec8`
+  （init 里 blr 了空指针）。**阶段 B–F 仍 NOT RUN**。
+- 快照时间：2026-10-22 23:52（Asia/Shanghai）
 - 当前分支：`totk/scaffold`
 - **本会话（NA-037 ~ NA-044）的结论**：**设备前的全部静态闸门全绿 → 可以推机**；剩下的每一步都要在真机上做。
   - 补上了 TotK 的 NVN 名字表（536 个；此前 13 个取不到 → 会拿到空函数指针而崩）与 **213 个被调接口的全部实现**
@@ -228,10 +230,10 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
     写成点号路径 `D:\Switch.tools\android` 时该目录不存在，`ci_checks` 会跳过 JDK 闸门 → 假绿。
 - 观测 HEAD：`78243ef`（真机首跑修复：加载器无补丁区 + 部署脚本加固；此前 `aa0be14` 两处解析修复、`3990687` NA-052 业务；NA-050 合包 `e2d8f3f` 不变）
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter（控制面提交后以最终 `git rev-parse` 为准）
-- 代码工作区：`CLEAN`（排除交接控制面；三处启动闸门修复已分别提交 `78243ef` / `c8e75df`）
+- 代码工作区：`CLEAN`（排除交接控制面；`am::GetCommonStateGetter` 接管已提交 `f7d7fa7`）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
-- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（**`trim-b54`**，17,873,359 字节，23:34 构建 exit 0；**手机已装 b54**）
+- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（**`trim-b55`**，17,873,359 字节，23:46 构建 exit 0；**手机已装 b55**）
 - 本次会话目标：NA-044 真机启动 —— 推包/导入已通过；启动连过三道闸门（subsdk0 边界、强制接管表、OBS_UIMSG），现卡在 `nninitStartup` 内的空指针虚调用。
 - 已完成（带证据）：见下方「已完成清单」。
 - 未完成：**★ 真机复验（下一步唯一动作）**：装 trim-b52 → `deploy_totk.py --no-push` → 读到阶段 B–F。**★ 运行期仍未验的三件事**：① 变体挑选在真机上命中哪个候选（机器码的运行期地址）；② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。**★ M4 只剩真机校准**（触控 / 存档目录 / 音频 / 手柄映射都是通用件，不用为 TotK 重写）。**★ Mac 侧的翻译链重建**（不是 Android 关键路径，`DMSH_CHAIN` 只被 `nvn_mtl.m` 引用）。已完成的部分见下方「已完成清单」。
@@ -243,10 +245,9 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
   另外首跑还修了三处部署脚本缺陷：adb 守护横幅被当设备、`get-state` 走 `adb shell`（exit 127）、
   完成标记轮询内部路径（实际在外部）+ 导入不幂等；启动行「▸  」前缀与 3168×1440 列表截断靠后缀匹配 + 滚动解决。
 - 已验证产物路径：**真机侧**：手机 `/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`（17,825,708,024 字节）+ 同目录 `d2r-package/`（manifest counts game 9 / romfs 304,243 / shaders 24,535；bytes.romfs 17,026,724,605）；内部 `files/d2r-package/game/`（9 个文件，78 MB）；`D:\Switch\totk-work\device\game.log`（首跑日志，拉起时 11 行、FATAL 时 14 行）。**仓库外**：`D:\Switch\totk-work\package-totk\totk-package-updated.zip`（**17,825,708,024 字节 = 16.60 GiB**，game 9 / romfs 304,243 / shaders 24,535；**真机推的就是它**）、`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，基座包 = v1.4.2 本体，**回退点，别推它首发**）、`preflight-updated2.txt`（07:06 全绿）、`merge-report.json`。**仓库内**：`dm/android/tools/deploy_totk.py` + `dm/android/tests/test_deploy_totk.py` + `dm/android/native/runtime.c`（NA-044 修复）；此前新增 `dm/gfx/tools/nvn_slots_auto.py`、`nvn_table.py`、`nvn_coverage.py`、`totk_variant_keys.py`、`dm/gfx/nvn/nvn_names_totk.txt`、`dm/gfx/nvn/nvn_calls_totk.tsv`；APK `dm/android/build/D2R-Android-port.apk`（**trim-b52**）。
-- 当前阻塞：**无外部阻塞**（手机在线，`adb devices` = `3b864e51`）。技术卡点 = `nninitStartup` 内的空指针虚调用
-  （`sdk+0x1ead5c`，PLT 槽 `0xb70db0` 解析到的导入返回 0）。分级：「文件格式对」已核（包/counts）；
-  「运行口径对」——三模块装载 + 重定位 + 强制接管 + Vulkan 初始化 + SDK 初始化入口已真机跑过；
-  「真机跑过」——**未出图**，阶段 B–F（NVN 接管后的描述符集/着色器/句柄拆分/变体/贴图）全部 NOT RUN。
+- 当前阻塞：**无外部阻塞**（手机在线）。技术卡点 = **main 的 init_array 里跳空指针**：
+  `CRASH sig=11 addr=0 pc=0 lr=main+0x10b9ec8`，bt `run_module_inits+0x94`。10,717 项里有一项（或某项内部）
+  调用了空函数指针。分级：「运行口径对」——四道闸门 + SetHeapSize + 进 init_array 已真机跑过；「真机跑过」——**未出图**，阶段 B–F NOT RUN。
 - 需要用户提供的材料：**无**（TotK v1.4.2 合并 XCI、`prod.keys`、一加 12 都已到位；包已导入手机）。
   唯一要注意的：手机别开省电/保持唤醒策略变化导致 adb 掉线；若 `adb devices` 为空，重插数据线并在手机上确认 USB 调试授权。
 - 回滚点：见 frontmatter `observed_head` / `totk/scaffold`。
@@ -313,18 +314,19 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - ID：NA-044
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：手机在线（`3b864e51`）；`trim-b54` 已装且启动推进到 `nninitStartup`；包已导入（counts 一致）。
-- 动作：**认出崩溃的导入符号并修它** —— 槽 `0xb70db0` 经 PLT `0x64f5a0` 调用后返回 0，调用方随即 `ldr x8,[x0]` 崩。
-  取证：① `DM_IMPORTS=1` 跑一次，日志会打印 `import <名字> -> <宿主函数>`，与 `0x64f5a0`/`0xb70db0` 对照
-  （或临时在 `resolve_import`/`force_lookup` 按名字打点）；② 解析改写器给 sdk 的重定位产物拿槽位→名字
-  （`.so` 的 `.dynamic` 里没有 DT_RELA，符号名不在那里）。认出后判断：是 `HLE_FORCE` 里返回 0 的空实现，
-  还是 `swhle` 里本该返回对象的函数 —— 前者按真实语义补齐，后者返回有效对象。
-- 命令或编辑目标：`DM_IMPORTS=1` + `deploy_totk.py --no-push` → 读 `files/game.log`；需要时改 `dm/host/hle.c` 对应条目；
-  改完 `build.py --game-run --version trim-bNN` 再复跑。
-- 成功判据：`nninitStartup` 不再崩，日志出现 `③ 各模块 init_array` 与 `>>> nnMain`；随后按「首次开机预演清单」阶段 B 判 NVN 接管。
-- 失败判据：同一 PC 再次 SIGSEGV → 认错符号或对象另有来源（查 `nninitStartup` 上文对 x19 的赋值）；不要盲目改包或重导。
-- 回滚点：`trim-b54`（当前可用）、`trim-b51`；代码单文件 `git checkout 78243ef -- <文件>`；包不动。
-- 需要写入的证据：`DM_IMPORTS=1` 的解析行（名字 + 宿主函数名）、崩溃前后 10 行日志、修改点与构建号、`D://Switch//totk-work//device//game.log` 路径。
+- 前置条件：手机在线；`trim-b55` 已装；启动已到 main 的 `DT_INIT`（init_array 10,717 项）；包已导入（counts 一致）。
+- 动作：**查 main init_array 里的空函数指针** —— 崩溃 `pc=0 lr=main+0x10b9ec8`（bt `run_module_inits+0x94`），
+  即 main 的 DT_INIT 在遍历 init_array 时 `blr` 了 0。先反汇编 `main.patched.bin` 的 `0x10b9ec0` 附近看它从哪张表取指针
+  （是 init_array 本身的空项，还是某个「注册回调」表没被填）；再统计 `main.patched.bin` 里 init_array 有多少项为 0
+  （DT_INIT_ARRAY/DT_INIT_ARRAYSZ 在镜像 MOD0 动态段里，解析方式见本会话日志）。**注意**：宿主的 `run_module_inits`
+  自己就是遍历者，空项应当被跳过并记一行日志（这是安全的加固，不改变非空项的行为）。
+- 命令或编辑目标：本地解析 `D://Switch//totk-work//patched-android//main.patched.bin` 的 MOD0/DT_INIT_ARRAY；
+  `llvm-objcopy -I binary -O elf64-littleaarch64` 包一层后 `llvm-objdump -D --start-address=0x10b9e80`；
+  必要时改 `dm/host/main.c` 的 `run_module_inits`（空项跳过 + 计数日志），`build.py --game-run --version trim-bNN` 复跑。
+- 成功判据：`run_module_inits` 走完 10,717 项（日志给出跳过数），出现 `[dm] >>> nnMain`。
+- 失败判据：同一 `pc=0` 再次出现 → 说明空指针来自 init 函数内部而非数组项（继续按 lr 反汇编该 init 函数）。
+- 回滚点：`trim-b55`；代码单文件 `git checkout c8e75df -- <文件>`；包不动。
+- 需要写入的证据：init_array 的总项数与空项数、`0x10b9ec8` 附近的反汇编、跳过日志行、构建号与 `game.log` 路径。
 
 
 ## 长操作两阶段日志

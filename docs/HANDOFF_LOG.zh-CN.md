@@ -1,5 +1,31 @@
 # Agent 交接会话日志
 
+## 2026-10-22 23:52 Asia/Shanghai — [SESSION] NA-044 续二：过了 am 单例，进 main init_array，崩在 pc=0
+
+- **认出上一处空指针**：崩溃槽位 `0xb70db0` 的导入是 `_ZN2nn2am20GetCommonStateGetterEv`（`nn::am::GetCommonStateGetter`）。
+  它在 sdk 里有定义（0x1ce4e0，72 字节）：读全局 `sdk+0xba1b90`（懒创建的单例），为 0 就直接返回 0 ——
+  这个单例本该由被宿主接管成空操作的 `oe::Initialize` 建出来。
+- **修复 4**：`dm/host/hle_sdkinit.c` 按本文件既有做法接管该接口，返回静态对象（64 项虚表全部指向「返回 0」的桩）。
+  trim-b55 实测：SDK 初始化走完，`SetHeapSize：首次设堆成功 2642 MB`，`main: DT_INIT +0x10b9d80（init_array 10717 项）`。
+- **当前卡点**：`CRASH sig=11 addr=0 pc=0 lr=main+0x10b9ec8`，bt `run_module_inits+0x94` ——
+  main 的 DT_INIT 遍历 10,717 项 init_array 时 `blr` 了空指针（x8=0）。
+- **方法学记录（可复用）**：guest `.so` 由 `guest_elf.py` 生成，`.dynamic` 只有 HASH/STRTAB/SYMTAB/SONAME，
+  **没有 DT_RELA**；宿主的 `parse_dynamic` 是从**镜像里的 MOD0** 取动态段，所以「槽位 → 符号名」要在 `*.patched.bin`
+  里解析（本会话已写成一次性脚本：读 MOD0 → 动态段 → DT_SYMTAB/DT_STRTAB → rela/jmprel 按 r_offset 匹配）。
+
+### 证据（命令与退出码）
+
+- `deploy_totk.py --no-push`（trim-b55）→ **exit 0**；`game.log` **72 行**：
+  `SetHeapSize` + `main: DT_INIT ...（init_array 10717 项）` + `CRASH ... pc=0 lr=main+0x10b9ec8`。
+- `build.py --game-run --version trim-b55` → exit 0（APK 17,873,359 字节）。
+- 本地反汇编与符号解析（`llvm-objcopy` 包 ELF + `llvm-objdump`）：`0x1eade4`/`0x1ce4e0` 两处均已核对。
+
+### 还差什么
+
+- 定位 init_array 里的空项（或 init 函数内部的空回调）→ 见 HANDOFF「下一步唯一动作」。
+- 阶段 B–F 仍 NOT RUN；现在连图都没出（进程在 init 阶段崩）。
+
+
 ## 2026-10-22 23:40 Asia/Shanghai — [SESSION] NA-044 续：连过三道启动闸门，卡在 nninitStartup 空指针虚调用
 
 - **起点**：用户手动点启动闪退，日志确认是 trim-b51 上的同一个 `Invalid image bounds`（修复未装）。
