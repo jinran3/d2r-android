@@ -343,7 +343,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 - ID：NA-046
 - 状态：READY
-- 工作目录：`D://Switch//d2r-android`
+- 工作目录：`D:\Switch\d2r-android`
 - 前置条件：手机在线；`trim-b60` 已装；数据包已导入（**不要重导**）；已出证：DT_INIT 三模块走完、`>>> nnMain`、romfs 挂载、oe 初始化，
   现崩在 `nn::vi::GetDisplayVsyncEvent`（`game_b60.log` 92 行）。
 - 动作：**给阶段 B 开一个最小的 `nn::vi` 接管面，先只解决 vsync 事件**。
