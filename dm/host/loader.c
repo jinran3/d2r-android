@@ -161,12 +161,37 @@ static void *force_lookup(const char *name) {
         }
     return NULL;
 }
+// 该名字是否被任一模块导入（未定义符号）：用来区分「共享表的超集」与「导入了却没接管」。
+// Whether any module imports this name (an undefined symbol) -- tells a shared-superset entry
+// apart from a real "imported but not taken over" bug.
+static int guest_imports_name(const char *name) {
+    for (int i = 0; i < g_nmod; i++) {
+        module_t *m = &g_mod[i];
+        for (unsigned k = 1; k < m->nsym; k++) {
+            const Elf64_Sym *s = &m->symtab[k];
+            if (s->st_shndx) continue;                       // 有定义，不是导入 | defined, not an import
+            if (!strcmp(m->strtab + s->st_name, name)) return 1;
+        }
+    }
+    return 0;
+}
+
 static void force_check(void) {
-    int bad = 0;
-    for (unsigned i = 0; i < g_nforce; i++)
-        if (!g_force_hits[i]) { LOG("强制接管条目无任何引用：%s", g_force[i].name); bad = 1; }
+    int bad = 0; unsigned unused = 0;
+    for (unsigned i = 0; i < g_nforce; i++) {
+        if (g_force_hits[i]) continue;
+        // 强制接管表是两个游戏共用的超集：本作没导入的条目是正常的多余项（真机首跑 2026-10-22 因此误判：
+        // TotK 不导入 nnssl/nnsocket/oe/time 等一串 D2R 才用的服务）。真正要报错的是
+        // 「本作导入了、却没被接管」——那说明表或解析链有缺陷。
+        // The force table is a shared superset for both games: an entry this game never imports is a legitimate
+        // unused item (the first device boot on 2026-10-22 died here: TotK imports none of nnssl/nnsocket/oe/time).
+        // The failure that matters is "imported but not taken over", which means the table or resolver is wrong.
+        if (guest_imports_name(g_force[i].name)) { LOG("强制接管条目被导入却没接管：%s", g_force[i].name); bad = 1; }
+        else { unused++; if (g_flag.imports) LOG("force 未用：%s（本作没有这个导入）", g_force[i].name); }
+    }
     if (bad) die("强制接管清单有误");
-    LOG("force: %u 条全部命中", g_nforce);
+    if (unused) LOG("force: %u 条命中，%u 条本作未导入（共享表的超集，非故障）", g_nforce - unused, unused);
+    else LOG("force: %u 条全部命中", g_nforce);
 }
 
 // 读改写器表头（段边界、槽号）；表头以外有任何行即旧版产物（装载期改代码），拒绝

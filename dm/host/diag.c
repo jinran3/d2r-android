@@ -312,7 +312,14 @@ void uimsg_emit(const char *cat, const char *act, const char *arg) {
     for (int k = 0, n = atomic_load(&g_nui_sub); k < n; k++) g_ui_sub[k](cat, act, arg);
 }
 void uimsg_subscribe(void (*fn)(const char *cat, const char *act, const char *arg)) {
-    if (!gate_obs_present(OBS_UIMSG)) die("产物没有 UI 观测门 OBS_UIMSG（需 r6 起的产物）：UI 消息订阅无法工作");
+    if (!gate_obs_present(OBS_UIMSG)) {
+        // 这个门是 D2R main 里的固定点（0xb1dc60）。别的游戏（TotK）的 main 没有这个门，
+        // 消息驱动的诊断（DM_UIMSG / 启动分段 ④–⑥ / 面板状态自愈）整体不工作——但不该阻止启动。
+        // The gate is a fixed point in D2R's main module. Other games (TotK) have none, so the message-driven
+        // diagnostics are simply unavailable; that must not abort the boot.
+        static int once; if (!once++) LOG("【提示】产物没有 UI 观测门 OBS_UIMSG：界面消息类诊断不工作（本作没有这个门，非故障）");
+        return;
+    }
     int k = atomic_load(&g_nui_sub); if (k == 8) die("UI 消息订阅者超过 8 个");
     g_ui_sub[k] = fn; atomic_store(&g_nui_sub, k + 1); gate_obs_set(OBS_UIMSG, uimsg_print);
 }
