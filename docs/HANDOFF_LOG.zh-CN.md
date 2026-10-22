@@ -33,6 +33,29 @@
 产物：`dm/android/build/D2R-Android-port.apk`（trim-b60）；真机日志 `D:/Switch/totk-work/device/game_b60.log`（92 行）
 结果：SUCCESS（fs 重载接缝修好，卡点前移到 nn::vi）
 
+## 2026-10-23 08:00 Asia/Shanghai — [SESSION] NA-046：vi vsync 接管落地，卡点前移到 applet/am（阶段 B 继续）
+
+- **先纠正上一轮的一个错误判断**：上一条日志写「宿主完全没有 `nn::vi` 接管面」是**错的** —— 我当时的 grep 只扫了 `dm/host/*.c`。
+  实际上 **`dm/gfx/hle_vi.c` 早就有** `nn::vi::Initialize` / `OpenDefaultDisplay` / `CreateLayer` / `GetNativeWindow`；
+  缺的只是 `GetService` 与 `GetDisplayVsyncEvent`。结论方向没变（缺面导致 `GetService()` 返回 0），但表述要按事实写。
+- **踩到一个新坑（值得记）**：我先在 `dm/host/` 下新建了 `hle_vi.c`，结果和 `dm/gfx/hle_vi.c` **同名**，
+  构建按文件名生成目标文件 → 同一份强制接管表被链接两遍 → 启动 **`FATAL 强制接管清单重复：_ZN2nn2vi10InitializeEv`**（trim-b61，日志 18 行）。
+  处置：删掉新文件，把 vsync 接管写进已有的 `dm/gfx/hle_vi.c`。**以后加宿主文件前先 `find . -name '<名字>'`**。
+- **NA-046 实现**（`dm/gfx/hle_vi.c` 追加）：整条接管
+  `_ZN2nn2vi20GetDisplayVsyncEventEPNS_2os15SystemEventTypeEPNS0_7DisplayE` ——
+  在客体线程上调 `hle_bind_system_event(ev, 0)`（SDK 自己经 `CreateSystemEvent(跨进程)` 建事件），
+  再起一条宿主 60 Hz 线程用 `hle_signal_system_event()` 推写端。**没去伪造 sf 代理对象**（原本的方案 4 只在 `GetService` 被别处调用时才需要）。
+  反汇编依据：`GetDisplayVsyncEvent`(sdk+0x44f3c0, size 0xbc) 先 `vi::GetService()`（槽 0xb77200）→ 虚表 `+0xb8` 取内核事件句柄 →
+  末尾 `bl 0x6488c0`（x0=out_event, w1=handle, w2=autoclear, w3=1）把句柄挂到 `nn::os::SystemEventType`。
+- **真机证据（trim-b62，build/install/deploy 全 exit 0，日志 93 行）**：
+  `[dm] >>> nnMain` → … → **`[dm] vi::GetDisplayVsyncEvent 接管：事件 0x70f2104d60，宿主按 60 Hz 触发`** →
+  `CRASH sig=11 addr=0 pc=sdk+0x1ea684 lr=sdk+0x1ea684`。**vi 那条不再崩**，卡点又前移。
+- **新卡点**：`sdk+0x1ea684` ∈ `_ZN2nn6applet23GetPreviousProgramIndexEv`（0x1ea670, size 0x44）：
+  `bl 0x64f310`（槽 `0xb70c68` = **`_ZN2nn2am23GetApplicationFunctionsEv`**）→ `ldr x8,[x0]`，**x0 = 0**。
+  ⇒ 和 `am::GetCommonStateGetter` 同一族：宿主该返回静态对象 + 全 0 虚表桩。这正是外部情报里
+  「单一应用的 applet resource id、直接启动时无前序程序、无启动参数及无 DLC 列表」那一条，之前故意推迟，现在撞上了。
+- 分级：「文件格式对」已核；「运行口径对」——nnMain/romfs/oe/vi-vsync 都过；「真机跑过」仍未出图，**阶段 B 走了一步**，B–F NOT RUN。
+
 [BEGIN] na-045-readfile-b60
 命令：`build.py --game-run --version trim-b60`；`adb install -r`；`deploy_totk.py --package <更新包> --dest fixed --device 3b864e51 --no-push --log-out …`
 工作目录：D:\Switch\d2r-android
