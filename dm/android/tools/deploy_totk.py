@@ -224,22 +224,41 @@ def gib(kib):
     return kib / 1024.0 / 1024.0
 
 
+DEVICE_STATES = ("device", "offline", "unauthorized", "recovery", "sideload", "bootloader")
+
+
 def select_device(adb, explicit=None):
-    """挑设备：--device 指定时直接用；否则 adb devices 里唯一那台。"""
+    """挑设备：--device 指定时直接用；否则 adb devices 里唯一那台。
+
+    只认 `序列号<TAB>状态` 的行：adb 守护进程启动时会把
+    `* daemon not running; starting now at tcp:5037` 这类横幅写到 stderr，
+    而传输层把 stderr 并进 stdout —— 不滤掉就会被当成设备（真机首跑踩过）。
+    """
     if explicit:
         adb.device = explicit
-        adb.shell(["get-state"], check=True)
+        # get-state 是 adb 的宿主机命令，不能走 `adb shell`（设备上没有它，真机首跑 exit 127）
+        adb.run(["get-state"], check=True)
         return explicit
     listing = adb.run(["devices"]).stdout
-    devices = [line.split("\t")[0] for line in listing.splitlines()
-               if line.strip() and not line.lower().startswith("list of")]
+    devices = []
+    for line in listing.splitlines():
+        line = line.strip()
+        if not line or line.lower().startswith("list of") or line.startswith("*"):
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 2 and parts[1].strip() in DEVICE_STATES:
+            devices.append((parts[0].strip(), parts[1].strip()))
     if not devices:
         raise DeployError("adb devices 为空 —— 手机没接上（这是唯一的外部阻塞）", 2)
     if len(devices) > 1:
-        raise DeployError("接了 %d 台设备（%s），用 --device 指定一台" % (len(devices), ", ".join(devices)), 2)
-    adb.device = devices[0]
-    adb.shell(["get-state"], check=True)
-    return devices[0]
+        raise DeployError("接了 %d 台设备（%s），用 --device 指定一台"
+                          % (len(devices), ", ".join("%s(%s)" % (serial, state) for serial, state in devices)), 2)
+    serial, state = devices[0]
+    if state == "unauthorized":
+        raise DeployError("%s 未授权 USB 调试：解锁手机，在「允许 USB 调试吗」弹窗点允许" % serial, 2)
+    adb.device = serial
+    adb.run(["get-state"], check=True)
+    return serial
 
 
 def check_space(adb, minimum_gib):

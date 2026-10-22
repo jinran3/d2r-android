@@ -177,6 +177,23 @@ def test_select_device_requires_phone():
         assert error.code == 2 and "手机没接上" in str(error), error
     else:
         raise AssertionError("没有设备也放过了")
+    # adb 守护进程启动横幅（stderr 被并进 stdout）不能当成设备 —— 真机首跑踩过
+    banner = StubAdb({"devices": "List of devices attached\n"
+                                 "* daemon not running; starting now at tcp:5037\n"
+                                 "* daemon started successfully\n"
+                                 "3b864e51\tdevice\n"})
+    assert dt.select_device(banner) == "3b864e51"
+    # get-state 是宿主机命令：必须是 adb get-state，不能是 adb shell get-state（真机首跑 exit 127）
+    assert ["get-state"] in banner.calls, banner.calls
+    assert ["shell", "get-state"] not in banner.calls, banner.calls
+    # 未授权要给人话，而不是「接了 1 台设备」
+    denied = StubAdb({"devices": "List of devices attached\nZX\tunauthorized\n"})
+    try:
+        dt.select_device(denied)
+    except dt.DeployError as error:
+        assert error.code == 2 and "未授权" in str(error), error
+    else:
+        raise AssertionError("未授权被放过了")
     # 多台设备要 --device 指定
     adb = StubAdb({"devices": "List of devices attached\nA\tdevice\nB\tdevice\n"})
     try:
