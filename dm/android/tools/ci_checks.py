@@ -132,6 +132,12 @@ def main():
         python_check("数据包 RomFS 布局（t_pkglayout）", "dm/android/tests/test_package_layout.py")
         python_check("BKTR overlay 清单（t_overlay）", "dm/android/tests/test_overlay_manifest.py")
         python_check("数据包合并（t_mergepkg）", "dm/android/tests/test_merge_package.py")
+        # 推包开机一键化：干跑 exit 0 且原样打印 adb 命令，与真跑同一条 main()；
+        # 行匹配容忍「▸  」前缀、字节校验/空间闸门/设备枚举的负路也都要有回归。
+        # The one-command deploy: dry-run exits 0 and prints the adb commands verbatim, sharing
+        # main() with the real run; the row match tolerates the "▸  " prefix and the negative
+        # paths (byte mismatch, space gate, no device) are covered too.
+        python_check("推包开机一键化（t_deploy）", "dm/android/tests/test_deploy_totk.py")
 
         compile_and_run("方向键/扳机映射（t_padmap）", [REPO / "dm/host/tests/t_padmap.c"], workspace / "t_padmap")
         # TotK 的 NVN 接口面：名字表要覆盖它取址的全部名字，它调用的接口宿主都要有实现。

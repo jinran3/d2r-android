@@ -1,5 +1,72 @@
 # Agent 交接会话日志
 
+## 2026-10-22 22:20 Asia/Shanghai — [SESSION] NA-052：推包开机一键化 + runbook（手机不在，纯离线）
+
+- **开工前先对账**：上次会话上下文耗尽，交接没写完 —— `--verify` 报 4 个 FAIL（frontmatter
+  `observed_head` 旧于实际 HEAD、工作区写 CLEAN 实际 DIRTY、清单为空）。`e2d8f3f` 之后还有两个
+  纯控制面提交（`4d95b12`/`eeb1c1f`），且 09:30 留下一份未提交的 `deploy_totk.py` 重写（NA-052 WIP）。
+  按 AGENTS.md 第 6/14 条先修 HANDOFF（单独提交推送 `596b690`），`--verify` 复跑 exit 0 后才动业务代码。
+- **NA-052（已完成，业务提交 `3990687`）**：审查 WIP → 对真实更新包干跑 → 修一个真 bug →
+  补回归 → 写 runbook → 跑闸门 → 提交。全程**没推包、没动基座包、没碰真机**。
+  - 六项要求全落地：① adb 解析（`--adb` > `DM_ANDROID_TOOLS` > 仓内/工作区约定 > PATH）；
+    ② 默认推 `/sdcard/Download/`（`--dest fixed` = 应用外部目录固定名，界面一键导入）；
+    ③ 推前查 `/sdcard` 与 `/data` 空间（< 35 GiB 拦、< 40 GiB 警；导入实测 ~33.1 GiB）；
+    ④ 推完 `stat -c %s`（退 `wc -c`）核对字节数；⑤ `--dry-run` 与真跑同一个 `main()`；
+    ⑥ runbook 进 `docs/TOTK_PORT_PROGRESS.zh-CN.md` 第 12 节（五步 + 每步日志 + 回退基座包）。
+  - **修的 bug**：启动行文字带 `"▸  "` 前缀（`LauncherActivity.java:364` 的 `"▸  " + text(...)`），
+    WIP 的 `row_centre` 全等匹配在真机上必然失配、把自动化静默降级成人工点 → 改后缀匹配；
+    干跑的假窗口也改成带前缀，保证干跑与真机同一套匹配逻辑。
+  - **脚本依赖全部核对过源码**（不是凭印象）：`FIXED_PACKAGE`/`getExternalFilesDir`、
+    `manifest.json` 解包最后才写、`files/game.log` 内部存储 + O_TRUNC、界面行文字中英各一对。
+
+### 证据（命令与退出码）
+
+- `deploy_totk.py --dry-run --package <更新包>` → **exit 0**：21 条 adb 命令原样打印；
+  包内清单 2.3 秒读出（format=1 / romfs 304,243 / shaders 24,535 / subgroup_size=64）；
+  字节校验 17,825,708,024 通过；`--dest fixed` 24 条命令同样 exit 0。
+- `dm/android/tests/test_deploy_totk.py` → **exit 0**（10 用例：干跑两条 dest、后缀匹配、df 解析、
+  字节不一致 / 空间不足 / 没设备 / 多设备 / adb 解析优先级 / conf 改写 / 包不存在）；
+  带与不带 `DM_ANDROID_TOOLS` 两种环境都跑过。
+- `ci_checks.py` → **17 项通过 / 0 失败**（原 16 + 新增 `t_deploy`；JDK 两条 Java 闸门真跑真过）。
+- `build.py --game-run --version trim-b51` → **exit 0**，APK 17,873,359 字节（长操作
+  `[BEGIN]/[END] na-052-trim-b51` 已闭合；与 trim-b50 同大小 —— 只改 Python 工具）。
+- `agent_handoff_check.py --verify` → exit 0；`git diff --check` → exit 0（修了 WIP 文件 EOF 多余空行后才过）。
+- 设备：`adb devices` 空（本轮未重复实测，以上一轮 06:44/07:05 的 exit 2 记录为准）→ **真机行为 NOT RUN**。
+
+### 纠错记录
+
+- 第一次跑 `ci_checks` 用错 `DM_ANDROID_TOOLS`（点号路径 `D:\Switch.tools\android` 不存在）→
+  JDK 闸门被跳过（正是交接文档警告的假绿）；真实工具链是 `D:\Switch\.tools\android`。
+- `t_deploy` 在带 `DM_ANDROID_TOOLS` 的环境下红了一条：测试的「找不到 adb」负例没屏蔽环境变量 → 补屏蔽后过。
+- 写 frontmatter 时把 `origin_head_at_checkpoint` 写成补零假哈希 → `git rev-parse` 取真值改回。
+
+### 还差什么
+
+- **真机**：NOT RUN（唯一外部阻塞：一加 12 的 adb/PnP 断开）。
+- **NA-044（唯一 READY 动作）**：手机一回来，`totk_device_check.py` → `deploy_totk.py --dest fixed`
+  推更新包 → 导入 → 开机 → 读 `files/game.log`（详见 HANDOFF 与进度文档第 12 节）。
+
+### 下一步
+
+唯一 READY 动作：**NA-044 = 真机推包开机**（目标包 = `totk-package-updated.zip`；不推基座包）。
+
+[BEGIN] na-052-trim-b51
+命令：D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\build.py --game-run --version trim-b51
+工作目录：D:\Switch\d2r-android
+预期结果：exit 0，APK 落在 dm/android/build/D2R-Android-port.apk（版本号比 trim-b50 递增；
+NA-052 只改 dm/android/tools/ 下的 Python 工具与测试，不碰 C/Java 源码，APK 大小应与 trim-b50 同级）
+日志路径：本文件对应的 [END] 记录
+回滚点：596b690（控制面）；业务未提交，回退即 git checkout -- 对应文件
+记录时间：2026-10-22T21:58:00+08:00
+
+[END] na-052-trim-b51
+退出码：0
+产物：dm/android/build/D2R-Android-port.apk（17,873,359 字节，2026-10-22 22:12:58，与 trim-b50 同大小 ——
+NA-052 只改 dm/android/tools/ 下的 Python 工具与测试，不碰 C/Java 源码；zipalign 的
+"WARNING: header mismatch" 与以往各批相同，是既有警告）
+结果：SUCCESS
+备注：构建期间本文件只有本条 [BEGIN]/[END]，无其它未闭合长操作。
+
 ## 2026-10-22 21:51 Asia/Shanghai — [SESSION] 对账修正：HANDOFF ↔ Git 不一致（NA-052 开工前）
 
 - **发现的不一致**（`agent_handoff_check.py --verify` exit 1，4 个 FAIL）：

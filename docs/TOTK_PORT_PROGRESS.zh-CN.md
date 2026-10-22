@@ -818,3 +818,99 @@ python3 dmsh_chain.py                               # 打印新的链版本 V
 - 本轮 NOT RUN（没有 Mac）。本轮也没有改 `dmsh_chain.h`：改了会在 Mac 侧 `--update-lock` 时再变一次，
   徒增一次无谓的差异。
 
+### 12. 开机操作手册：推包 → 导入 → 开机 → 读日志（NA-052，2026-10-22）
+
+> 一条命令 + 一页纸。命令是 `dm/android/tools/deploy_totk.py`，本文是它的 runbook。
+> **结论分级**：脚本逻辑本机已验（干跑 exit 0、21/24 条 adb 命令原样打印、字节校验与 counts
+> 比对都真跑过判断分支）；**真机行为 NOT RUN**（手机没接上，`adb devices` 空）。
+> 目标包 = **`D:\Switch\totk-work\package-totk\totk-package-updated.zip`**（17,825,708,024 字节，
+> 328,788 条目；NA-051 的 7 条闸门在它上面全绿）。**基座包 `totk-package.zip`
+> （17,842,231,302 字节，v1.4.2 本体）是回退点，不要拿它首发。**
+
+#### 12.0 先干跑（手机不在也能做，改完脚本必跑）
+
+```powershell
+$vpy = 'D:\Switch\.tools\venv\Scripts\python.exe'
+$env:PYTHONIOENCODING = 'utf-8'; $env:PYTHONUTF8 = '1'
+$env:DM_ANDROID_TOOLS = 'D:\Switch\.tools\android'   # 注意是 .tools（点号路径不存在，JDK 闸门会被跳过 → 假绿）
+& $vpy dm\android\tools\deploy_totk.py --dry-run --package D:\Switch\totk-work\package-totk\totk-package-updated.zip
+```
+
+- 期望：**exit 0**，每条都以 `[dry-run] <adb 命令行>` 原样打印（能直接复制到终端跑），
+  结尾 `== 完成：共执行 21 条 adb 命令 ==`；干跑与真跑是**同一个 `main()`**，
+  只有 adb 传输层把「执行」换成「打印」，设备侧返回值由假 Adb 给占位。
+- 回归：`dm/android/tests/test_deploy_totk.py`（已接进 `ci_checks` 的 `t_deploy`），
+  覆盖干跑两条 dest、行匹配的「▸  」前缀、df 解析、字节不一致 / 空间不足 / 没设备三条负路。
+- 退出码：`0` 走完；`2` 没有 adb / 没有设备 / 包不存在；`3` 空间不够或空间查不出来；
+  `4` 推送或字节校验失败；`5` 导入问题（超时或清单对不上）；`6` 没等到日志。
+
+#### 12.1 第 1 步：推包
+
+```powershell
+# 首选：推到应用外部目录的固定名，启动界面可一键导入（不用手指翻文件选择器）
+& $vpy dm\android\tools\deploy_totk.py --package <更新包> --dest fixed --log-out D:\Switch\totk-work\device\game.log
+# 备选：推到 /sdcard/Download/（SAF 一定能读到；导入时自己在选择器里选这个文件）
+& $vpy dm\android\tools\deploy_totk.py --package <更新包> --log-out D:\Switch\totk-work\device\game.log
+```
+
+- **adb 解析顺序**：`--adb` 显式指定 > `DM_ANDROID_TOOLS/platform-tools` > 仓内/工作区约定路径
+  （`<仓库>\.tools\android`、`D:\Switch\.tools\android`）> PATH 上的 adb。
+- **推之前的空间闸门**（外部 `/sdcard` 与 `/data` 都查）：导入要 ~33.1 GiB
+  （zip 16.60 GiB + 解出 16.47 GiB，包内 328,752 个条目全是 stored）→ **< 35 GiB 拦住（exit 3），
+  < 40 GiB 警告**。`df -k` 解析不出数字时也 exit 3，但消息说「不要当成空间满」——那是 shell 的问题。
+- **推完的字节校验**：`stat -c %s`（不支持则退 `wc -c`）与本地字节数逐字节比对，
+  不一致 exit 4。16.6 GiB 的 push 在 USB 2.0 上可能要几十分钟，正常。
+- **该看到什么**：每条 adb 命令以 `$ ` 打印；`字节校验通过：本机与手机都是 17825708024 字节`。
+
+#### 12.2 第 2 步：导入
+
+- `--dest fixed`：脚本自动点「从推送的包导入」那一行（按 uiautomator dump 的后缀匹配，
+  容忍「▸  」前缀）；`--dest download`：包在 `/sdcard/Download/`，**SAF 选择器自己选**
+  （脚本只等完成标记，不代点——选文件是系统的选择器，adb 点不了）。
+- **完成标记**：`files/d2r-package/manifest.json`（`run-as` 内部路径；它在解包**最后**才写）。
+  脚本轮询它（默认 180 分钟超时），出现后把手机上的清单与本地包对一遍
+  （`format` / `subgroup_size` / `counts`），对不上 exit 5——那说明推错包了。
+- **屏幕上该看到什么**：状态行先 `正在导入 0%` → `100%`，再变成 `已导入：…`。
+  包里没有目录条目（每条都要 mkdirs），**导入要十几分钟到一小时**，别以为卡死。
+- **导入中断了怎么办**：`PackageArchive` 先把旧 manifest 撤掉、新的最后才落盘 →
+  中断只会留下一个**没有 manifest 的目录**，游戏判「不可用」，**重跑导入即可**，不用清数据。
+
+#### 12.3 第 3 步：开机
+
+- **第一号陷阱（脚本已设两道闸）**：`LauncherActivity.startGame()` 会用界面里选中的那一行
+  重写 `game_profile`，写别的值 → 宿主按 D2R 的**分离**句柄表读 c[2]，画面必然不对。
+  脚本在推包后写 `files/launcher-state.conf`（界面自己的状态，`game=totk`）
+  和 `files/temp/launch-settings.conf`（native 严格解析的那份，`game_profile=totk`）两道；
+  真机上仍要**扫一眼**界面「游戏」那一行显示的是「王国之泪」。
+- 脚本点「启动游戏」（`▸  启动游戏` 行），然后等 `files/game.log` 出现（默认 300 秒）。
+- **该看到什么日志**：对照「首次开机预演清单」阶段 A–F（模块装载 → NVN 接管 →
+  描述符集/着色器 → 合并句柄拆分 → 变体挑选 → 预排布贴图），每段的预期行、
+  硬失败行与画面状态都在那一节；`【红】数据包没有 derived.tsv` 对 TotK **不是故障**（见 0.5 节）。
+- **没等到日志（exit 6）**：客体日志**不在 logcat**（见 12.4）；先
+  `adb logcat -d -s D2RAndroid` 看前端自己的行，再看有没有 tombstone
+  （`Fatal signal 6 (SIGABRT)` = 宿主 `die()`，栈顶在 `abort` → 对照 game.log 最后一行；
+  game.log 每次开机 O_TRUNC 截断，崩了的话最后一行就是崩因）。
+
+#### 12.4 第 4 步：读 files/game.log
+
+- 位置：**内部存储** `files/game.log`（`run-as` 才读得到），**不在 logcat 里**；
+  logcat 只有 tag `D2RAndroid` 与 tombstone。脚本用 `--log-out` 自动拉回本机；
+  手动等价命令：`adb shell run-as org.d2r.android.port cat files/game.log > game.log`。
+- **先拉下来再重启**——每次开机 O_TRUNC，重启就丢。
+- 关键确认行：`DM_GAME_PROFILE=totk`（档位）、
+  `[vulkan] shader subgroup profile=64 matches selected shader execution 64`（子组口径）、
+  `[dm] >>> nnMain`（进主函数）、`[nvn]`/`[vulkan] shader <key> ... bindings=...`（着色器装载）。
+  脚本会检查第一行，没有就提示对照「首次开机预演清单」第 6 条怀疑项。
+
+#### 12.5 第 5 步：失败回退（回退到基座包）
+
+| 情形 | 动作 |
+| --- | --- |
+| 更新包导入后开不了机，怀疑是数据侧 | 停游戏 → `adb shell run-as org.d2r.android.port rm -rf files/d2r-package` → `adb shell rm -f /sdcard/Download/totk-package-updated.zip /sdcard/Android/data/org.d2r.android.port/files/totk-package.zip` → 推**基座包** `totk-package.zip` 重走 12.1–12.3（`--dest fixed` 时脚本会把它落到固定名，界面一键导入） |
+| 脚本或档位写坏了 | 脚本只写两个 conf 与 `/data/local/tmp` 临时文件，`rm -f` 掉即可，不用重装 |
+| 代码要回退单个文件 | `git checkout eeb1c1f -- <文件>`（**不用 `git reset --hard`**）；APK 回 `trim-b50` |
+| 只是日志里出现红字 | 先对照 0.5 节与「首次开机预演清单」的怀疑清单，**别急着回退**——已查清 `derived.tsv` 那条是正常的 |
+
+- 回退判据写在证据里：更新包与基座包的 manifest counts 不同（romfs 304,243 vs 304,207），
+  脚本第 4 步的 counts 比对就是抓「推成基座包了」这类错误的。
+
