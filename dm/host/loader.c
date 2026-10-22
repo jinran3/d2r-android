@@ -345,6 +345,55 @@ static void relocate(module_t *m) {
     LOG("%s: reloc relative=%d relr=%llu abs/glob=%d jump=%d", m->name, cnt[0], (unsigned long long)relr, cnt[1], cnt[2]);
 }
 
+// 装载期槽位对拍（只读诊断，不改任何槽）：导入槽的值必须等于「定义该符号的模块基址 + st_value」（ABS64/GLOB_DAT 再加加数）。
+// 对不上就说明槽被别的东西改过（同一 r_offset 有第二条重定位、RELR 又把它当相对槽加了一遍基址、或宿主写坏了它），
+// 真机上的表现正是「blr 到别的函数中间」：pc 落在某个无关函数体内、寄存器与该函数的本地初始化完全不相干。
+// Load-time slot audit (read-only, never writes a slot): an import slot must equal "defining module base + st_value"
+// (plus the addend for ABS64/GLOB_DAT). A mismatch means something else overwrote the slot (a second relocation for the
+// same r_offset, RELR adding the base to it again, or a bad host write), which on the device looks exactly like
+// "blr into the middle of an unrelated function": pc inside that function's body while the registers do not match
+// what its own local setup would have produced.
+static void audit_import_slots(module_t *m) {
+    uint64_t rela = 0, relasz = 0, jmprel = 0, pltsz = 0;
+    for (const Elf64_Dyn *d = m->dyn; d->d_tag; d++) switch (d->d_tag) {
+        case DT_RELA: rela = d->d_un.d_ptr; break;
+        case DT_RELASZ: relasz = d->d_un.d_val; break;
+        case DT_JMPREL: jmprel = d->d_un.d_ptr; break;
+        case DT_PLTRELSZ: pltsz = d->d_un.d_val; break;
+    }
+    const Elf64_Rela *tabs[2] = {(const Elf64_Rela *)(m->base + rela), (const Elf64_Rela *)(m->base + jmprel)};
+    uint64_t sizes[2] = {relasz, pltsz};
+    unsigned nslot = 0, nbad = 0;
+    for (int t = 0; t < 2; t++)
+        for (uint64_t i = 0; i < sizes[t] / sizeof(Elf64_Rela); i++) {
+            const Elf64_Rela *r = &tabs[t][i];
+            if (ELF64_R_TYPE(r->r_info) == R_AARCH64_RELATIVE) continue;
+            const Elf64_Sym *rs = &m->symtab[ELF64_R_SYM(r->r_info)];
+            const char *name = m->strtab + rs->st_name;
+            if (rs->st_shndx) continue;                  // 本模块自己有定义：relocate() 用本模块的偏移（拷贝重定位），不跨模块解析 | Defined in this very module: relocate() uses this module's own offset (copy relocation), no cross-module lookup
+            if (force_lookup(name)) continue;            // 宿主强制接管：槽指向宿主函数，不在本检查范围 | Forced host take-over: the slot points at a host function, out of scope here
+            uint64_t want = 0; const char *wm = NULL;
+            for (int j = 0; j < g_nmod; j++) { void *p = module_sym(&g_mod[j], name); if (p) { want = (uint64_t)p; wm = g_mod[j].name; break; } }
+            if (!want) continue;                          // 三个模块都没有定义：走的是桩/HLE，不在本检查范围 | Not defined by any module: stub/HLE path, out of scope
+            if (ELF64_R_TYPE(r->r_info) != R_AARCH64_JUMP_SLOT) want += (uint64_t)r->r_addend;
+            nslot++;
+            uint64_t got = *(const uint64_t *)(m->base + r->r_offset);
+            if (got == want) continue;
+            nbad++;
+            if (nbad <= 20) {
+                module_t *gmod = module_of((void *)got);
+                if (gmod) LOG("【红】槽位对拍：%s+%#llx %s 应为 %s+%#llx，实际 %s+%#llx",
+                              m->name, (unsigned long long)r->r_offset, name, wm,
+                              (unsigned long long)(want - (uint64_t)module_of((void *)want)->base),
+                              gmod->name, (unsigned long long)(got - (uint64_t)gmod->base));
+                else LOG("【红】槽位对拍：%s+%#llx %s 应为 %s+%#llx，实际 %p（不在任何模块内）",
+                         m->name, (unsigned long long)r->r_offset, name, wm,
+                         (unsigned long long)(want - (uint64_t)module_of((void *)want)->base), (void *)got);
+            }
+        }
+    LOG("%s: 槽位对拍 %u 个模块内导入槽，不一致 %u 条", m->name, nslot, nbad);
+}
+
 // DM_LOADHASH=1（诊断）：装载完逐模块出地址无关 sha256，证「提前起跑 / 不提前」装载结果逐字节相同。
 // 模块基址与宿主 ASLR 每局不同，只有重定位槽的值随之变：复制映像，按同一张重定位表把每个槽换成与地址无关的记号——
 // RELATIVE → (0, 加数)；符号目标落在某模块 → (1 + 模块号, 模块内偏移)；否则（宿主强制接管 / 宿主符号）→ (名字 FNV, 加数)；其余字节原样。
@@ -532,6 +581,8 @@ void load_modules(const char *dir, const char **names, int n) {
     force_init();
     t = now_ns(); for (int i = 0; i < g_nmod; i++) relocate(&g_mod[i]); tr = now_ns() - t;
     force_check();
+    // 只读对拍放在强制接管之后：槽的最终值以这一步为准 | The read-only audit runs after forced take-over so it sees the final slot values
+    for (int i = 0; i < g_nmod; i++) audit_import_slots(&g_mod[i]);
     { void hlecount_seal(void); hlecount_seal(); }   // DM_HLECOUNT：重定位完成，计数桩页封成只读可执行 | DM_HLECOUNT: relocation done, seal the counting stub pages as read-only executable
     if (getenv("DM_SYMCHECK")) LOG("DM_SYMCHECK：装载期共核 %lu 次符号查询，哈希与线性不一致 %lu", g_symchk_n, g_symchk_bad);
     if (g_flag.bootprof) LOG("① 细分：映射（读 + 拷 + 封页）%.1f ms、解析动态段 %.1f ms、门注册 %.1f ms、重定位 + 强制接管 %.1f ms，合计 %.1f ms",

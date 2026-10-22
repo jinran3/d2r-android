@@ -192,8 +192,32 @@ static void on_crash(int sig, siginfo_t *si, void *uc_) {
     fprintf(stderr, "[dm] CRASH sig=%d", sig);
     off("addr", (uint64_t)si->si_addr); off("pc", DM_UC_PC(uc)); off("lr", DM_UC_LR(uc));
     fprintf(stderr, " sp=%#llx\n", (unsigned long long)DM_UC_SP(uc));
-    for (int i = 0; i < 29; i++) fprintf(stderr, "x%d=%#llx%s", i, (unsigned long long)DM_UC_REG(uc, i), i % 6 == 5 ? "\n" : " ");
+    for (int i = 0; i < 31; i++) fprintf(stderr, "x%d=%#llx%s", i, (unsigned long long)DM_UC_REG(uc, i), i % 6 == 5 ? "\n" : " ");
     fprintf(stderr, "\n");
+    // 反查用：pc 处 4 条指令的原字 + 栈扫描。x29 链被破坏（或执行落进别的函数中间）时，
+    // 只有「pc 原文对不对得上现场寄存器」和「栈上有哪些模块返回地址」这两样能定性。
+    // For cross-checking: the raw words of 4 instructions at pc + a stack scan. When the x29 chain is broken
+    // (or execution lands in the middle of some other function), only "do the raw words at pc match the
+    // registers" and "which module return addresses sit on the stack" can pin the case down.
+    { const uint32_t *w = (const uint32_t *)((uintptr_t)DM_UC_PC(uc) - 8);
+      fprintf(stderr, "[dm] pc 原文 (pc-8/pc-4/pc/pc+4):");
+      for (int k = 0; k < 4; k++) fprintf(stderr, " %08x", w[k]);
+      fprintf(stderr, "\n"); }
+    { uint64_t sp = DM_UC_SP(uc), fp = DM_UC_FP(uc), lr = DM_UC_LR(uc);
+      fprintf(stderr, "[dm] 现场原值：pc=%#llx sp=%#llx fp(x29)=%#llx lr(x30)=%#llx\n",
+              (unsigned long long)DM_UC_PC(uc), (unsigned long long)sp,
+              (unsigned long long)fp, (unsigned long long)lr);
+      fprintf(stderr, "[dm] 栈扫描（sp..sp+0x400 里落在模块内的值）:");
+      int n = 0;
+      for (uint64_t p = sp & ~7ull; p < sp + 0x400 && n < 24; p += 8) {
+          uint64_t v = *(volatile uint64_t *)p;
+          module_t *ms = module_of((void *)v);
+          if (!ms) continue;
+          fprintf(stderr, " [sp+%#llx]%s+%#llx", (unsigned long long)(p - sp), ms->name,
+                  (unsigned long long)(v - (uint64_t)ms->base));
+          n++;
+      }
+      fprintf(stderr, "\n"); }
     // x20 常常是模块 init 遍历 init_array 的游标：这里按「原始值」判定落在哪一侧，
     // 用来区分「相对重定位没应用 → 客体裁据链接期地址寻优」与「已进入某个构造元素内部尾跳」。
     // 打印一律不减基址，避免把这两种情形在日志里混成一回事。
