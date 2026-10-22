@@ -1,5 +1,83 @@
 # Agent 交接会话日志
 
+[END] na-044-device-run
+结果：**推包与导入成功，开机在 subsdk0 加载处 FATAL；修复已构建（trim-b52），待真机复验。**
+不是 exit 0 —— 流程在「点启动游戏→等 game.log」这段被宿主的硬失败截断（宿主 `die()` → abort），
+`deploy_totk.py` 本身按设计 exit 0（它只负责推到日志出现那一步）。
+逐段：
+- 设备：`3b864e51`（PJD110 / 一加 12 / Android 16）；原装 trim-b46，本轮 `adb install -r` 换 **trim-b51**（b46 早于 NA-046，
+  不能假设有「从推送的包导入」行）；加载器修复后又构建了 **trim-b52**（exit 0），**尚未安装到手机**。
+- 空间：`/sdcard` 与 `/data` 各约 141.6 GiB 可用（推包后 125.0 / 导入后 107.2）。
+- 推包：`adb push` 16.60 GiB → `/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`；
+  `stat -c %s` = **17,825,708,024**，与本机一致（字节校验通过）。
+- 导入：点「从推送的包导入」后约 13 分钟完成；完成标记在**外部**目录
+  `/sdcard/Android/data/org.d2r.android.port/files/d2r-package/manifest.json`：
+  `format=1 subgroup_size=64 counts game=9 romfs=304,243 shaders=24,535`，
+  `bytes.game=81,598,218 romfs=17,026,724,605 shaders=646,871,659` —— 与本地包**逐项一致**。
+  内部 `files/d2r-package/` 只有 `game/`（9 个文件，78 MB），符合设计。
+- 开机：game.log 出现并有 14 行 → `main` 装载成功（gates 0 / base 0x733b297000 / size 0x3aecb80）、
+  `sdk` 装载成功（gates 101 / base 0x733a0a8000 / size 0xc63cc0）→ **`[dm] FATAL Invalid image bounds`**（subsdk0）。
+- **根因（已定位并修复）**：subsdk0 没有补丁点（`sites.tsv` 为空），重写器只追加 16 KiB 键页 →
+  `patched.bin` 长度 = **0x670000** = `PATCH_OFF`；`dm/android/native/runtime.c` 的边界检查写的是
+  `patch_off >= 镜像长度` 判死，把「没有补丁区」误判成越界（`guest_elf.py` 自己的校验允许 `<=`）。
+  修复：改成 `>`（键页仍由 layout 校验保证在镜像内）。`build.py --game-run --version trim-b52` → exit 0。
+- 待复验：trim-b52 装到手机后重跑 `deploy_totk.py --no-push`（导入已存在会自动跳过），读到阶段 B–F。
+- 结束时间：2026-10-22T23:20:28+08:00
+
+## 2026-10-22 23:20 Asia/Shanghai — [SESSION] NA-044：真机推包、导入完成、开机首跑暴露 subsdk0 加载闸门
+
+- **真机终于接上**（外部阻塞解除）：`adb devices` 有 `3b864e51`；`totk_device_check.py` 的红项都是「还没导包」的正常态。
+- **推包 + 导入一次成功**：16.60 GiB 推送后字节校验一致；界面一键导入约 13 分钟；
+  手机上 manifest 的 counts 与本地包逐项相同（romfs 304,243 / shaders 24,535 / romfs 字节 17,026,724,605）。
+- **首跑遇到三个只有真机才暴露的问题**（全部已修）：
+  1. `adb devices` 的守护进程横幅（stderr 并进 stdout）被当成设备 → 误报「接了 3 台设备」；
+     改成只认 `序列号<TAB>状态` 且状态字符合法，另加「未授权」的人话提示。
+  2. `get-state` 走了 `adb shell`（设备上没有这个可执行文件，exit 127）→ 改成宿主机命令 `adb get-state`。
+  3. 导入完成标记轮询了**内部** `files/d2r-package/manifest.json`（不存在）→ 改外部包目录；
+     并加幂等：已导入就直接核对 counts、跳过重导（重导一次十几分钟起）。
+  另：启动行文字带 `"▸  "` 前缀 + 真机 3168×1440 横屏列表被截断 → `launcher_row` 改后缀匹配并支持滚动查找。
+- **开机首跑结果（分级写）**：**「真机跑过」到 sdk 装载为止** —— main/sdk 两个模块进内存，
+  subsdk0 加载闸门 FATAL（`Invalid image bounds`）。不是数据问题：包内 328,788 条目与 counts 已核对；
+  是加载器把「无补丁区的模块」误判越界（见上一条 [END] 的根因）。修复已编译进 trim-b52。
+- **未验证**：阶段 B（NVN 接管）/ C（描述符集与着色器）/ D（合并句柄拆分）/ E（变体挑选）/ F（预排贴图）全部 **NOT RUN**。
+
+### 证据（命令与退出码）
+
+- `totk_device_check.py` → exit 1（红项：档位未写 / 模块缺 / 数据缺 / 日志缺 —— 全是「还没导」的正常态）。
+- `adb install -r dm/android/build/D2R-Android-port.apk` → exit 0（versionName trim-b51 → 后换 trim-b52）。
+- `deploy_totk.py --package <更新包> --dest fixed --log-out ...` → 推包与字节校验通过（17,825,708,024 一致）。
+- `deploy_totk.py --no-push ...` → **exit 0**：外部 manifest counts 与本地包一致 ✓，跳过重导，点「启动游戏」，
+  拉回 `D:\Switch\totk-work\device\game.log`（11 行；随后增长到 14 行并出现 FATAL）。
+- `dm/android/tests/test_deploy_totk.py` → exit 0（13 用例，含滚动查找、外部标记、未授权/多设备负路）。
+- `build.py --game-run --version trim-b52` → exit 0（APK 17,873,359 字节）。
+
+### 纠错记录
+
+- 第一版部署在 RDP 浮窗挡在前面时抓 UI，5 次都没找到导入行（dump 到的是 `com.microsoft.rdc.androidx`）；
+  把启动界面拉到前台 + 加滚动后正常。**教训**：真机 dump 前先确认 `mCurrentFocus` 是本应用。
+- 首跑把「导入完成」误判死等：标记位置写错（内部 vs 外部），已按实测改。
+
+### 还差什么
+
+- **trim-b52 未装、未复验**：下一步就是装它 + `--no-push` 复跑，读到阶段 B–F。
+- 阶段 B–F 全部 NOT RUN；真机结论目前只到「main/sdk 装载 + subsdk0 闸门已修」。
+
+### 下一步
+
+唯一 READY 动作：**NA-044（续）** —— 装 trim-b52 → `--no-push` 复跑 → 读 stages A–F（详见 HANDOFF）。
+
+[BEGIN] na-044-device-run
+命令：D:\Switch\.tools\venv\Scripts\python.exe dm\android\tools\deploy_totk.py --package D:\Switch\totk-work\package-totk\totk-package-updated.zip --dest fixed --log-out D:\Switch\totk-work\device\game.log
+工作目录：D:\Switch\d2r-android
+前置（已完成）：设备 3b864e51 接上（PJD110 / Android 16）；`totk_device_check.py` 已跑（红项均为「还没导入」的正常态）；
+`adb install -r` 装 trim-b51 成功（原为 trim-b46；不装的话 NA-046 的「从推送的包导入」行可能不存在）；
+df 实测 /sdcard 与 /data 各约 141.6 GiB 可用。
+预期结果：exit 0；推 16.6 GiB → 字节校验一致 → 档位锁 totk → 导入完成（counts 与本地包一致）→ 开机 → 拉回 game.log
+（若导入超时/开机起不来，按退出码 5/6 记录，不重复重推）
+日志路径：D:\Switch\totk-work\device\game.log 与本文件对应的 [END] 记录
+回滚点：基座包 totk-package.zip + APK trim-b50（本轮先装了 trim-b51）+ 业务提交 3990687
+记录时间：2026-10-22T22:29:00+08:00
+
 ## 2026-10-22 22:20 Asia/Shanghai — [SESSION] NA-052：推包开机一键化 + runbook（手机不在，纯离线）
 
 - **开工前先对账**：上次会话上下文耗尽，交接没写完 —— `--verify` 报 4 个 FAIL（frontmatter

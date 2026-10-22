@@ -867,9 +867,11 @@ $env:DM_ANDROID_TOOLS = 'D:\Switch\.tools\android'   # 注意是 .tools（点号
 - `--dest fixed`：脚本自动点「从推送的包导入」那一行（按 uiautomator dump 的后缀匹配，
   容忍「▸  」前缀）；`--dest download`：包在 `/sdcard/Download/`，**SAF 选择器自己选**
   （脚本只等完成标记，不代点——选文件是系统的选择器，adb 点不了）。
-- **完成标记**：`files/d2r-package/manifest.json`（`run-as` 内部路径；它在解包**最后**才写）。
+- **完成标记**：`/sdcard/Android/data/org.d2r.android.port/files/d2r-package/manifest.json`
+  （**外部**包目录，2026-10-22 真机首跑实测；内部 `files/d2r-package/` 只有 `game/`）。它在解包**最后**才写。
   脚本轮询它（默认 180 分钟超时），出现后把手机上的清单与本地包对一遍
   （`format` / `subgroup_size` / `counts`），对不上 exit 5——那说明推错包了。
+  **已导入过就跳过重导**：脚本先查这个标记，存在就只核对 counts（重导一次十几分钟到一小时）。
 - **屏幕上该看到什么**：状态行先 `正在导入 0%` → `100%`，再变成 `已导入：…`。
   包里没有目录条目（每条都要 mkdirs），**导入要十几分钟到一小时**，别以为卡死。
 - **导入中断了怎么办**：`PackageArchive` 先把旧 manifest 撤掉、新的最后才落盘 →
@@ -913,4 +915,20 @@ $env:DM_ANDROID_TOOLS = 'D:\Switch\.tools\android'   # 注意是 .tools（点号
 
 - 回退判据写在证据里：更新包与基座包的 manifest counts 不同（romfs 304,243 vs 304,207），
   脚本第 4 步的 counts 比对就是抓「推成基座包了」这类错误的。
+
+#### 12.6 2026-10-22 真机首跑实录（一加 12 / PJD110 / Android 16）
+
+| 步骤 | 实际结果 |
+| --- | --- |
+| 装 APK | 原机是 trim-b46（早于 NA-046），先换 trim-b51；加载器修复后换 trim-b52 |
+| 推包 | 16.60 GiB → `stat -c %s` = 17,825,708,024，与本机一致 |
+| 导入 | 约 13 分钟；外部 manifest counts 与本地包**逐项一致**（romfs 304,243 / shaders 24,535 / romfs 字节 17,026,724,605）；内部 `game/` 9 个文件 78 MB |
+| 开机 | `main` 装载（gates 0 / size 0x3aecb80）、`sdk` 装载（gates 101 / size 0xc63cc0）→ **`FATAL Invalid image bounds`（subsdk0）** |
+
+- **根因**：subsdk0 没有补丁点（`sites.tsv` 为空），重写器只追加 16 KiB 键页 → `patched.bin` 长度 = `PATCH_OFF` = 0x670000；
+  `dm/android/native/runtime.c` 的边界检查用 `>=` 把「没有补丁区」误判成越界（`guest_elf.py` 自己的校验允许 `<=`）。
+  修复：改 `>`（键页仍由 layout 校验保证在镜像内）。
+- **首跑还暴露并修掉的部署脚本问题**：① `adb devices` 的守护进程横幅被当成设备；② `get-state` 走了 `adb shell`（exit 127）；
+  ③ 完成标记轮询了内部路径；④ 启动行「▸  」前缀 + 3168×1440 横屏列表被截断 → 后缀匹配 + 滚动查找。
+- **教训**：真机 `uiautomator dump` 前先确认 `mCurrentFocus` 是本应用（首跑时被一个 RDP 浮窗挡住，dump 到的是别的应用）。
 
