@@ -1,12 +1,12 @@
 ---
 protocol: 1
-updated_at: 2026-10-23T01:15:00+08:00
+updated_at: 2026-10-23T01:40:00+08:00
 phase: M0
-state: ACTIVE
+state: READY_FOR_HANDOFF
 branch: totk/scaffold
-observed_head: e0f73cd
+observed_head: ec3a67e
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: e0f73cd6a01b7300c031cbe6e3d28899c4568474
+origin_head_at_checkpoint: ec3a67efc86fb6bf73a15a922e961ec0bd2932cf
 code_worktree: CLEAN
 next_action_id: NA-044
 ---
