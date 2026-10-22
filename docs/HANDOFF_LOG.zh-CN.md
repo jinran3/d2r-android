@@ -1,5 +1,59 @@
 # Agent 交接会话日志
 
+## 2026-10-23 07:25 Asia/Shanghai — [SESSION] NA-044 定案并越过 DT_INIT：`>>> nnMain` 出证，新卡点进 nn::fs
+
+- **NA-044 根因（定案，非推测）**：`dm/host/hle_svc.c` 里被接管的 `nn::mem::StandardAllocator::Allocate`
+  转调「原版实现」时**写死了 D2R 的模块偏移 `sdk+0x2f9974`**。TotK 的 sdk 里该符号在 **0x1375f0**，
+  而 0x2f9974 落在 `nn::codec::pcmDmx_ApplyFrame`（音频下混）**中间**，且那条指令正好是 `b 0x2f98e4` ——
+  一跳进去就落进一段「按字节写两个数组」的循环，用残余寄存器写 `[x14+x1]`，x14 = main 基址 ⇒ 往 main 代码段偏移 0x408 写字 ⇒ SIGSEGV。
+  与上一轮记录的现象逐条对上，但**上一轮的定性是错的**（当时判「目的指针被污染」，实际是宿主跳错了函数）。
+- **证据链（每条都有命令/日志）**：
+  1. 设备模块与本地副本**逐字节一致**：`adbd sha256sum` 与本地 `totk-work/guest-so/libdmguest_sdk.so` 都是 `4a58410801b8…`，
+     排除「设备镜像与本地不同」。
+  2. `0x2f98e8` 在全 sdk 里只有**一条** `strb w0,[x14,x1]`（`382169c0`），紧邻 `382169f2`，与 pc 原文一致。
+  3. 但 `x14` 的反汇编来源是 `sub x14, x29, #0xb0`（栈），而现场 `x13/x15/x16` 与本函数本地初始化（`add x13,sp,#0x80` / `sub x15,x29,#0x70`）
+     **全然不符** ⇒ 判定「函数序言根本没跑」= 跳到函数中途。用 `x1=0x408` 反证同理（该索引最大只到 263）。
+  4. 新增崩溃打点（`x0..x30` + pc 原文四字 + `sp..sp+0x400` 栈扫描）出证：`fp(x29)==sp`、`[sp+8]=main+0x99d04`
+     ⇒ 停在 main 的分配器包装器帧里；`x8=0x…7974`（= pc+0x8c）正是「被当作原版入口的那个地址」；`x30` 是宿主地址
+     ⇒ 是**宿主** `hle_stdalloc_allocate` 转调出去的。
+  5. 符号区间解析：`sdk+0x2f98e8` ∈ `nn::codec::pcmDmx_ApplyFrame`(0x2f93e0, size 0x1e3c)；`sdk+0x98f24` ∈ `__nnmusl_init_dso`；
+     槽 `main+0x39793f0` 的导入是 `_ZN2nn3mem17StandardAllocator8AllocateEmm`（唯一提供者：sdk@0x1375f0）。
+  6. 装载期槽位对拍（本轮新增，只读）：修前 main 0 / sdk 11 / subsdk0 31 条「不一致」，逐条查证**全是本模块自己有定义的
+     拷贝重定位符号**（我的对拍一开始没跳过 `st_shndx!=0`）；修后 b59 = **main 2001/0、sdk 10/0、subsdk0 6537/0**。
+- **修复**：`hle_stdalloc_allocate` 的原版入口改为**按符号解析**（`module_sym(sdk, "_ZN2nn3mem17StandardAllocator8AllocateEmm")`），
+  符号缺失才退回老偏移 —— D2R 的路径一字未变（同一符号在 D2R 的 sdk 里就是 0x2f9974）。启动日志新增一行
+  `分配器原版入口 <addr>（按符号，sdk 基址 <base>）`。
+- **真机证据（trim-b58 / trim-b59 各一次，均 `deploy_totk.py --no-push` exit 0）**：
+  `main: DT_INIT +0x10b9d80（init_array 10717 项）` → `分配器原版入口 …（按符号）` →
+  `sdk: DT_INIT +0x400（83 项）` → `subsdk0: DT_INIT +0x20（45 项）` → **`[dm] >>> nnMain`**。
+  NA-044 的成功判据（DT_INIT 走完 + 出现 `>>> nnMain`）**达成，且可复现（b58/b59 两次）**。
+- **新卡点（下一次唯一动作）**：`CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`。
+  `pc 原文` 的 `b9402408` = **`ldr w8,[x0,#0x24]`**，而 x0 是个**句柄值**（b58 为 0x86 → addr=0xaa；b59 为 0x9c → addr=0xc0）。
+  符号：`sdk+0xa5940` = `nn::fs::detail::FileAccessor::Read(Pm, l, void*, m, const ReadOption&)`（函数首条真指令就解引用 this），
+  `sdk+0xa93d0` = `nn::fs::ReadFile(Pm, FileHandle, l, void*, m, const ReadOption&)`，
+  链：`nnMain → main+0x20fe7c → nn::fs::ReadFile → FileAccessor::Read`。
+  ⇒ 读文件的**句柄是由宿主 HLE 的 fs 接管发出来的**，而客体自己又走了 sdk 里真正的 `ReadFile`/`FileAccessor`
+  路径（那条路径要的是 sdk 内部句柄表里的对象指针）。**接缝在「宿主 fs 接管的句柄 ≠ sdk 内部 FileAccessor 对象」**。
+- 分级（照旧三级，别混着说）：「文件格式对」已核；「运行口径对」**本轮再进一步**（DT_INIT 全模块走完、进 nnMain）；
+  「真机跑过」**仍未出图**，阶段 B–F 仍 NOT RUN。
+- 本轮外部情报：无（全程本地反汇编 + 真机）。工具与中间产物在 `D:\Switch\totk-work\disasm-na044\`（仓库外，不提交）。
+
+[BEGIN] na-044-disasm-b57
+命令：`build.py --game-run --version trim-b57/58/59`；`adb install -r`；`deploy_totk.py --package <更新包> --dest fixed --device 3b864e51 --no-push --log-out D:\Switch\totk-work\device\game.log`
+工作目录：D:\Switch\d2r-android
+前置：HEAD=origin=ceb813a、工作区 CLEAN、`agent_handoff_check --resume/--verify` exit 0、设备 3b864e51 在线、机内 trim-b56、数据包已导入（全程 `--no-push`，不重导）
+改动：① `dm/host/crash.c` 只读打点（x0..x30、pc 原文四字、栈扫描）；② `dm/host/loader.c` 只读对拍（导入槽 vs 符号定义）；
+        ③ `dm/host/hle_svc.c` 业务修复（Allocate 的原版入口按符号解析，替代写死的 `sdk+0x2f9974`）
+预期结果：定性 x14 来源并越过 main 的 DT_INIT
+日志路径：`D:\Switch\totk-work\device\game_b57/b58/b59.log`
+回滚点：机内 trim-b56；代码 `git checkout ceb813a -- dm/host/crash.c dm/host/loader.c dm/host/hle_svc.c`
+
+[END] na-044-disasm-b57
+退出码：`ci_checks.py` 16 通过 / 1 失败（交接控制面自干扰：工作区 DIRTY + 本条 BEGIN 未闭合，提交后恢复）；`build.py --game-run --version trim-b57/58/59` 均 exit 0
+产物：`dm/android/build/D2R-Android-port.apk`（trim-b59，17,889,743 字节）；真机日志 `D:\Switch\totk-work\device\game_b58.log`(125 行) / `game_b59.log`
+结果：SUCCESS —— NA-044 成功判据达成（`>>> nnMain` 出现两次），新卡点已定性
+备注：b57 只加诊断；b58 修 Allocate 间接调用；b59 修对拍误报（只读诊断）。三次都是 `--no-push`，数据侧未动。
+
 ## 2026-10-23 01:40 Asia/Shanghai — [SESSION] 交接冻结：本轮（上游同步 + 外部巡检 + NA-044 方案定稿）完成，出交接提示词
 
 - 本轮未改业务代码（全程只读情报 + 方案起草）。NA-044 的执行计划已定稿并写进本文件顶部与 HANDOFF「当前阻塞」：第 1 步反汇编 sdk+0x2f98e8 / main 调用链 → A–D 四分支 → trim-b57 复跑；**弱导入分道（上游 #66）与 svc 0x02 的 RELRO 语义故意不进第一批**（行为变化单批做）。

@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-23T01:40:00+08:00
+updated_at: 2026-10-23T07:30:00+08:00
 phase: M0
 state: READY_FOR_HANDOFF
 branch: totk/scaffold
-observed_head: ec3a67e
+observed_head: ceb813a
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: ec3a67efc86fb6bf73a15a922e961ec0bd2932cf
+origin_head_at_checkpoint: ceb813aa98072d9d497686aa44d463b56c57bfe9
 code_worktree: CLEAN
-next_action_id: NA-044
+next_action_id: NA-045
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,12 +140,19 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-22 23:40（Asia/Shanghai）
-- 当前阶段：**NA-044 真机启动进行中**。推包/导入/counts 已通过；启动已连过四道闸门：
-  subsdk0 边界 → 强制接管表 → OBS_UIMSG 门 → `am::GetCommonStateGetter` 返回 null。
-  现在进到 **main 的 DT_INIT / init_array（10,717 项）**，崩在 `pc=0 lr=main+0x10b9ec8`
-  （init 里 blr 了空指针）。**阶段 B–F 仍 NOT RUN**。
-- 快照时间：2026-10-22 23:52（Asia/Shanghai）
+- 快照时间：2026-10-23 07:30（Asia/Shanghai）
+- 当前阶段：**NA-044 已收尾 —— main/sdk/subsdk0 三个模块的 DT_INIT 全部走完，真机出现 `[dm] >>> nnMain`（trim-b58 / trim-b59 各一次，可复现）**。
+  现在卡在 nnMain 里读文件：`CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`。**仍未出图；阶段 B–F 仍 NOT RUN。**
+- **NA-044 根因与修复（定案，证据见 HANDOFF_LOG 07:25 条）**：宿主 `dm/host/hle_svc.c` 的 `hle_stdalloc_allocate` 把「原版入口」
+  写死成 D2R 的 `sdk+0x2f9974`；TotK 的 sdk 里该符号在 `0x1375f0`，`0x2f9974` 落在 `nn::codec::pcmDmx_ApplyFrame` 中间、恰是一条 `b`
+  → 跳进字节写循环 → 往 `main+0x408`（代码段）写 → SIGSEGV。已改为**按符号解析**
+  （`module_sym(sdk, "_ZN2nn3mem17StandardAllocator8AllocateEmm")`，符号缺失才退回老偏移；D2R 路径未变）。
+  **同族隐患（记住）**：`hle_svc.c:154-155`（主堆读数用的 `main+0x32137a0` 与 `sdk+0x2f9d78/+0x2f9dbc`）、`hle_oe.c:248/253`、
+  `hle_private_aim.c` 多处、`hle_time.c:37` **都是 D2R 写死偏移**；阶段 B 一到 NVN 内存读数行就会撞上 `dm_guest_heap_stat`。
+- 新增两条**只读**诊断（trim-b57~b59 已跑，不改行为）：`dm/host/crash.c`（打印 `x0..x30`、pc 前后四字原文、`sp..sp+0x400` 栈扫描）、
+  `dm/host/loader.c` 的 `audit_import_slots`（装载期把每个导入槽与符号定义对拍；b59：main 2001/0、sdk 10/0、subsdk0 6537/0）。
+- 上一轮快照（历史）：NA-044 真机启动进行中 —— 推包/导入/counts 已通过；连过四道闸门（subsdk0 边界 → 强制接管表 → OBS_UIMSG → `am::GetCommonStateGetter`）；
+  DT_INIT 的相对重定位（DT_RELR）已补齐。
 - 当前分支：`totk/scaffold`
 - **本会话（NA-037 ~ NA-044）的结论**：**设备前的全部静态闸门全绿 → 可以推机**；剩下的每一步都要在真机上做。
   - 补上了 TotK 的 NVN 名字表（536 个；此前 13 个取不到 → 会拿到空函数指针而崩）与 **213 个被调接口的全部实现**
@@ -228,24 +235,24 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
     接进 `ci_checks` 的 `t_deploy` → **17 项通过 / 0 失败**（原 16 + 1）。
   - **环境事实**：`DM_ANDROID_TOOLS` 必须指向 `D:\Switch\.tools\android`（真实工具链，含 JDK）；
     写成点号路径 `D:\Switch.tools\android` 时该目录不存在，`ci_checks` 会跳过 JDK 闸门 → 假绿。
-- 观测 HEAD：`78243ef`（真机首跑修复：加载器无补丁区 + 部署脚本加固；此前 `aa0be14` 两处解析修复、`3990687` NA-052 业务；NA-050 合包 `e2d8f3f` 不变）
+- 观测 HEAD：本轮开工时 `ceb813a`（== origin）；控制面提交后以最终 `git rev-parse` 为准
 - origin 对应分支：`origin/totk/scaffold`，检查点见 frontmatter（控制面提交后以最终 `git rev-parse` 为准）
 - 代码工作区：`CLEAN`（排除交接控制面；`am::GetCommonStateGetter` 接管已提交 `f7d7fa7`）
 - 未提交代码文件：无
 - 未跟踪代码文件：无
-- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（**`trim-b55`**，17,873,359 字节，23:46 构建 exit 0；**手机已装 b55**）
-- 本次会话目标：NA-044 真机启动 —— 推包/导入已通过；启动连过三道闸门（subsdk0 边界、强制接管表、OBS_UIMSG），现卡在 `nninitStartup` 内的空指针虚调用。
+- 被忽略但重要的产物：`dm/android/build/D2R-Android-port.apk`（**`trim-b59`**，17,889,743 字节，07:21 构建 exit 0；**手机已装 b59**）
+- 本次会话目标：NA-044 收尾 —— 反汇编定性「往 main 代码段写」的目的指针、修掉宿主写死偏移、越过 DT_INIT 进 `nnMain`。**已达成**。
 - 已完成（带证据）：见下方「已完成清单」。
-- 未完成：**★ 真机复验（下一步唯一动作）**：装 trim-b52 → `deploy_totk.py --no-push` → 读到阶段 B–F。**★ 运行期仍未验的三件事**：① 变体挑选在真机上命中哪个候选（机器码的运行期地址）；② 预排布贴图内容是否正确；③ 合并句柄拆分是否与画面一致。**★ M4 只剩真机校准**（触控 / 存档目录 / 音频 / 手柄映射都是通用件，不用为 TotK 重写）。**★ Mac 侧的翻译链重建**（不是 Android 关键路径，`DMSH_CHAIN` 只被 `nvn_mtl.m` 引用）。已完成的部分见下方「已完成清单」。
-- 最近一次成功命令：NA-044 真机 `deploy_totk.py --package <更新包> --dest fixed --no-push --log-out D:\Switch\totk-work\device\game.log` → **exit 0**（外部 manifest counts 与本地包一致 ✓、跳过重导、点「启动游戏」、拉回 game.log）；此前推包 `adb push` 后 `stat -c %s` = 17,825,708,024 与本机一致；`build.py --game-run --version trim-b52` exit 0（APK 17,873,359 字节）；`test_deploy_totk.py` exit 0（13 用例）。NA-052 的 17/0、NA-051 的 7 条闸门全绿结论不变。
-- 最近一次失败命令及原因：**`CRASH sig=11 addr=0 pc=lr=sdk+0x1ead5c`**（nninitStartup 内，跳 0）。反汇编：`bl 0x64f5a0`（PLT 跳板，槽 0xb70db0）→ `ldr x8,[x0]`（x0=0）→ `blr x8`；日志无 UNIMPL 行 → 某导入被解析到真实 HLE/强接管函数并返回了空对象。此前的 subsdk0 `FATAL Invalid image bounds`（已修）详见下一段。
+- 未完成：**★ 真机复验（下一步唯一动作 NA-045）**：定性 `nn::fs::detail::FileAccessor::Read` 里 `x0` 的来源（句柄被当对象指针）。**★ 宿主还有一批 D2R 写死偏移**（见上）。**★ 运行期仍未验**：变体挑选 / 预排布贴图 / 合并句柄拆分。**★ M4 只剩真机校准**。**★ Mac 侧翻译链重建**（非 Android 关键路径）。
+- 最近一次成功命令：`build.py --game-run --version trim-b59` exit 0 + `adb install -r` exit 0 + `deploy_totk.py --package <更新包> --dest fixed --device 3b864e51 --no-push --log-out …` exit 0 → `D://Switch//totk-work//device//game_b59.log` 出现 **`>>> nnMain`** 与槽位对拍 `main 2001/0、sdk 10/0、subsdk0 6537/0`；trim-b58 同样出现 `>>> nnMain`（可复现）。
+- 最近一次失败命令及原因：`CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`（`nn::fs::ReadFile → FileAccessor::Read`，`ldr w8,[x0,#0x24]`，x0 = 句柄值）。历史：`CRASH sig=11 addr=0 pc=lr=sdk+0x1ead5c`（`nninitStartup` 跳 0，已越过）；subsdk0 `FATAL Invalid image bounds`（已修）。
   根因：subsdk0 的 `sites.tsv` 为空 → 重写器不追加补丁区，`patched.bin` 长度 = `PATCH_OFF` = 0x670000；
   `runtime.c` 的边界检查写 `patch_off >= 镜像长度` 判死，把「没有补丁区」误判成越界（`guest_elf.py` 自己的校验允许 `<=`）。
   已改成 `>`（键页仍由 layout 校验保证在界内），trim-b52 构建 exit 0，**待装到手机复验**。
   另外首跑还修了三处部署脚本缺陷：adb 守护横幅被当设备、`get-state` 走 `adb shell`（exit 127）、
   完成标记轮询内部路径（实际在外部）+ 导入不幂等；启动行「▸  」前缀与 3168×1440 列表截断靠后缀匹配 + 滚动解决。
 - 已验证产物路径：**真机侧**：手机 `/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`（17,825,708,024 字节）+ 同目录 `d2r-package/`（manifest counts game 9 / romfs 304,243 / shaders 24,535；bytes.romfs 17,026,724,605）；内部 `files/d2r-package/game/`（9 个文件，78 MB）；`D:\Switch\totk-work\device\game.log`（首跑日志，拉起时 11 行、FATAL 时 14 行）。**仓库外**：`D:\Switch\totk-work\package-totk\totk-package-updated.zip`（**17,825,708,024 字节 = 16.60 GiB**，game 9 / romfs 304,243 / shaders 24,535；**真机推的就是它**）、`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，基座包 = v1.4.2 本体，**回退点，别推它首发**）、`preflight-updated2.txt`（07:06 全绿）、`merge-report.json`。**仓库内**：`dm/android/tools/deploy_totk.py` + `dm/android/tests/test_deploy_totk.py` + `dm/android/native/runtime.c`（NA-044 修复）；此前新增 `dm/gfx/tools/nvn_slots_auto.py`、`nvn_table.py`、`nvn_coverage.py`、`totk_variant_keys.py`、`dm/gfx/nvn/nvn_names_totk.txt`、`dm/gfx/nvn/nvn_calls_totk.tsv`；APK `dm/android/build/D2R-Android-port.apk`（**trim-b52**）。
-- 当前阻塞：**无外部阻塞**（手机在线）。技术卡点变了（见下）——**「init_array 跳空指针」已解决**，新卡点是 main 的 DT_INIT 首次调用里往 main 代码段写。
+- 当前阻塞：**无外部阻塞**（手机在线）。**「往 main 代码段写」已定案并修复**（宿主把 `sdk+0x2f9974` 当作原版 `Allocate` 入口）。新卡点 `CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`（b58 为 `addr=0xaa`，同一指令、不同句柄）：`pc 原文` 的 `b9402408` = `ldr w8,[x0,#0x24]`；`sdk+0xa5940` = `nn::fs::detail::FileAccessor::Read`（首条真指令就解引用 this），`sdk+0xa93d0` = `nn::fs::ReadFile`；链 `nnMain → main+0x20fe7c → ReadFile → FileAccessor::Read`。x0 是**句柄值**（0x86→读 0xaa；0x9c→读 0xc0）⇒ 宿主 fs 接管发的句柄 ≠ sdk 内部句柄表里的 `FileAccessor*`。
   - 已根因定案（2026-10-23 00:30）：宿主 `relocate()` 只处理 `DT_RELA`/`DT_JMPREL`，**没有实现 `DT_RELR`**（tag 35/36/37）。
     TotK 三模块的相对重定位全部走这张压缩包式表（main 9,357 个编码字 → **499,074 个槽**；sdk 15,007；subsdk0 3,424），
     显式 RELA 里一条 `R_AARCH64_RELATIVE` 都没有，所以日志一直是 `relative=0`。
@@ -271,6 +278,11 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 禁止事项：不得提交游戏内容、密钥、存档或构建产物；不得删除未提交代码；不得把 D2R 数据当作 TotK 数据；**外部项目的代码不要直接搬进来**（`OJZen/totk-mobile` 是 Apache-2.0，本仓库是 MIT；只读思路与格式事实，代码自己写；Ryujinx 是 MIT，可用但要保留声明）。
 
 ### 已完成清单
+- NA-044 收尾（2026-10-23 07:25）：**根因 = 宿主 `hle_svc.c` 把 D2R 的 `sdk+0x2f9974` 写死成 `StandardAllocator::Allocate` 的原版入口**；
+  TotK 该偏移落在 `nn::codec::pcmDmx_ApplyFrame` 中间（且是 `b`），一跳进去就用残余寄存器写 `main+0x408`（代码段）→ SIGSEGV。
+  改为按符号解析（缺失才退回老偏移）。证据：(a) 设备/本地 `.so` sha256 一致 `4a58410801b8…`；(b) `0x2f98e8` 全 sdk 唯一一条 `strb w0,[x14,x1]`；
+  (c) 现场 `fp==sp`、`[sp+8]=main+0x99d04`、`x8=pc+0x8c`（= 被误当入口的 0x2f9974）、`x30` 是宿主地址 ⇒ 跳到中途；(d) 符号区间解析。
+  真机：`trim-b58`/`trim-b59` 均出现 `[dm] >>> nnMain`（可复现）。同批新增两条只读诊断（crash 现场 + 装载期槽位对拍）。
 
 - 新增 `AGENTS.md` 硬性入口。
 - 新增 `tools/agent_handoff_check.py` 与 `tools/test_agent_handoff_check.py`。
@@ -328,31 +340,26 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-044
+- ID：NA-045
 - 状态：READY
-- 本轮已完成「init_array 相对重定位」这一步，下面是新的一步（证据见「当前阻塞」）。
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：手机在线；`trim-b56` 已装；**已出证**：三个模块 `DT_RELR` 应用成功
-  （`main: reloc relative=0 relr=499074 abs/glob=1421 jump=649`、`sdk relr=15007`、`subsdk0 relr=3424`），
-  main 的 init_array 体检 **零项 0、仍是相对值 0**，首项已是 `base+0x10bee00`（base 0x7284a57000）。
-- 动作：**追 main 的 DT_INIT 首次调用里那个被污染的目的指针** —— 新崩溃
-  `CRASH sig=11 addr=main+0x408 pc=sdk+0x2f98e8 lr=0x730a2e666c`，bt `main+0x99d04 sdk+0x98f24 main+0x10b9e64 run_module_inits+0xa4`。
-  崩溃指令 `sdk+0x2f98e8: strb w0,[x14,x1]`（同循环还有 `strb w18,[x15,x1]`、`add x18,x13,x11`），
-  x14 = **main 基址 0x7284a57000**、x1 = 0x408 ⇒ 往 main 镜像偏移 0x408 写字节，而那里是**代码**
-  （本地 `main.patched.bin` 的 0x400 就是 `87 e5 01 94` = 一条 `bl`），必崩。
-  先反汇编 sdk+0x2f98e8 所在完整函数，确认 x14 是「某个被调用方返回的指针」还是「某个全局槽被加了基址」；
-  重点排查：① 重定位是否过应用（例如本该保持空的槽被加成了基址，三模块各有约 5 个 RELR 槽原值为 0）；
-  ② HOST HLE 是否把 main 基址当成了某个对象的地址返回。
-- 命令或编辑目标：`llvm-objcopy -I binary -O elf64-littleaarch64` 包 ELF 后
-  `llvm-objdump -D --start-address=0x2f9800 --stop-address=0x2f9980` 看 sdk 那个函数的完整取指针过程；
-  必要时在宿主侧对返回指针打点（`dm/host/hle_*.c` 里新加 UNIMPL / 计数日志），`build.py --game-run --version trim-b57` 复跑。
-- 成功判据：main 的 DT_INIT 走完（不再写 main 的代码段），10,717 项 init_array 走完并出现 `[dm] >>> nnMain`。
-- 失败判据：仍写 `main+0x408` → 说明 x14 来源在宿主侧（按 sdk 那个函数的取指针指令反查槽偏移，本地查该槽是否属于 RELR/ABS64）；
-  pc 换成别处 → 已推进，按新 pc/lr 反汇编继续。
-- 回滚点：`trim-b56`（机内）；代码单文件 `git checkout cd4c045 -- <文件>`；包不动。
-- 需要写入的证据：`sdk+0x2f98e8` 所在函数的完整反汇编、x14 的来源（槽偏移或返回值）、
-  该槽在重定位表里的归属、`D:\Switch\totk-work\device\game.log` 与新构建号。
-
+- 前置条件：手机在线；`trim-b59` 已装；数据包已导入（**不要重导**）；已出证：三个模块 DT_INIT 走完、`[dm] >>> nnMain`（`game_b58.log` / `game_b59.log`）。
+- 动作：**定性 `nn::fs::detail::FileAccessor::Read` 的 `x0`（句柄被当对象指针）**。
+  新崩溃 `CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`（b58 为 `addr=0xaa`）；`pc 原文` = `ldr w8,[x0,#0x24]`，`x0` 是**句柄值**（0x86 / 0x9c）。
+  符号：`sdk+0xa5924` = `_ZN2nn2fs6detail12FileAccessor4ReadEPmlPvmRKNS0_10ReadOptionE`（size 0x278），
+  `sdk+0xa93b0` = `_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvmRKNS0_10ReadOptionE`（size 0x84）。
+  按此顺序走，一次只落一个假设：
+  1. 反汇编 `nn::fs::ReadFile`（0xa93b0–0xa9434），看它怎么把 `FileHandle`（x1）变成 `FileAccessor*`：查 sdk 自己的内部表（哪个全局/函数），
+     还是直接把句柄当指针用（那正好解释 `x0` 恰等于句柄值）。
+  2. 查 `dm/host/hle_fs.c` 现有的 fs 接管面：宿主发的句柄编号空间与 sdk 内部表是否**同一张表**。TotK 新出现的是「客体自己调 sdk 的 ReadFile」这条路，
+     D2R 全程走宿主 HLE，所以这条路从来没被验过。
+  3. 若确认「句柄空间不一致」→ 优先修**接管面**（把 `nn::fs::ReadFile` / `FileAccessor` 一族接进既有 fs HLE、共用一套句柄），不要伪造 sdk 内部表。
+- 命令或编辑目标：`llvm-objdump -D --start-address=0xa93b0 --stop-address=0xa9434`（sdk）、`--start-address=0xa5924 --stop-address=0xa59c0`（Read 头部）；
+  改动只允许落在 `dm/host/hle_fs.c`（或新增的 fs HLE 条目）。
+- 成功判据：不再在 `FileAccessor::Read` 里解引用小整数；日志推进到下一阶段（romfs 读成功 / 进 NVN 初始化）。
+- 失败判据：仍崩 `sdk+0xa5940` → 说明 sdk 内部表那条路确实被调用，改按「补 sdk 内部表登记」；pc 换别处 → 已推进，按新 pc/lr 继续。
+- 回滚点：`trim-b59`（机内）；代码 `git checkout <本批业务提交> -- dm/host/hle_fs.c`；包不动。
+- 需要写入的证据：`ReadFile` 的 x1→this 转换反汇编、宿主 fs 句柄空间的定义位置、`game_b58.log` / `game_b59.log` 与新构建号。
 
 ## 长操作两阶段日志
 
