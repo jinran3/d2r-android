@@ -4,9 +4,9 @@ updated_at: 2026-10-23T00:35:00+08:00
 phase: M0
 state: ACTIVE
 branch: totk/scaffold
-observed_head: cd4c045
+observed_head: e0f73cd
 origin_ref: origin/totk/scaffold
-origin_head_at_checkpoint: cd4c0457f19961ac8edff4ade91bb885051988a2
+origin_head_at_checkpoint: e0f73cd6a01b7300c031cbe6e3d28899c4568474
 code_worktree: CLEAN
 next_action_id: NA-044
 ---
