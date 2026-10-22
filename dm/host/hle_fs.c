@@ -517,6 +517,23 @@ HLE_FORCE("_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvm", "fsp-srv → pread(2)", 
     }
     return RES_OK;
 }
+// TotK（SDK 21）把 `nn::fs::ReadFile` 拆成了三个重载：D2R 只有 5 参那个（下面已接管），本作还导入
+// 6 参带 `const ReadOption&` 的和 4 参不带 out 的。名字不同就匹配不上强制接管表，于是客体走 sdk 自己的实现，
+// 而 sdk 那条路把**宿主发的句柄**当 `nn::fs::detail::FileAccessor*` 解引用
+// （真机 CRASH sig=11 addr=0xc0 pc=sdk+0xa5940，指令 `ldr w8,[x0,#0x24]`，x0 = 句柄 0x9c）。
+// 两个重载都接进来共用同一个 pread 实现；ReadOption 只影响缓存/优先级，宿主直读用不上。
+// TotK (SDK 21) splits `nn::fs::ReadFile` into three overloads: D2R only has the 5-parameter one taken over below, while this
+// game also imports the 6-parameter one carrying `const ReadOption&` and the 4-parameter one without an out size. Different
+// mangled names never match the force table, so the guest runs the SDK's own implementation, which dereferences the
+// host-issued handle as an `nn::fs::detail::FileAccessor*` (device CRASH sig=11 addr=0xc0 pc=sdk+0xa5940, `ldr w8,[x0,#0x24]`
+// with x0 = the handle 0x9c). Take both overloads over and share the same pread path; ReadOption only affects caching and
+// priority, which a host-side direct read does not need.
+HLE_FORCE("_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvmRKNS0_10ReadOptionE", "fsp-srv → pread(2)（本作 6 参重载）", Result, h_fs_ReadFileOpt, size_t *out, uint64_t h, int64_t off, void *buf, size_t sz, const void *opt) {
+    (void)opt; return h_fs_ReadFile(out, h, off, buf, sz);
+}
+HLE_FORCE("_ZN2nn2fs8ReadFileENS0_10FileHandleElPvm", "fsp-srv → pread(2)（本作 4 参重载，不回收读取量）", Result, h_fs_ReadFileBare, uint64_t h, int64_t off, void *buf, size_t sz) {
+    size_t got = 0; return h_fs_ReadFile(&got, h, off, buf, sz);
+}
 HLE_FORCE("_ZN2nn2fs9WriteFileENS0_10FileHandleElPKvmRKNS0_11WriteOptionE", "fsp-srv → pwrite(2)", Result, h_fs_WriteFile, uint64_t h, int64_t off, const void *buf, size_t sz, const void *opt) {
     (void)opt; size_t put = 0;
     if (g_fsave[(int)h & 0xffff]) {                                     // 存档写注入点（确定性回归用；只数存档挂载上的写） | Save write injection point (for deterministic regression; only writes on the save mount are counted)
