@@ -252,7 +252,74 @@ static void register_gates(module_t *m, const char *dir) {
     LOG("%s: gates %d patch_off %#llx keys %lu/%lu/%lu/%lu", m->name, ng, m->patch_off, g_key18, g_keytls, g_keytlr, g_keygate);
 }
 
+// 压缩包式相对重定位（DT_RELR）：偶数项给出一个新游标槽，奇数项是一张位图，覆盖随后 63 个八字节槽。
+// 语义与 R_AARCH64_RELATIVE 完全相同（*槽 = 基址 + 槽原值），只是把逐个地址压成位图，节省九成以上的空间：
+// TotK 三个模块的相对重定位全部走这张表（main 9,357 个编码字 → 499,074 个槽），显式 RELA 里反而一条 RELATIVE 都没有。
+// Packed relative relocations (DT_RELR): an even entry gives a new cursor slot, an odd entry is a bitmap
+// covering the following 63 eight-byte slots. The semantics are exactly those of R_AARCH64_RELATIVE
+// (*slot = base + original slot value), only the addresses are packed into bitmaps to save >90% of the space:
+// all three TotK modules carry their relative relocations in this table (main: 9,357 encoded words -> 499,074
+// slots), while the explicit RELA table contains no RELATIVE entry at all.
+typedef void (*relr_slot_fn)(module_t *m, uint64_t off, void *ctx);
+static void dynamic_relr(const module_t *m, uint64_t *off, uint64_t *size, uint64_t *ent) {
+    *off = *size = *ent = 0;
+    for (const Elf64_Dyn *d = m->dyn; d->d_tag; d++) switch (d->d_tag) {
+        case DT_RELR: *off = d->d_un.d_ptr; break;
+        case DT_RELRSZ: *size = d->d_un.d_val; break;
+        case DT_RELRENT: *ent = d->d_un.d_val; break;
+    }
+}
+// 没有 DT_RELR 的模块（relative=0 且本就没有相对指针）这里直接返回 0，行为与旧版一致。
+// A module without DT_RELR (relative=0 and no relative pointers to begin with) simply yields 0 here, i.e. the old behaviour.
+static uint64_t walk_relr(module_t *m, relr_slot_fn visit, void *ctx) {
+    uint64_t off, size, ent;
+    dynamic_relr(m, &off, &size, &ent);
+    if (!off && !size) return 0;
+    if (!size || ent != sizeof(Elf64_Relr) || size % sizeof(Elf64_Relr) || size > m->size || off > m->size - size)
+        die("%s: DT_RELR 元数据越界或格式不对（表 %#llx 大小 %#llu 每项 %llu）", m->name,
+            (unsigned long long)off, (unsigned long long)size, (unsigned long long)ent);
+    const Elf64_Relr *tab = (const Elf64_Relr *)(m->base + off);
+    uint64_t count = 0, cursor = 0;
+    int anchored = 0;
+    for (uint64_t i = 0; i < size / sizeof *tab; i++) {
+        Elf64_Relr e = tab[i];
+        if (!(e & 1)) {
+            if (e & 7) die("%s: DT_RELR 地址项 %#llx 未按 8 字节对齐", m->name, (unsigned long long)e);
+            cursor = e;
+            anchored = 1;
+        } else {
+            if (!anchored) die("%s: DT_RELR 位图缺少前导地址", m->name);
+            for (unsigned bit = 1; bit < 64; bit++)
+                if (e >> bit & 1) {
+                    uint64_t target = cursor + (uint64_t)(bit - 1) * 8;
+                    if (target > m->size || sizeof(uint64_t) > m->size - target)
+                        die("%s: DT_RELR 槽 %#llx 越出镜像（大小 %#zx）", m->name,
+                            (unsigned long long)target, m->size);
+                    visit(m, target, ctx);
+                    count++;
+                }
+            // 位图之后游标推进 63 个槽（不含本槽) | After a bitmap the cursor advances by 63 slots (excluding this one)
+            cursor += 63 * 8;
+            continue;
+        }
+        if (cursor > m->size || sizeof(uint64_t) > m->size - cursor)
+            die("%s: DT_RELR 槽 %#llx 越出镜像（大小 %#zx）", m->name, (unsigned long long)cursor, m->size);
+        visit(m, cursor, ctx);
+        count++;
+        cursor += 8;
+    }
+    return count;
+}
+static void apply_relr_slot(module_t *m, uint64_t off, void *unused) {
+    (void)unused;
+    // 加数就是槽里的原值，直接加基址；值为 0 的槽表示「指向模块基址」，不能当作空哨兵跳过。
+    // The addend is the slot's original value: just add the base. A slot holding 0 means "points at the module
+    // base" and must not be skipped as if it were a null sentinel.
+    *(uint64_t *)(m->base + off) += (uint64_t)m->base;
+}
+
 static void relocate(module_t *m) {
+    uint64_t relr = walk_relr(m, apply_relr_slot, NULL);   // 先压箱的相对表，再显式表（两张表在本机已核实零重叠） | Packed table first, then the explicit ones (verified disjoint on this build)
     uint64_t rela = 0, relasz = 0, jmprel = 0, pltsz = 0;
     for (const Elf64_Dyn *d = m->dyn; d->d_tag; d++) switch (d->d_tag) {
         case DT_RELA: rela = d->d_un.d_ptr; break;
@@ -275,7 +342,7 @@ static void relocate(module_t *m) {
             if (type == R_AARCH64_JUMP_SLOT) { *where = v; cnt[2]++; }
             else { *where = v + r->r_addend; cnt[1]++; }       // ABS64 / GLOB_DAT
         }
-    LOG("%s: reloc relative=%d abs/glob=%d jump=%d", m->name, cnt[0], cnt[1], cnt[2]);
+    LOG("%s: reloc relative=%d relr=%llu abs/glob=%d jump=%d", m->name, cnt[0], (unsigned long long)relr, cnt[1], cnt[2]);
 }
 
 // DM_LOADHASH=1（诊断）：装载完逐模块出地址无关 sha256，证「提前起跑 / 不提前」装载结果逐字节相同。
@@ -285,6 +352,18 @@ static void relocate(module_t *m) {
 // Module base addresses and host ASLR differ every run, and only the values of the relocation slots change with them: copy the image and, using the same relocation table, replace every slot with an address-independent token --
 // RELATIVE → (0, addend); symbol target falls in some module → (1 + module number, offset within the module); otherwise (host forced take-over / host symbol) → (name FNV, addend); all other bytes as is.
 #include <CommonCrypto/CommonDigest.h>
+// RELR 槽的归一化：记号头写 0（与 RELATIVE 同一记号），记号尾 = 槽值减模块基址（即加数）。
+// Normalisation of a RELR slot: the token head is written as 0 (same token as RELATIVE), and the token tail is the slot value minus the module base (i.e. the addend).
+typedef struct { uint8_t *cp; CC_SHA256_CTX *c; unsigned *nslot; } relr_hash_ctx;
+static void hash_relr_head(module_t *m, uint64_t off, void *p) {
+    relr_hash_ctx *h = p; uint64_t tok = 0;
+    memcpy(h->cp + off, &tok, 8); (*h->nslot)++; (void)m;
+}
+static void hash_relr_tail(module_t *m, uint64_t off, void *p) {
+    relr_hash_ctx *h = p;
+    uint64_t tail = *(const uint64_t *)(m->base + off) - (uint64_t)m->base;
+    CC_SHA256_Update(h->c, &tail, 8);
+}
 void loader_hash_log(void) {
     if (!getenv("DM_LOADHASH")) return;
     for (int k = 0; k < g_nmod; k++) {
@@ -309,7 +388,10 @@ void loader_hash_log(void) {
                 memcpy(cp + r->r_offset, &tok[0], 8);                // 槽 8 字节换成记号头；记号尾在下面按槽序追加 | The 8 slot bytes are replaced by the token head; the token tail is appended below in slot order
                 nslot++;
             }
+        relr_hash_ctx rh = { cp, NULL, &nslot };
+        rh.c = NULL; walk_relr(m, hash_relr_head, &rh);   // 记号头必须在哈希映像之前写完 | Token heads must be written before hashing the copy
         CC_SHA256_CTX c; CC_SHA256_Init(&c); CC_SHA256_Update(&c, cp, (CC_LONG)m->size);
+        rh.c = &c; walk_relr(m, hash_relr_tail, &rh);     // 记号尾按槽序追加在映像之后 | Token tails are appended in slot order, after the image
         for (int t = 0; t < 2; t++)                                // 记号尾（加数 / 偏移）按槽序追加，与槽头一起唯一确定槽值 | Token tails (addend / offset) are appended in slot order, and together with the slot head uniquely determine the slot value
             for (uint64_t i = 0; i < sizes[t] / sizeof(Elf64_Rela); i++) {
                 const Elf64_Rela *r = &tabs[t][i]; uint64_t tail = (uint64_t)r->r_addend;
@@ -465,6 +547,20 @@ void run_module_inits(void) {
         module_t *m = &g_mod[i];
         if (!m->init) continue;
         LOG("%s: DT_INIT +%#llx（init_array %llu 项）", m->name, m->init, m->init_arraysz / 8);
+        // 跑之前的体检：数组项此时应当已是「基址 + 模块内偏移」的绝对地址（由 DT_RELR 完成）。
+        // 若「仍是镜像内相对值」的计数非零，说明该模块的相对重定位没被应用，客体一进 DT_INIT 就会跳错。
+        // Health check before running: by now each entry should hold an absolute address (base + offset in the
+        // module), applied by DT_RELR. If the "still image-relative" count is non-zero, the module's relative
+        // relocations were never applied, and the guest will branch to a wrong address on entry to DT_INIT.
+        if (m->init_array && m->init_arraysz) {
+            const uint64_t *a = (const uint64_t *)(m->base + m->init_array);
+            uint64_t n = m->init_arraysz / 8, zero = 0, rel = 0;
+            if ((size_t)(m->init_array + m->init_arraysz) > m->size) die("%s: init_array 越出镜像", m->name);
+            for (uint64_t i = 0; i < n; i++) { uint64_t v = a[i]; if (!v) zero++; else if (v < m->size) rel++; }
+            LOG("%s: init_array 体检 base %p 数组 %p 共 %llu 项：零项 %llu、仍是相对值 %llu；首三项 %#llx %#llx %#llx",
+                m->name, (void *)m->base, (const void *)a, n, zero, rel,
+                n ? a[0] : 0, n > 1 ? a[1] : 0, n > 2 ? a[2] : 0);
+        }
         ((void (*)(void))(m->base + m->init))();
     }
 }

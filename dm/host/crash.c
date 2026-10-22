@@ -194,6 +194,27 @@ static void on_crash(int sig, siginfo_t *si, void *uc_) {
     fprintf(stderr, " sp=%#llx\n", (unsigned long long)DM_UC_SP(uc));
     for (int i = 0; i < 29; i++) fprintf(stderr, "x%d=%#llx%s", i, (unsigned long long)DM_UC_REG(uc, i), i % 6 == 5 ? "\n" : " ");
     fprintf(stderr, "\n");
+    // x20 常常是模块 init 遍历 init_array 的游标：这里按「原始值」判定落在哪一侧，
+    // 用来区分「相对重定位没应用 → 客体裁据链接期地址寻优」与「已进入某个构造元素内部尾跳」。
+    // 打印一律不减基址，避免把这两种情形在日志里混成一回事。
+    // x20 is often the cursor while a module's init walks its init_array: judge by the raw value which side it
+    // landed on, telling "relative relocations were not applied -> the guest walked the link-time address" apart
+    // from "we got inside a constructor and it tail-jumped". Values are printed without subtracting the base so
+    // that the two cases never collapse into each other in the log.
+    { uint64_t x20 = (uint64_t)DM_UC_REG(uc, 20);
+      for (int k = 0; k < g_nmod && x20; k++) {
+          module_t *m = &g_mod[k];
+          if (!m->init_array || !m->init_arraysz) continue;
+          uint64_t b = (uint64_t)m->base, lo = m->init_array, hi = lo + m->init_arraysz;
+          if (x20 >= lo && x20 < hi)
+              fprintf(stderr, "[dm] 游标：%s 的 init_array 链接期地址 %#llx（第 %llu 项）——该模块的相对重定位没被应用\n",
+                      m->name, (unsigned long long)(x20 - lo), (unsigned long long)((x20 - lo) / 8));
+          else if (x20 >= b + lo && x20 < b + hi)
+              fprintf(stderr, "[dm] 游标：%s 的 init_array 运行期地址 base+%#llx（第 %llu 项）槽值 %#llx 下一项 %#llx\n",
+                      m->name, (unsigned long long)(x20 - b - lo), (unsigned long long)((x20 - b - lo) / 8),
+                      *(volatile uint64_t *)x20,
+                      x20 + 8 < b + hi ? *(volatile uint64_t *)(x20 + 8) : 0);
+      } }
     dm_backtrace(DM_UC_FP(uc));
     if (g_dump_hook) g_dump_hook();
     _exit(128 + sig);

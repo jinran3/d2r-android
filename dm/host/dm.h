@@ -14,10 +14,11 @@
 typedef struct { uint32_t st_name; uint8_t st_info, st_other; uint16_t st_shndx; uint64_t st_value, st_size; } Elf64_Sym;
 typedef struct { int64_t d_tag; union { uint64_t d_val, d_ptr; } d_un; } Elf64_Dyn;
 typedef struct { uint64_t r_offset, r_info; int64_t r_addend; } Elf64_Rela;
+typedef uint64_t Elf64_Relr;   // 压缩包式相对重定位的一个编码字（DT_RELR） | One encoded word of packed relative relocations (DT_RELR)
 #define ELF64_R_SYM(i) ((i) >> 32)
 #define ELF64_R_TYPE(i) ((i) & 0xffffffff)
 enum { DT_INIT = 12, DT_RELA = 7, DT_RELASZ = 8, DT_JMPREL = 23, DT_PLTRELSZ = 2, DT_SYMTAB = 6, DT_STRTAB = 5,
-       DT_INIT_ARRAY = 25, DT_INIT_ARRAYSZ = 27 };
+       DT_INIT_ARRAY = 25, DT_INIT_ARRAYSZ = 27, DT_RELR = 36, DT_RELRSZ = 35, DT_RELRENT = 37 };
 enum { R_AARCH64_ABS64 = 257, R_AARCH64_GLOB_DAT = 1025, R_AARCH64_JUMP_SLOT = 1026, R_AARCH64_RELATIVE = 1027 };
 
 // 一个 NSO 模块的运行时状态
