@@ -33,6 +33,20 @@
 产物：`dm/android/build/D2R-Android-port.apk`（trim-b60）；真机日志 `D:/Switch/totk-work/device/game_b60.log`（92 行）
 结果：SUCCESS（fs 重载接缝修好，卡点前移到 nn::vi）
 
+## 2026-10-23 08:36 Asia/Shanghai — [DECISION] 方向切回源仓库 App；新工程 totk-app 冻结（SHELVED），移植继续
+
+- 用户决定：**不再推进 `totk-app`**，回到源仓库 App（`dm/`）继续移植。`totk-app/` 的代码**保留不删**（R0/R1 已通过，随时可续），
+  `docs/TOTK_APP_REWRITE.zh-CN.md` 头部标 `status: SHELVED`。旧路径 `dm/` 解冻，继续作为主线。
+- **继续移植 = 做掉上次的卡点 NA-047**：`dm/host/hle_sdkinit.c` 新增
+  `HLE_FORCE("_ZN2nn2am23GetApplicationFunctionsEv", …)` —— 返回静态对象，虚表 64 项全指「返回 0」桩，
+  **第 50 槽（+0x190）**换成 `h_am_af_prev_program`：写 s32 出参 `-1`、返回 0（直接启动、无前序程序）。
+  依据：`nn::applet::GetPreviousProgramIndex`(sdk+0x1ea670) = `bl GetApplicationFunctions → ldr x8,[x0] → ldr x8,[x8,#0x190] → blr x8`，
+  `w0==0` 时返回出参。照同文件 `GetCommonStateGetter` 的既有做法（静态对象 + 全 0 桩）。
+- **构建**：`build.py --game-run --version trim-b63` **exit 0**，APK **17,906,127 字节**；
+  本地核对：`llvm-strings dm/android/build/libdmandroid.so | grep -c _ZN2nn2am23GetApplicationFunctionsEv` = **1**（接管条目已编进去）。
+- **真机验证：NOT RUN —— 设备掉线**。`adb devices` 为空（`adb reconnect` 也无效），装包/部署都拿不到设备。
+  因此 trim-b63 **没有**真机证据，不能声明「卡点已越过」。
+
 ## 2026-10-23 08:22 Asia/Shanghai — [SESSION] R1 通过：新工程自己读出三模块并做对重定位（与基线逐项相等）
 
 - `totk-app` 加 native 层：`core/loader/selfcheck.c`（MOD0 → 动态段 → DT_RELR/RELA/JMPREL，**只计数不执行客体代码**）、

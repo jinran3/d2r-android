@@ -1,5 +1,5 @@
 ---
-status: PLAN
+status: SHELVED（2026-10-23 08:36 用户决定回到源仓库 App；代码保留，不再推进）
 created_at: 2026-10-23T08:10:00+08:00
 owner: agent
 supersedes: 无（旧宿主继续留在 dm/ 作为对照基线，不删除）

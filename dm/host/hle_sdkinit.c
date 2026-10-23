@@ -35,3 +35,28 @@ static struct { h_am_fn const *vtable; uint64_t pad[15]; } g_am_object = { g_am_
 HLE_FORCE("_ZN2nn2am20GetCommonStateGetterEv", "am 公共状态读取器：宿主给静态对象，方法全部返回 0（没有 am 服务进程）", void *, h_am_common_state, void) {
     return &g_am_object;
 }
+
+// am 的 ApplicationFunctions（`GetApplicationFunctions`）：真机上由 am 服务给出，客体经它取「应用级函数表」
+// （前序程序索引、启动参数、DLC 列表等）。宿主没有 am 服务进程，SDK 里那个指针一直是 NULL ——
+// TotK 的 `nn::applet::GetPreviousProgramIndex` 先取对象再调虚表 **+0x190（第 50 槽）**，
+// 于是 `ldr x8,[x0]` 在 sdk+0x1ea684 直接 SIGSEGV（trim-b62 真机实测）。
+// 与 CommonStateGetter 同构（静态对象 + 全 0 桩），但第 50 槽的语义是「写 s32 出参、返回 Result」：
+// 本机是直接启动、没有前序程序，按 Horizon 语义写 -1、返回 0，走成功分支。
+// am's ApplicationFunctions (`GetApplicationFunctions`): on the real device the am service provides it and the guest
+// uses it for application-level functions (previous program index, launch arguments, the DLC list). The host has no am
+// service process, so the pointer stays NULL and TotK's `nn::applet::GetPreviousProgramIndex` dereferences it
+// (SIGSEGV at sdk+0x1ea684, measured on the device with trim-b62) before calling vtable **+0x190 (slot 50)**.
+// Same shape as CommonStateGetter (static object, all-zero stubs), but slot 50 means "write an s32 out param and
+// return a Result": this is a direct launch with no previous program, so write -1 and return 0 to take the success path.
+static uint64_t h_am_af_prev_program(void *self, int32_t *out) { (void)self; if (out) *out = -1; return 0; }
+static uint64_t h_am_af_method(void) { return 0; }
+typedef uint64_t (*h_am_af_fn)(void);
+static h_am_af_fn const g_am_af_vtable[64] = {
+    [0 ... 49] = &h_am_af_method,
+    [50] = (h_am_af_fn)&h_am_af_prev_program,
+    [51 ... 63] = &h_am_af_method,
+};
+static struct { h_am_af_fn const *vtable; uint64_t pad[15]; } g_am_af_object = { g_am_af_vtable, {0} };
+HLE_FORCE("_ZN2nn2am23GetApplicationFunctionsEv", "am 应用函数表：宿主给静态对象；0x190 槽按「无前序程序」写 -1 返回成功", void *, h_am_app_functions, void) {
+    return &g_am_af_object;
+}
