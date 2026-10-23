@@ -350,6 +350,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - ID：NA-049
 - 状态：READY
 - 阶段：定位 `main+0x3abade8` 这个静态对象为什么首字段是 0
+- 动作：定位该静态对象首字段为 0 的原因并补上（详见下面三步）
 - 工作目录：`D:\Switch\d2r-android`
 - 前置条件：手机在线；trim-b63 已装；`game_b63.log` 在手；旧路径基线（`trim-b62` 的 `game_b62.log`）仍可对照。
 - 动作（一次只落一个假设）：
