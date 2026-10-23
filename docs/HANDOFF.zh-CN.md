@@ -357,6 +357,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
   D:/Switch/.tools/venv/Scripts/python.exe dm/android/tools/deploy_totk.py --package D:/Switch/totk-work/package-totk/totk-package-updated.zip --dest fixed --device 3b864e51 --no-push --log-out D:/Switch/totk-work/device/game.log
   ```
   然后读 `D:\Switch\totk-work\device\game_b63.log`。
+- 命令或编辑目标：`adb install -r dm/android/build/D2R-Android-port.apk`，再跑 `deploy_totk.py`（参数同「动作」里的两行），日志目标 `D:\Switch\totk-work\device\game_b63.log`；本步不改代码。
 - 成功判据：不再出现 `pc=sdk+0x1ea684`；日志继续往后走（出现新的 NVN/Vulkan 行，或新的崩溃点即视为推进）。
 - 失败判据：仍崩 `sdk+0x1ea684` → 说明 `GetApplicationFunctions` 没被命中（查 `grep 'am23GetApplicationFunctions' ` 是否在 force 表生效日志里），
   或第 50 槽语义不对（把出参写成 -1 却仍被判错，改按 Result 语义返回错误码再试）。
