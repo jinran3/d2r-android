@@ -89,3 +89,29 @@ totk-app/
 - 旧路径冻结在 `trim-b62`（commit `a2273ba`），**继续可用**；不再往里加新功能（除非新工程卡在同一处、需要它做对照实验）。
 - 新工程跑到 R3（`>>> nnMain`）之后，才评估是否下线旧路径。
 - 数据包、导入流程、部署脚本：新工程自己重写，但**手机上的已导入数据不动**（NA-050/051/052 的成果仍然有效）。
+
+## 8. 终点定义（Definition of Done）
+
+> 用户要求：**app 开发出来之前不停这一轮**。因此把「开发出来」写成可判定的终点，并按阶段连续推进，
+> 每阶段必须留下命令/退出码/日志/截帧；上下文或设备成为硬阻塞时才停，且停下前必须写交接。
+
+**DoD（全部满足才算"开发出来"）**：
+
+1. `totk-app` 在一加 12（`3b864e51`）上安装成功、从启动器点开能稳定进到**可交互画面**（R5）；
+2. R1–R4 每阶段各有一条**真机证据**：R1 的三个 relr 计数与基线逐项相等；R2 的 `SetHeapSize` + `nninitStartup`；
+   R3 的三模块 DT_INIT（10717/83/45）+ `>>> nnMain`；R4 的 `subgroup profile=64` + 首帧清屏色；
+3. 全程**没有裸模块偏移**、接管表缺口由符号差集闸门覆盖；
+4. 旧路径 `dm/`（`trim-b62`）保持可用，直到上面 1–3 全部达成为止。
+
+**明确不在本轮终点内**：性能、存档/音频/手柄的完整校准（M4）、iOS/macOS 侧。
+
+## 9. R0 结果（2026-10-23 08:20）
+
+- 构建：`D://Switch//.tools//venv//Scripts//python.exe totk-app/tools/build.py` → exit 0，`totk-app/build/totk-app-R0.apk`（12,691 字节，apksigner verify 通过）。
+- 安装/启动：`adb install -r` Success；`mCurrentFocus=org.totk.android.port/.MainActivity`。
+- 日志（`files/app.log`，`run-as` 读取）：
+  `totk-app R0-1.0 package=org.totk.android.port abi=arm64-v8a sdk=36 device=PJD110` / `resumed` / `surface 3008x1376`。
+- 截帧：`D://Switch//totk-work//device//totk-app-R0.png`（深蓝底 + 版本字 + 尺寸）。
+- **实测偏差（记下来，R4 前必须处理）**：Surface 是 **3008x1376**，不是显示器的 3168x1440；
+  截帧左侧还有一条黑边（约 50 px）—— 说明当前不是 edge-to-edge，被系统栏/挖孔 inset 让出了位置。
+  R4 接 NVN 交换链前要改成沉浸式全屏（`WindowInsets` 不参与布局 + `setDecorFitsSystemWindows(false)`），否则画面会缩。

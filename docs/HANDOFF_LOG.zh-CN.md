@@ -33,6 +33,20 @@
 产物：`dm/android/build/D2R-Android-port.apk`（trim-b60）；真机日志 `D:/Switch/totk-work/device/game_b60.log`（92 行）
 结果：SUCCESS（fs 重载接缝修好，卡点前移到 nn::vi）
 
+## 2026-10-23 08:20 Asia/Shanghai — [SESSION] 新工程 R0 通过：可装、可起、纯色画面 + app.log 出证
+
+- 目标按用户要求写死：**app 开发出来（R5 可交互画面）之前不停**，阶段判据见 `docs/TOTK_APP_REWRITE.zh-CN.md` §8。
+- **新建 `totk-app/`**（不引用 `dm/` 任何代码）：`android/AndroidManifest.xml`（package `org.totk.android.port`，minSdk 29 / target 34，landscape，
+  NoTitleBar.Fullscreen，debuggable 便于 `run-as` 读日志）、`android/src/.../MainActivity.java`（全屏 Activity + 自绘 View + 双写 logcat/`files/app.log`）、
+  `tools/build.py`（aapt2 → javac → d8 → 塞 dex → zipalign → apksigner，一条命令）。
+- **构建/真机证据**：`build.py` exit 0 → `totk-app/build/totk-app-R0.apk` 12,691 字节、`apksigner verify` 通过；
+  `adb install -r` Success；`mCurrentFocus=org.totk.android.port/.MainActivity`；
+  `app.log`：`totk-app R0-1.0 package=org.totk.android.port abi=arm64-v8a sdk=36 device=PJD110` / `resumed` / `surface 3008x1376`。
+  截帧 `D://Switch//totk-work//device//totk-app-R0.png`（深蓝底 + 版本字 + 尺寸），肉眼已核。
+- **两个实测偏差（R4 前必须处理）**：Surface 实测 **3008x1376**（显示器 3168x1440）；截帧左侧约 50 px 黑边 → 当前不是 edge-to-edge。
+- 踩到的构建坑（记下来省下一次）：① Python `subprocess(text=True)` 解码中文 Windows 的 GBK 报错 → 改按字节捕获、打印时 `utf-8/replace`；
+  ② `javac` 默认按平台编码读源文件，中文注释直接报错 → 必须 `-encoding UTF-8`；③ `run-as` 需要 `android:debuggable="true"`。
+
 ## 2026-10-23 08:10 Asia/Shanghai — [DECISION] 用户决定「真从零重写整个 App」；新工程 totk-app/，旧路径冻结为对照基线
 
 - **决定**：不再在 `dm/`（D2R 血统宿主）上继续修 HLE 缺面，改为新建 `totk-app/`：自己的 Android 前端 + 宿主核心 + NVN 接管。
