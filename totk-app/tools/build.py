@@ -72,8 +72,25 @@ def main():
     dex = BUILD / "dex" / "classes.dex"
     if not dex.exists():
         raise SystemExit("d8 没有产出 classes.dex")
-    with zipfile.ZipFile(linked, "a", zipfile.ZIP_DEFLATED) as z:
-        z.write(dex, "classes.dex")
+
+    # native 层（R1 起）：NDK clang 直接编一个 .so。不开 CMake —— 现在只有一个库，命令更透明。
+    # Native layer (from R1 on): NDK clang builds one .so directly. No CMake yet -- there is a single library and an
+    # explicit command line is easier to audit.
+    toolchain = TOOLS / "ndk" / "toolchains" / "llvm" / "prebuilt" / "windows-x86_64"
+    clang = toolchain / "bin" / "clang.exe"
+    native_src = sorted(str(p) for p in [(ANDROID / "jni" / "totk_jni.c")] + sorted((ROOT / "core").rglob("*.c")))
+    so_dir = BUILD / "lib" / "arm64-v8a"
+    so_dir.mkdir(parents=True, exist_ok=True)
+    so = so_dir / "libtotkcore.so"
+    if not clang.exists():
+        raise SystemExit(f"缺少 NDK clang：{clang}")
+    run([clang, "--target=aarch64-linux-android" + MIN_SDK, "-fPIC", "-shared", "-O2", "-Wall",
+         "--sysroot", toolchain / "sysroot", "-o", so, *native_src, "-llog"],
+        f"clang（{len(native_src)} 个源文件 → libtotkcore.so）")
+
+    with zipfile.ZipFile(linked, "a") as z:
+        z.write(dex, "classes.dex")                                     # dex 压缩即可 | the dex may be compressed
+        z.write(so, "lib/arm64-v8a/libtotkcore.so", zipfile.ZIP_STORED)  # .so 必须不压缩，zipalign -p 才能直接映射 | the .so must be stored so zipalign -p can map it in place
 
     aligned = BUILD / "aligned.apk"
     run([BT / "zipalign.exe", "-f", "-p", "4", linked, aligned], "zipalign")

@@ -21,7 +21,14 @@ import java.io.IOException;
 
 public final class MainActivity extends Activity {
     static final String TAG = "TotkApp";
-    static final String VERSION = "R0-1.0";
+    static final String VERSION = "R1-0.1";
+
+    static {
+        System.loadLibrary("totkcore");
+    }
+
+    /** R1：装载三模块 + 重定位自检（native 侧只读文件、只算计数，不执行客体代码）。 */
+    private static native String selfCheck(String moduleDir);
 
     private static File sLogFile;
     private static final Object sLogLock = new Object();
@@ -50,6 +57,21 @@ public final class MainActivity extends Activity {
                 + " sdk=" + Build.VERSION.SDK_INT
                 + " device=" + Build.MODEL);
         setContentView(new StageView(this));
+
+        // R1 自检：模块放在**内部**私有目录 files/modules（用 tools/push_modules.py 经 /data/local/tmp 拷进去；
+        // 外部存储目录在 Android 11+ 上被 FUSE 挡住，实测 fopen 直接 EACCES）
+        // R1 self-check: the modules live in the INTERNAL private dir files/modules (pushed by tools/push_modules.py
+        // through /data/local/tmp; the external dir is blocked by FUSE on Android 11+, fopen returns EACCES)
+        // R1 self-check: the modules live in the external private dir modules/ (pushed by tools/push_modules.py); read only
+        try {
+            File dir = new File(getFilesDir(), "modules");
+            String report = selfCheck(dir.getAbsolutePath());
+            for (String line : report.split("\n")) {
+                if (!line.isEmpty()) log(line);
+            }
+        } catch (Throwable t) {
+            log("selfcheck 失败: " + t);
+        }
     }
 
     @Override

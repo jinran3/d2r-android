@@ -115,3 +115,33 @@ totk-app/
 - **实测偏差（记下来，R4 前必须处理）**：Surface 是 **3008x1376**，不是显示器的 3168x1440；
   截帧左侧还有一条黑边（约 50 px）—— 说明当前不是 edge-to-edge，被系统栏/挖孔 inset 让出了位置。
   R4 接 NVN 交换链前要改成沉浸式全屏（`WindowInsets` 不参与布局 + `setDecorFitsSystemWindows(false)`），否则画面会缩。
+
+## 10. R1 结果（2026-10-23 08:20 真机）
+
+`app.log`（`run-as org.totk.android.port cat files/app.log`，trim `R1-0.1`）：
+
+```text
+main: relr=499074 abs/glob=1421 jump=649 init_array=10717 项（镜像 61787008 字节）
+main: init_array 首三项 0xb40000729f6bee00 0xb40000729f6bee60 0xb40000729f6c0510（基址 0xb40000729e600000）
+sdk: relr=15007 abs/glob=11214 jump=7813 init_array=83 项（镜像 12991680 字节）
+subsdk0: relr=3424 abs/glob=11832 jump=3816 init_array=45 项（镜像 6750208 字节）
+```
+
+与基线（旧宿主 `game.log`）**逐项相等**；`init_array` 首项 = 基址 + 0x10bee00，与旧基线同一个偏移。
+
+实现：`core/loader/selfcheck.c`（MOD0 → 动态段 → RELR/RELA/JMPREL，**只计数不执行**）、`android/jni/totk_jni.c`（纯转发）、
+`tools/push_modules.py`（经 `/data/local/tmp` + `run-as cp` 打进内部目录）。
+
+**踩到的坑（重要）**：模块**不能**放 `/sdcard/Android/data/<pkg>/files`——Android 11+ 上 App 内 `fopen` 直接 EACCES，
+必须放内部目录 `files/modules`（`run-as cp` 写进去）。
+
+**遗留（R2 必须先解决）**：本轮三张镜像各自 `malloc`→`free`，日志里三个模块基址相同（都是 `0xb40000729e600000`）；
+R2 起要**常驻且各占不同地址**，还要装键页（x18/TLS 槽），否则客体代码一执行就会读到 0 号槽。
+
+## 11. R2 拆解（下一步）
+
+| 子步 | 内容 | 判据 |
+| --- | --- | --- |
+| R2a | 三镜像常驻 + 不同基址；键页（K18/KTLS/KTLR/KGATE）与 x18/TLS 上下文进入机制 | 打点：三模块基址互不相同、键页已封只读 |
+| R2b | 最小 SVC：`SetHeapSize` / `SetMemoryPermission` / 当前线程查询 | `SetHeapSize` 报成功（客体的应用内存池） |
+| R2c | 线程/锁/事件（CreateThread、ArbitrateLock、CreateEvent、WaitSynchronization…） | 日志出现 `nninitStartup` 且不崩 |

@@ -33,6 +33,18 @@
 产物：`dm/android/build/D2R-Android-port.apk`（trim-b60）；真机日志 `D:/Switch/totk-work/device/game_b60.log`（92 行）
 结果：SUCCESS（fs 重载接缝修好，卡点前移到 nn::vi）
 
+## 2026-10-23 08:22 Asia/Shanghai — [SESSION] R1 通过：新工程自己读出三模块并做对重定位（与基线逐项相等）
+
+- `totk-app` 加 native 层：`core/loader/selfcheck.c`（MOD0 → 动态段 → DT_RELR/RELA/JMPREL，**只计数不执行客体代码**）、
+  `android/jni/totk_jni.c`（纯转发）、`tools/build.py` 增 clang（NDK，`--target=aarch64-linux-android29`）编 `libtotkcore.so` 并以 **STORED + zipalign -p** 打进 APK、
+  `tools/push_modules.py`（`adb push /data/local/tmp` + `run-as cp files/modules`）。
+- **真机证据**（`R1-0.1`，`app.log`）：`main relr=499074 abs/glob=1421 jump=649 init_array=10717`、
+  `sdk relr=15007 abs/glob=11214 jump=7813`、`subsdk0 relr=3424 abs/glob=11832 jump=3816` —— 与旧宿主基线**逐项相等**；
+  `init_array` 首项 = 基址 + 0x10bee00（同一个偏移）。
+- **坑（记下来）**：① 模块不能放 `/sdcard/Android/data/<pkg>/files`：Android 11+ App 内 `fopen` 直接 EACCES（`run-as` 也读不到），
+  必须放内部 `files/modules` 并用 `run-as cp`；② `adb shell` 里带 `/sdcard/...` 会被 Git Bash 做路径转换，需要 `MSYS_NO_PATHCONV=1`。
+- **遗留（R2 第一件事）**：三张镜像本轮各自 `malloc/free`，日志里三个模块**基址相同**；R2 必须常驻 + 各占不同地址 + 装键页（x18/TLS）。
+
 ## 2026-10-23 08:20 Asia/Shanghai — [SESSION] 新工程 R0 通过：可装、可起、纯色画面 + app.log 出证
 
 - 目标按用户要求写死：**app 开发出来（R5 可交互画面）之前不停**，阶段判据见 `docs/TOTK_APP_REWRITE.zh-CN.md` §8。

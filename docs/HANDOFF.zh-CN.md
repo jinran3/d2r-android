@@ -1,6 +1,6 @@
 ---
 protocol: 1
-updated_at: 2026-10-23T08:22:00+08:00
+updated_at: 2026-10-23T08:26:00+08:00
 phase: M0-R
 state: READY_FOR_HANDOFF
 branch: totk/scaffold
@@ -8,7 +8,7 @@ observed_head: ceb813a
 origin_ref: origin/totk/scaffold
 origin_head_at_checkpoint: ceb813aa98072d9d497686aa44d463b56c57bfe9
 code_worktree: CLEAN
-next_action_id: NA-102
+next_action_id: NA-103
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,12 +140,13 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-23 08:22（Asia/Shanghai）
+- 快照时间：2026-10-23 08:26（Asia/Shanghai）
+- 本轮（R1）：native 层 + 装载/重定位自检完成，判据与基线逐项相等；模块投放路径与构建坑已记录。
 - 本轮（R0）：`totk-app/` 骨架完成并通过真机判据（构建/安装/启动/日志/截帧）。终点定义写进 `docs/TOTK_APP_REWRITE.zh-CN.md` §8。
 - 本轮（决策）：用户选择从零重写；方案 + 红线已写进 `docs/TOTK_APP_REWRITE.zh-CN.md`，旧路径冻结在 `trim-b62`。
 - 本轮（NA-046）：`dm/gfx/hle_vi.c` 追加 vsync 接管；踩过「同名文件 → 接管表重复」的坑（详见 HANDOFF_LOG 08:00 条）。
 - 本轮（NA-045）：`hle_fs.c` 补两个 `ReadFile` 重载（细节与证据见 HANDOFF_LOG 07:36 条）；卡点从 fs 前移到 vi。仓库已有 `hle_bind_system_event`/`hle_signal_system_event` 可直接用。
-- 当前阶段：**M0-R / R0 已通过** —— 新工程 `totk-app/` 可编、可装、可起：`app.log` 有版本行/`resumed`/`surface 3008x1376`，截帧 `D:\Switch\totk-work\device\totk-app-R0.png`。下一阶段 R1（装载三模块 + DT_RELR）。旧路径 `dm/` 仍冻结在 `trim-b62` 作对照。**仍未出图。**
+- 当前阶段：**M0-R / R0 + R1 已通过** —— 新工程可装可起；R1 真机自检 `main relr=499074 abs/glob=1421 jump=649`、`sdk 15007/11214/7813`、`subsdk0 3424/11832/3816`，与旧基线**逐项相等**。下一阶段 R2（镜像常驻 + 键页/TLS + 最小 SVC）。旧路径 `dm/` 冻结在 `trim-b62` 作对照。**仍未出图。**
   现在卡在 nnMain 里读文件：`CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`。**仍未出图；阶段 B–F 仍 NOT RUN。**
 - **NA-044 根因与修复（定案，证据见 HANDOFF_LOG 07:25 条）**：宿主 `dm/host/hle_svc.c` 的 `hle_stdalloc_allocate` 把「原版入口」
   写死成 D2R 的 `sdk+0x2f9974`；TotK 的 sdk 里该符号在 `0x1375f0`，`0x2f9974` 落在 `nn::codec::pcmDmx_ApplyFrame` 中间、恰是一条 `b`
@@ -256,7 +257,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
   另外首跑还修了三处部署脚本缺陷：adb 守护横幅被当设备、`get-state` 走 `adb shell`（exit 127）、
   完成标记轮询内部路径（实际在外部）+ 导入不幂等；启动行「▸  」前缀与 3168×1440 列表截断靠后缀匹配 + 滚动解决。
 - 已验证产物路径：**真机侧**：手机 `/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`（17,825,708,024 字节）+ 同目录 `d2r-package/`（manifest counts game 9 / romfs 304,243 / shaders 24,535；bytes.romfs 17,026,724,605）；内部 `files/d2r-package/game/`（9 个文件，78 MB）；`D:\Switch\totk-work\device\game.log`（首跑日志，拉起时 11 行、FATAL 时 14 行）。**仓库外**：`D:\Switch\totk-work\package-totk\totk-package-updated.zip`（**17,825,708,024 字节 = 16.60 GiB**，game 9 / romfs 304,243 / shaders 24,535；**真机推的就是它**）、`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，基座包 = v1.4.2 本体，**回退点，别推它首发**）、`preflight-updated2.txt`（07:06 全绿）、`merge-report.json`。**仓库内**：`dm/android/tools/deploy_totk.py` + `dm/android/tests/test_deploy_totk.py` + `dm/android/native/runtime.c`（NA-044 修复）；此前新增 `dm/gfx/tools/nvn_slots_auto.py`、`nvn_table.py`、`nvn_coverage.py`、`totk_variant_keys.py`、`dm/gfx/nvn/nvn_names_totk.txt`、`dm/gfx/nvn/nvn_calls_totk.tsv`；APK `dm/android/build/D2R-Android-port.apk`（**trim-b52**）。
-- 当前阻塞：**无外部阻塞**。R0 实测偏差两条（R4 前处理）：Surface **3008x1376**（非 3168x1440）、截帧左侧约 50 px 黑边（不是 edge-to-edge）。
+- 当前阻塞：**无外部阻塞**。R2 前的两个技术前提：① 三张镜像必须常驻且各占不同基址（R1 里是 malloc/free 复用同一地址）；② 键页（K18/KTLS/KTLR/KGATE）与 x18/TLS 进入机制必须先建，否则客体一执行就读 0 号槽。另记：模块必须放内部 `files/modules`（外部存储 EACCES）；`adb shell` 带 `/sdcard` 需 `MSYS_NO_PATHCONV=1`。
   - 已根因定案（2026-10-23 00:30）：宿主 `relocate()` 只处理 `DT_RELA`/`DT_JMPREL`，**没有实现 `DT_RELR`**（tag 35/36/37）。
     TotK 三模块的相对重定位全部走这张压缩包式表（main 9,357 个编码字 → **499,074 个槽**；sdk 15,007；subsdk0 3,424），
     显式 RELA 里一条 `R_AARCH64_RELATIVE` 都没有，所以日志一直是 `relative=0`。
@@ -344,22 +345,22 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-102（R1：装载三模块 + 重定位）
+- ID：NA-103
 - 状态：READY
+- 阶段：R2（镜像常驻 + 键页/TLS + 最小 SVC）
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：R0 通过（`totk-app/build/totk-app-R0.apk` 可装可起）；手机 `3b864e51` 在线；旧路径 `trim-b62` 可对照。
-- 动作：**给新工程加 native 层，装载三个模块并打印重定位计数**（先不执行任何客体代码）：
-  1. 把模块文件放到新 App 能读的位置：`adb push` 三个 `*.patched.bin` + `*.fixups.tsv` 到 `/sdcard/Android/data/org.totk.android.port/files/modules/`
-     （来源 `D://Switch//totk-work//patched-android//`；**不要**读旧 App 的私有目录）。
-  2. `totk-app/core/image` + `core/loader`：MOD0 → 动态段 → `DT_SYMTAB/STRTAB` → RELR/RELA/JMPREL；`mmap` 镜像 + 封页。
-     **规则**：禁止裸模块偏移；RELR 语义按 `HANDOFF_LOG 00:35` 条（偶数游标 / 位图 63 槽 / 位图后无条件推进 / 0 槽不跳过）。
-  3. JNI 暴露一个 `runSelfCheck()`，把三模块的 `relr/abs/jump` 计数与首项 init_array 值写进 `files/app.log`。
-  4. `tools/build.py` 增加 clang（NDK）编译 native 并打进 APK 的步骤。
-- 命令或编辑目标：`totk-app/core/**`、`totk-app/android/jni/**`、`totk-app/tools/build.py`；**不许改 `dm/`**。
-- 成功判据：`app.log` 三行计数与基线**逐项相等**：`main relr=499074 abs/glob=1421 jump=649`、`sdk relr=15007 …`、`subsdk0 relr=3424 …`。
-- 失败判据：计数不等 → 先在本地用同一个 `.bin` 跑离线解码脚本对拍（`D://Switch//totk-work//disasm-na044//`），不进 R2。
-- 回滚点：删除 `totk-app/core`、`totk-app/android/jni` 即回到 R0。
-- 需要写入的证据：`app.log` 的三行计数、APK 字节数、构建退出码。
+- 前置条件：R0/R1 通过；手机 `3b864e51` 在线；模块已在 `files/modules`（`tools/push_modules.py` 可重放）。
+- 动作：**把三张镜像常驻下来并让客体能开始执行 SDK 初始化**，分三个小步，一次只落一个：
+  1. **常驻 + 不同基址**：`mmap(NULL, size, RW)` 三张镜像，日志必须打印三个**互不相同**的基址；重定位后按
+     `[0, text_end)` 与补丁区 `mprotect(R-X)`（段边界来自 `*.fixups.tsv` 的 `TEXT_END`/`RO_OFF`/`DATA_OFF`/`PATCH_OFF`）。
+  2. **键页 + x18/TLS**：按 `KEY_PAGE_OFF/SIZE` 写 8 个键槽并封只读；实现「进入客体代码前把 x18/tpidr 设成宿主槽」的最小路径
+     （参考旧宿主 `dm/host/loader.c` 的 `install_key_page` **思路**，代码自己写）。
+  3. **最小 SVC**：`SetHeapSize`（返回应用内存池并记账）、`SetMemoryPermission`（4 KiB 粒度）、当前线程/进程查询。
+- 命令或编辑目标：`totk-app/core/loader/**`、`totk-app/core/kshim/**`；**不许改 `dm/`**；不许用裸模块偏移。
+- 成功判据：日志出现三个不同基址 + 键页已封 + `SetHeapSize` 成功；再接 R2c（线程/锁/事件）时出现 `nninitStartup` 且不崩。
+- 失败判据：执行第一段客体代码即崩 → 先怀疑 x18/TLS 与键页（不是重定位，R1 已对拍）。
+- 回滚点：`totk-app/core/kshim` 与常驻装载不启用时回到 R1（只做只读自检）。
+- 需要写入的证据：三模块基址行、键页打点、`SetHeapSize` 行、`nninitStartup` 行。
 
 ## 长操作两阶段日志
 
