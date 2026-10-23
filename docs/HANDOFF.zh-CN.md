@@ -344,7 +344,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 ## 下一步唯一动作
 
 - ID：NA-101
-- 状态：READY（新工程 R0：骨架）
+- 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
 - 前置条件：旧路径可用且冻结（`trim-b62`，commit `a2273ba`）；手机 `3b864e51` 在线；**手机上的已导入数据包不动**。
 - 动作：**新建 `totk-app/` 的可安装骨架**，不引用 `dm/` 下任何 C 文件或 Java 文件：
