@@ -1,6 +1,6 @@
 ---
 protocol: 1
-updated_at: 2026-10-23T08:40:00+08:00
+updated_at: 2026-10-23T09:10:00+08:00
 phase: M0
 state: READY_FOR_HANDOFF
 branch: totk/scaffold
@@ -8,7 +8,7 @@ observed_head: ceb813a
 origin_ref: origin/totk/scaffold
 origin_head_at_checkpoint: ceb813aa98072d9d497686aa44d463b56c57bfe9
 code_worktree: CLEAN
-next_action_id: NA-048
+next_action_id: NA-049
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,14 +140,15 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-23 08:40（Asia/Shanghai）
+- 快照时间：2026-10-23 09:10（Asia/Shanghai）
+- 本轮（NA-047 验证）：trim-b63 真机越过 am 卡点；新卡点已定性到 main+0xbde1e4 / 槽 main+0x394cc38 → 对象 main+0x3abade8。
 - 本轮（回到主线）：`totk-app` 冻结；`am::GetApplicationFunctions` 已实现并编进 trim-b63；真机验证被设备掉线挡住。
 - 本轮（R1）：native 层 + 装载/重定位自检完成，判据与基线逐项相等；模块投放路径与构建坑已记录。
 - 本轮（R0）：`totk-app/` 骨架完成并通过真机判据（构建/安装/启动/日志/截帧）。终点定义写进 `docs/TOTK_APP_REWRITE.zh-CN.md` §8。
 - 本轮（决策）：用户选择从零重写；方案 + 红线已写进 `docs/TOTK_APP_REWRITE.zh-CN.md`，旧路径冻结在 `trim-b62`。
 - 本轮（NA-046）：`dm/gfx/hle_vi.c` 追加 vsync 接管；踩过「同名文件 → 接管表重复」的坑（详见 HANDOFF_LOG 08:00 条）。
 - 本轮（NA-045）：`hle_fs.c` 补两个 `ReadFile` 重载（细节与证据见 HANDOFF_LOG 07:36 条）；卡点从 fs 前移到 vi。仓库已有 `hle_bind_system_event`/`hle_signal_system_event` 可直接用。
-- 当前阶段：**M0（源仓库 App 主线）** —— 用户已决定停止 `totk-app`（冻结，代码保留），回到 `dm/` 继续移植。本轮把上次卡点 `nn::am::GetApplicationFunctions` 补上了（静态对象 + 第 50 槽写 -1 返回成功），构建 `trim-b63`（17,906,127 字节）exit 0，接管条目已在 `libdmandroid.so` 里核到。**真机验证 NOT RUN：设备掉线**（`adb devices` 为空）。**仍未出图。**
+- 当前阶段：**M0 / NA-047 真机通过** —— `am::GetApplicationFunctions` 支付后 `sdk+0x1ea684` 不再出现。现卡点：`CRASH sig=11 addr=0x20 pc=main+0xbde1e4`：全局槽 `main+0x394cc38` 指向的静态对象（`main+0x3abade8`）**首字段为 0**，随后 `ldr x8,[x9,#0x20]` 解引用。**仍未出图；阶段 B 走了两步。**
   现在卡在 nnMain 里读文件：`CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`。**仍未出图；阶段 B–F 仍 NOT RUN。**
 - **NA-044 根因与修复（定案，证据见 HANDOFF_LOG 07:25 条）**：宿主 `dm/host/hle_svc.c` 的 `hle_stdalloc_allocate` 把「原版入口」
   写死成 D2R 的 `sdk+0x2f9974`；TotK 的 sdk 里该符号在 `0x1375f0`，`0x2f9974` 落在 `nn::codec::pcmDmx_ApplyFrame` 中间、恰是一条 `b`
@@ -258,7 +259,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
   另外首跑还修了三处部署脚本缺陷：adb 守护横幅被当设备、`get-state` 走 `adb shell`（exit 127）、
   完成标记轮询内部路径（实际在外部）+ 导入不幂等；启动行「▸  」前缀与 3168×1440 列表截断靠后缀匹配 + 滚动解决。
 - 已验证产物路径：**真机侧**：手机 `/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`（17,825,708,024 字节）+ 同目录 `d2r-package/`（manifest counts game 9 / romfs 304,243 / shaders 24,535；bytes.romfs 17,026,724,605）；内部 `files/d2r-package/game/`（9 个文件，78 MB）；`D:\Switch\totk-work\device\game.log`（首跑日志，拉起时 11 行、FATAL 时 14 行）。**仓库外**：`D:\Switch\totk-work\package-totk\totk-package-updated.zip`（**17,825,708,024 字节 = 16.60 GiB**，game 9 / romfs 304,243 / shaders 24,535；**真机推的就是它**）、`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，基座包 = v1.4.2 本体，**回退点，别推它首发**）、`preflight-updated2.txt`（07:06 全绿）、`merge-report.json`。**仓库内**：`dm/android/tools/deploy_totk.py` + `dm/android/tests/test_deploy_totk.py` + `dm/android/native/runtime.c`（NA-044 修复）；此前新增 `dm/gfx/tools/nvn_slots_auto.py`、`nvn_table.py`、`nvn_coverage.py`、`totk_variant_keys.py`、`dm/gfx/nvn/nvn_names_totk.txt`、`dm/gfx/nvn/nvn_calls_totk.tsv`；APK `dm/android/build/D2R-Android-port.apk`（**trim-b52**）。
-- 当前阻塞：**设备掉线**（`adb devices` 空，`adb reconnect` 无效）→ `trim-b63` 装不上、跑不了，所以「`am` 卡点是否越过」现在**没有证据**。解除条件：手机重新连接并被 `adb devices` 识别（USB 线/授权/端口）。代码与构建都已就绪，接回即可一条命令复跑。
+- 当前阻塞：**无外部阻塞**（手机在线，trim-b63 已装）。技术卡点见上：一个运行时单例首字段为 0（槽本身 RELR 装载正确，链接期值 0x3abade8，现场反推 base 吻合 ⇒ 不是重定位问题）。
   - 已根因定案（2026-10-23 00:30）：宿主 `relocate()` 只处理 `DT_RELA`/`DT_JMPREL`，**没有实现 `DT_RELR`**（tag 35/36/37）。
     TotK 三模块的相对重定位全部走这张压缩包式表（main 9,357 个编码字 → **499,074 个槽**；sdk 15,007；subsdk0 3,424），
     显式 RELA 里一条 `R_AARCH64_RELATIVE` 都没有，所以日志一直是 `relative=0`。
@@ -346,23 +347,24 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-048
+- ID：NA-049
 - 状态：READY
-- 阶段：验证 trim-b63（`am::GetApplicationFunctions` 支付后能否越过 sdk+0x1ea684）
+- 阶段：定位 `main+0x3abade8` 这个静态对象为什么首字段是 0
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：**手机重新连上且 `adb devices` 能看到 `3b864e51`**；机内当前装的是 trim-b62；数据包已导入（不要重导）。
-- 动作：设备回来后的**第一条命令**（不需要改代码、不需要重建）：
-  ```text
-  adb install -r dm/android/build/D2R-Android-port.apk
-  D:/Switch/.tools/venv/Scripts/python.exe dm/android/tools/deploy_totk.py --package D:/Switch/totk-work/package-totk/totk-package-updated.zip --dest fixed --device 3b864e51 --no-push --log-out D:/Switch/totk-work/device/game.log
-  ```
-  然后读 `D:\Switch\totk-work\device\game_b63.log`。
-- 命令或编辑目标：`adb install -r dm/android/build/D2R-Android-port.apk`，再跑 `deploy_totk.py`（参数同「动作」里的两行），日志目标 `D:\Switch\totk-work\device\game_b63.log`；本步不改代码。
-- 成功判据：不再出现 `pc=sdk+0x1ea684`；日志继续往后走（出现新的 NVN/Vulkan 行，或新的崩溃点即视为推进）。
-- 失败判据：仍崩 `sdk+0x1ea684` → 说明 `GetApplicationFunctions` 没被命中（查 `grep 'am23GetApplicationFunctions' ` 是否在 force 表生效日志里），
-  或第 50 槽语义不对（把出参写成 -1 却仍被判错，改按 Result 语义返回错误码再试）。
-- 回滚点：机内 trim-b62；代码 `git checkout <本批提交> -- dm/host/hle_sdkinit.c`。
-- 需要写入的证据：`game_b63.log` 的 CRASH 行（新/旧）与行数、`deploy_totk.py` 退出码。
+- 前置条件：手机在线；trim-b63 已装；`game_b63.log` 在手；旧路径基线（`trim-b62` 的 `game_b62.log`）仍可对照。
+- 动作（一次只落一个假设）：
+  1. 反汇编找包含 `main+0xbde1e4` 的函数入口：从 `0xbde1a8` 往前扫最近的 `stp x29,x30,[sp,#-N]!`，把整个函数读明白，
+     确认 `main+0x394cc38` 这个全局在这里扮演什么（句柄表 / 单例 / 事件对象）。
+  2. 查 `0x3abade8`（对象）与 `0x394cc38`（槽）在整个 main 里的**其它引用**：`llvm-objdump -D` 全量反汇编后 grep 这两个地址，
+     看谁写它（`str` / `adrp+add`）—— 写它的那个函数就是「本该初始化它的构造」。
+  3. 若写它的代码在 sdk 里且需要某个宿主服务（vsync/显示/线程）才能跑 → 按既有做法补 HLE；
+     若它在 main 里、只是没被调用 → 查调用链上谁跳过它（多半又是个服务缺面）。
+- 命令或编辑目标：`llvm-objdump -D --start-address=<函数入口> --stop-address=<函数尾>`；全量反汇编 grep 用
+  `D:\Switch\totk-work\disasm-na044\main.elf`（已包好）；改动只落在 `dm/host/hle_*.c`。
+- 成功判据：不再崩 `main+0xbde1e4`；日志继续推进（NVN/Vulkan 行或新崩溃点）。
+- 失败判据：仍崩同址 → 说明「填首字段」的方式不对，按对象类型改（例如该填的是事件句柄而不是指针）。
+- 回滚点：机内 `trim-b63`；代码 `git checkout 81f493e -- dm/host/hle_sdkinit.c`。
+- 需要写入的证据：函数入口与调用链、`0x3abade8` 的写入者、新构建号与 `game_b64.log`。
 
 ## 长操作两阶段日志
 

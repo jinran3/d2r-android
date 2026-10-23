@@ -33,6 +33,19 @@
 产物：`dm/android/build/D2R-Android-port.apk`（trim-b60）；真机日志 `D:/Switch/totk-work/device/game_b60.log`（92 行）
 结果：SUCCESS（fs 重载接缝修好，卡点前移到 nn::vi）
 
+## 2026-10-23 09:08 Asia/Shanghai — [SESSION] NA-047 真机通过：`am::GetApplicationFunctions` 支付后越过 sdk+0x1ea684，卡点进 main+0xbde1e4
+
+- **NA-047 结果**：设备接回后 `adb install -r`（versionName `trim-b63`）+ `deploy_totk.py --no-push` exit 0。
+  `game_b63.log`（93 行）：`>>> nnMain` → `vi::GetDisplayVsyncEvent 接管：事件 0x70f0b04d60，宿主按 60 Hz 触发` →
+  `CRASH sig=11 addr=0x20 pc=main+0xbde1e4 lr=main+0xbde154`。**`sdk+0x1ea684` 不再出现**，卡点前移。
+- **新卡点定性**：`pc 原文` 的 `f9401128` = `ldr x8,[x9,#0x20]`，**x9 = 0**（上一条 `f94002a9` = `ldr x9,[x21]` 读出 0）；
+  `x21` 由 `adrp x21,0x394c000; ldr x21,[x21,#0xc38]` 得来 ⇒ **全局槽 `main+0x394cc38` 指向的对象，其首字段是 0**。
+  本地核对：`main+0x394cc38` **在 DT_RELR 表里**、链接期值 `0x3abade8` ⇒ 装载后应为 `base+0x3abade8`，
+  与现场 `x21=0x72879a0de8` 反推的 `base=0x7284b703000` 完全吻合 ⇒ **槽本身没被写坏**；
+  问题是它指向的静态对象（`main+0x3abade8`）**首字段为 0**（构造没跑 / 宿主该填的句柄没填）。
+  栈：`main+0xbde154 ← main+0xc58c20 ← main+0xbb95a8`（都在 nnMain/nninitStartup 之后的无名静态函数里，符号表在 `0xbb91e0..0xc4e690` 之间没有条目）。
+  紧邻的上一条日志是我们的 vi vsync 接管，且 `x0=0x70f0b04bb8`、事件 `0x70f0b04d60`（相差 0x1a8）—— **怀疑与显示/vsync 对象链有关**。
+
 ## 2026-10-23 08:36 Asia/Shanghai — [DECISION] 方向切回源仓库 App；新工程 totk-app 冻结（SHELVED），移植继续
 
 - 用户决定：**不再推进 `totk-app`**，回到源仓库 App（`dm/`）继续移植。`totk-app/` 的代码**保留不删**（R0/R1 已通过，随时可续），
