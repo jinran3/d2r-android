@@ -351,6 +351,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - ID：NA-050
 - 状态：READY
 - 阶段：找到「谁该写 `main+0x3abade8` 的首字段」
+- 动作：全量反汇编 grep 引用点找出写入者，并判定所属子系统（详见下面三步）
 - 工作目录：`D:\Switch\d2r-android`
 - 前置条件：手机在线；trim-b63 已装；`main.elf` 已包好（`D:\Switch\totk-work\disasm-na044\main.elf`）。
 - 动作（一次一个）：
