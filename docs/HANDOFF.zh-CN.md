@@ -1,14 +1,14 @@
 ---
 protocol: 1
-updated_at: 2026-10-23T08:02:00+08:00
-phase: M0
+updated_at: 2026-10-23T08:12:00+08:00
+phase: M0-R
 state: READY_FOR_HANDOFF
 branch: totk/scaffold
 observed_head: ceb813a
 origin_ref: origin/totk/scaffold
 origin_head_at_checkpoint: ceb813aa98072d9d497686aa44d463b56c57bfe9
 code_worktree: CLEAN
-next_action_id: NA-047
+next_action_id: NA-101
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,10 +140,11 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-23 08:02（Asia/Shanghai）
+- 快照时间：2026-10-23 08:12（Asia/Shanghai）
+- 本轮（决策）：用户选择从零重写；方案 + 红线已写进 `docs/TOTK_APP_REWRITE.zh-CN.md`，旧路径冻结在 `trim-b62`。
 - 本轮（NA-046）：`dm/gfx/hle_vi.c` 追加 vsync 接管；踩过「同名文件 → 接管表重复」的坑（详见 HANDOFF_LOG 08:00 条）。
 - 本轮（NA-045）：`hle_fs.c` 补两个 `ReadFile` 重载（细节与证据见 HANDOFF_LOG 07:36 条）；卡点从 fs 前移到 vi。仓库已有 `hle_bind_system_event`/`hle_signal_system_event` 可直接用。
-- 当前阶段：**NA-046 已收尾 —— vi 的 vsync 事件接管生效，卡点前移到 `nn::applet::GetPreviousProgramIndex`**。trim-b62 日志：`>>> nnMain` → `vi::GetDisplayVsyncEvent 接管：事件 …，宿主 60 Hz 触发` → `CRASH sig=11 addr=0 pc=sdk+0x1ea684`。**仍未出图；阶段 B 走了一步，B–F NOT RUN。**
+- 当前阶段：**M0-R 重写启动**。用户决定「真从零重写整个 App」→ 新工程 `totk-app/`（方案见 `docs/TOTK_APP_REWRITE.zh-CN.md`）。旧宿主 `dm/` **冻结为对照基线**（机内 `trim-b62`、commit `a2273ba`，仍可复现）。新工程尚未有代码，R0 从下次开工开始。**仍未出图**；阶段 B–F 在旧路径上 NOT RUN，在新工程上从 R0 重来。
   现在卡在 nnMain 里读文件：`CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`。**仍未出图；阶段 B–F 仍 NOT RUN。**
 - **NA-044 根因与修复（定案，证据见 HANDOFF_LOG 07:25 条）**：宿主 `dm/host/hle_svc.c` 的 `hle_stdalloc_allocate` 把「原版入口」
   写死成 D2R 的 `sdk+0x2f9974`；TotK 的 sdk 里该符号在 `0x1375f0`，`0x2f9974` 落在 `nn::codec::pcmDmx_ApplyFrame` 中间、恰是一条 `b`
@@ -254,7 +255,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
   另外首跑还修了三处部署脚本缺陷：adb 守护横幅被当设备、`get-state` 走 `adb shell`（exit 127）、
   完成标记轮询内部路径（实际在外部）+ 导入不幂等；启动行「▸  」前缀与 3168×1440 列表截断靠后缀匹配 + 滚动解决。
 - 已验证产物路径：**真机侧**：手机 `/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`（17,825,708,024 字节）+ 同目录 `d2r-package/`（manifest counts game 9 / romfs 304,243 / shaders 24,535；bytes.romfs 17,026,724,605）；内部 `files/d2r-package/game/`（9 个文件，78 MB）；`D:\Switch\totk-work\device\game.log`（首跑日志，拉起时 11 行、FATAL 时 14 行）。**仓库外**：`D:\Switch\totk-work\package-totk\totk-package-updated.zip`（**17,825,708,024 字节 = 16.60 GiB**，game 9 / romfs 304,243 / shaders 24,535；**真机推的就是它**）、`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，基座包 = v1.4.2 本体，**回退点，别推它首发**）、`preflight-updated2.txt`（07:06 全绿）、`merge-report.json`。**仓库内**：`dm/android/tools/deploy_totk.py` + `dm/android/tests/test_deploy_totk.py` + `dm/android/native/runtime.c`（NA-044 修复）；此前新增 `dm/gfx/tools/nvn_slots_auto.py`、`nvn_table.py`、`nvn_coverage.py`、`totk_variant_keys.py`、`dm/gfx/nvn/nvn_names_totk.txt`、`dm/gfx/nvn/nvn_calls_totk.tsv`；APK `dm/android/build/D2R-Android-port.apk`（**trim-b52**）。
-- 当前阻塞：**无外部阻塞**（手机在线）。**vi vsync 已接管**（`dm/gfx/hle_vi.c`：整条接管 `GetDisplayVsyncEvent`，客体线程上 `hle_bind_system_event` 建事件 + 宿主 60 Hz `hle_signal_system_event`）。**新卡点**：`CRASH sig=11 addr=0 pc=sdk+0x1ea684` ∈ `nn::applet::GetPreviousProgramIndex`，它 `bl` 槽 `0xb70c68` = `nn::am::GetApplicationFunctions()` 拿到 0 → `ldr x8,[x0]`。**注意坑**：宿主新增文件不要与 `dm/gfx/*.c` 同名（同目标文件名会把强制接管表链接两遍 → `FATAL 强制接管清单重复`）。
+- 当前阻塞：**无外部阻塞**。方向变了：不再修 `dm/` 的 HLE 缺面，改为重写 `totk-app/`。旧路径最后的卡点（供对照）：`nn::applet::GetPreviousProgramIndex` → `nn::am::GetApplicationFunctions()` 返回 0（`sdk+0x1ea684`）。**红线**：旧路径不删（`trim-b62` 可回）；新工程禁止裸模块偏移；接管表缺口用符号差集当闸门。
   - 已根因定案（2026-10-23 00:30）：宿主 `relocate()` 只处理 `DT_RELA`/`DT_JMPREL`，**没有实现 `DT_RELR`**（tag 35/36/37）。
     TotK 三模块的相对重定位全部走这张压缩包式表（main 9,357 个编码字 → **499,074 个槽**；sdk 15,007；subsdk0 3,424），
     显式 RELA 里一条 `R_AARCH64_RELATIVE` 都没有，所以日志一直是 `relative=0`。
@@ -342,23 +343,20 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-047
+- ID：NA-101（新工程 R0：骨架）
 - 状态：READY
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：手机在线；`trim-b62` 已装；数据包已导入（**不要重导**）；已出证：nnMain / romfs 挂载 / oe 初始化 / vi vsync 都过，
-  现崩在 `nn::applet::GetPreviousProgramIndex`（`game_b62.log` 93 行）。
-- 动作：**补 `nn::am::GetApplicationFunctions()` 与 applet 的「无前序程序 / 无启动参数」语义**（照 `hle_sdkinit.c` 里
-  `am::GetCommonStateGetter` 的既有做法：返回静态对象 + 全 0 虚表桩，必要时按需返回确定值）。
-  1. `llvm-objdump -D --start-address=0x1ea670 --stop-address=0x1ea6b4`（sdk）确认 `GetPreviousProgramIndex` 读完虚表哪一项、
-     以及它期望返回什么（`s32` + `-1` 表示「无前序程序」）。
-  2. 用一次「临时脚本 + 符号表」把 `GetApplicationFunctions` 返回对象被调到的虚表偏移逐个列出来（先只搞定首条路径），
-     不要凭猜写一整张虚表。
-  3. 实现放 `dm/host/hle_sdkinit.c`（已有 am 接管），**不要新建与 `dm/gfx/*.c` 同名的文件**。
-- 命令或编辑目标：反汇编 + `dm/host/hle_sdkinit.c`；不许动数据侧与包。
-- 成功判据：不再崩 `sdk+0x1ea684`；日志推进（出现 NVN/Vulkan 初始化行，或画面出现清屏色）。
-- 失败判据：仍崩同址 → 虚表项填错，按崩溃偏移回查；pc 换新址 → 已推进，按新 pc/lr 继续。
-- 回滚点：机内 `trim-b62`；代码 `git checkout <本批控制面提交> -- dm/host/hle_sdkinit.c`。
-- 需要写入的证据：虚表偏移清单、`GetPreviousProgramIndex` 的期望返回值、新构建号与 `game_b63.log`。
+- 前置条件：旧路径可用且冻结（`trim-b62`，commit `a2273ba`）；手机 `3b864e51` 在线；**手机上的已导入数据包不动**。
+- 动作：**新建 `totk-app/` 的可安装骨架**，不引用 `dm/` 下任何 C 文件或 Java 文件：
+  1. `totk-app/android/` 新 Android 工程，package `org.totk.android.port`，minSdk/targetSdk 与旧壳一致（先抄"配置值"，不抄代码）。
+  2. 一个 Activity + 一个 `SurfaceView`：创建后写一行日志到应用私有目录 `files/app.log`（`totk-app R0 <version> 1.0` + Surface 尺寸），
+     并显示纯色（清屏色）。
+  3. `totk-app/tools/build.py`：一条命令出可安装 APK（签名沿用仓库既有 debug 证书）。
+- 命令或编辑目标：`totk-app/**` 新建；`docs/TOTK_APP_REWRITE.zh-CN.md` 的 R0 判据为准；**不许改 `dm/`**。
+- 成功判据：`adb install -r` exit 0；启动后 `files/app.log` 有两行（版本行 + `surface 3168x1440`）；截屏有纯色画面。
+- 失败判据：装不上/起不来 → 先修构建与生命周期，不进 R1。
+- 回滚点：整体删除 `totk-app/`（不影响任何既有功能）。
+- 需要写入的证据：APK 路径与字节数、`app.log` 两行、截屏文件路径、构建命令与退出码。
 
 ## 长操作两阶段日志
 

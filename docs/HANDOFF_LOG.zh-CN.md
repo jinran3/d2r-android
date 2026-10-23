@@ -33,6 +33,21 @@
 产物：`dm/android/build/D2R-Android-port.apk`（trim-b60）；真机日志 `D:/Switch/totk-work/device/game_b60.log`（92 行）
 结果：SUCCESS（fs 重载接缝修好，卡点前移到 nn::vi）
 
+## 2026-10-23 08:10 Asia/Shanghai — [DECISION] 用户决定「真从零重写整个 App」；新工程 totk-app/，旧路径冻结为对照基线
+
+- **决定**：不再在 `dm/`（D2R 血统宿主）上继续修 HLE 缺面，改为新建 `totk-app/`：自己的 Android 前端 + 宿主核心 + NVN 接管。
+- **我给的反对意见（已记录，不再重复）**：当前卡点（`am::GetApplicationFunctions` 返回 0）与壳架构无关；从零重写会让已过的 10 道闸门
+  （DT_RELR / init_array / nnMain / romfs 挂载 / oe 初始化 / vi vsync）全部重跑，且参考项目 `OJZen/totk-mobile` 自述「装载器/改写器/NVN 沿用 d2r-mobile 设计」
+  —— 即成功跑通 TotK 的同类项目走的正是我们这条路。用户已知悉仍选择重写。
+- **新方案文档**：`docs/TOTK_APP_REWRITE.zh-CN.md`（分层、阶段 R0–R5、每阶段可执行判据、两条陷阱、工作量量级）。
+- **工程红线（务必遵守）**：
+  1. **旧路径不删**。`dm/` 冻结在 `trim-b62`（commit `a2273ba`），继续可装机、可复现；新工程到达 R3（`>>> nnMain`）之前不允许下线。
+  2. 新工程**禁止裸模块偏移**：任何函数地址必须由符号解析得到（陷阱 A 的教训）。
+  3. 接管表缺口由「模块未定义符号集合 vs 接管表名集合」的差集自动生成，并在 CI 里当闸门（陷阱 B 的教训）。
+  4. 数据侧不动：手机上的已导入数据包继续用（NA-050/051/052 成果有效）。
+- **新工程第一批（NA-101 / R0）**：`totk-app/` 能编出可安装 APK，启动写一行日志 + 显示纯色 Surface；不加载游戏、不碰 NVN。
+- 本轮只写方案与交接（上下文冻结门），**没有写任何新工程代码**；R0 从下一次开工开始。
+
 ## 2026-10-23 08:00 Asia/Shanghai — [SESSION] NA-046：vi vsync 接管落地，卡点前移到 applet/am（阶段 B 继续）
 
 - **先纠正上一轮的一个错误判断**：上一条日志写「宿主完全没有 `nn::vi` 接管面」是**错的** —— 我当时的 grep 只扫了 `dm/host/*.c`。
