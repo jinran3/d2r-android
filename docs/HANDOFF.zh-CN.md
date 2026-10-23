@@ -1,6 +1,6 @@
 ---
 protocol: 1
-updated_at: 2026-10-23T09:10:00+08:00
+updated_at: 2026-10-23T09:30:00+08:00
 phase: M0
 state: READY_FOR_HANDOFF
 branch: totk/scaffold
@@ -8,7 +8,7 @@ observed_head: ceb813a
 origin_ref: origin/totk/scaffold
 origin_head_at_checkpoint: ceb813aa98072d9d497686aa44d463b56c57bfe9
 code_worktree: CLEAN
-next_action_id: NA-049
+next_action_id: NA-050
 ---
 # TotK 移植交接文档（HANDOFF）
 
@@ -140,7 +140,8 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 当前快照
 
-- 快照时间：2026-10-23 09:10（Asia/Shanghai）
+- 快照时间：2026-10-23 09:30（Asia/Shanghai）
+- 本轮（NA-049）：崩溃函数与两个全局已定位（0xbde198 / 0x394cc38→0x3abade8 / 0x394cf08→0x3abaeb8），确认属 GetSystemTick 计时族。
 - 本轮（NA-047 验证）：trim-b63 真机越过 am 卡点；新卡点已定性到 main+0xbde1e4 / 槽 main+0x394cc38 → 对象 main+0x3abade8。
 - 本轮（回到主线）：`totk-app` 冻结；`am::GetApplicationFunctions` 已实现并编进 trim-b63；真机验证被设备掉线挡住。
 - 本轮（R1）：native 层 + 装载/重定位自检完成，判据与基线逐项相等；模块投放路径与构建坑已记录。
@@ -148,7 +149,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 - 本轮（决策）：用户选择从零重写；方案 + 红线已写进 `docs/TOTK_APP_REWRITE.zh-CN.md`，旧路径冻结在 `trim-b62`。
 - 本轮（NA-046）：`dm/gfx/hle_vi.c` 追加 vsync 接管；踩过「同名文件 → 接管表重复」的坑（详见 HANDOFF_LOG 08:00 条）。
 - 本轮（NA-045）：`hle_fs.c` 补两个 `ReadFile` 重载（细节与证据见 HANDOFF_LOG 07:36 条）；卡点从 fs 前移到 vi。仓库已有 `hle_bind_system_event`/`hle_signal_system_event` 可直接用。
-- 当前阶段：**M0 / NA-047 真机通过** —— `am::GetApplicationFunctions` 支付后 `sdk+0x1ea684` 不再出现。现卡点：`CRASH sig=11 addr=0x20 pc=main+0xbde1e4`：全局槽 `main+0x394cc38` 指向的静态对象（`main+0x3abade8`）**首字段为 0**，随后 `ldr x8,[x9,#0x20]` 解引用。**仍未出图；阶段 B 走了两步。**
+- 当前阶段：**M0 / NA-049 定位完成** —— 崩溃函数 `main+0xbde198` 属「读系统滴士并按 100 换算」的帧调度族（兄弟函数 `main+0xbde138` 调 `nn::os::GetSystemTick`，PLT 槽 `main+0x3979098`）。待查：对象 `main+0x3abade8` 首字段为 0（谁该写它）。**仍未出图。**
   现在卡在 nnMain 里读文件：`CRASH sig=11 addr=0xc0 pc=sdk+0xa5940 lr=sdk+0xa93d0`。**仍未出图；阶段 B–F 仍 NOT RUN。**
 - **NA-044 根因与修复（定案，证据见 HANDOFF_LOG 07:25 条）**：宿主 `dm/host/hle_svc.c` 的 `hle_stdalloc_allocate` 把「原版入口」
   写死成 D2R 的 `sdk+0x2f9974`；TotK 的 sdk 里该符号在 `0x1375f0`，`0x2f9974` 落在 `nn::codec::pcmDmx_ApplyFrame` 中间、恰是一条 `b`
@@ -259,7 +260,7 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
   另外首跑还修了三处部署脚本缺陷：adb 守护横幅被当设备、`get-state` 走 `adb shell`（exit 127）、
   完成标记轮询内部路径（实际在外部）+ 导入不幂等；启动行「▸  」前缀与 3168×1440 列表截断靠后缀匹配 + 滚动解决。
 - 已验证产物路径：**真机侧**：手机 `/sdcard/Android/data/org.d2r.android.port/files/totk-package.zip`（17,825,708,024 字节）+ 同目录 `d2r-package/`（manifest counts game 9 / romfs 304,243 / shaders 24,535；bytes.romfs 17,026,724,605）；内部 `files/d2r-package/game/`（9 个文件，78 MB）；`D:\Switch\totk-work\device\game.log`（首跑日志，拉起时 11 行、FATAL 时 14 行）。**仓库外**：`D:\Switch\totk-work\package-totk\totk-package-updated.zip`（**17,825,708,024 字节 = 16.60 GiB**，game 9 / romfs 304,243 / shaders 24,535；**真机推的就是它**）、`D:\Switch\totk-work\package-totk\totk-package.zip`（**16.62 GiB**，基座包 = v1.4.2 本体，**回退点，别推它首发**）、`preflight-updated2.txt`（07:06 全绿）、`merge-report.json`。**仓库内**：`dm/android/tools/deploy_totk.py` + `dm/android/tests/test_deploy_totk.py` + `dm/android/native/runtime.c`（NA-044 修复）；此前新增 `dm/gfx/tools/nvn_slots_auto.py`、`nvn_table.py`、`nvn_coverage.py`、`totk_variant_keys.py`、`dm/gfx/nvn/nvn_names_totk.txt`、`dm/gfx/nvn/nvn_calls_totk.tsv`；APK `dm/android/build/D2R-Android-port.apk`（**trim-b52**）。
-- 当前阻塞：**无外部阻塞**（手机在线，trim-b63 已装）。技术卡点见上：一个运行时单例首字段为 0（槽本身 RELR 装载正确，链接期值 0x3abade8，现场反推 base 吻合 ⇒ 不是重定位问题）。
+- 当前阻塞：**无外部阻塞**（手机在线，trim-b63 已装）。技术卡点：`main+0x3abade8` 首字段为 0 ⇒ `ldr x8,[x9,#0x20]` 崩。两个相关全局槽（`main+0x394cc38` / `main+0x394cf08`）RELR 装载正确、符号表无名字。
   - 已根因定案（2026-10-23 00:30）：宿主 `relocate()` 只处理 `DT_RELA`/`DT_JMPREL`，**没有实现 `DT_RELR`**（tag 35/36/37）。
     TotK 三模块的相对重定位全部走这张压缩包式表（main 9,357 个编码字 → **499,074 个槽**；sdk 15,007；subsdk0 3,424），
     显式 RELA 里一条 `R_AARCH64_RELATIVE` 都没有，所以日志一直是 `relative=0`。
@@ -347,25 +348,22 @@ D:\Switch\.tools\venv\Scripts\python.exe tools\agent_handoff_check.py --verify
 
 ## 下一步唯一动作
 
-- ID：NA-049
+- ID：NA-050
 - 状态：READY
-- 阶段：定位 `main+0x3abade8` 这个静态对象为什么首字段是 0
-- 动作：定位该静态对象首字段为 0 的原因并补上（详见下面三步）
+- 阶段：找到「谁该写 `main+0x3abade8` 的首字段」
 - 工作目录：`D:\Switch\d2r-android`
-- 前置条件：手机在线；trim-b63 已装；`game_b63.log` 在手；旧路径基线（`trim-b62` 的 `game_b62.log`）仍可对照。
-- 动作（一次只落一个假设）：
-  1. 反汇编找包含 `main+0xbde1e4` 的函数入口：从 `0xbde1a8` 往前扫最近的 `stp x29,x30,[sp,#-N]!`，把整个函数读明白，
-     确认 `main+0x394cc38` 这个全局在这里扮演什么（句柄表 / 单例 / 事件对象）。
-  2. 查 `0x3abade8`（对象）与 `0x394cc38`（槽）在整个 main 里的**其它引用**：`llvm-objdump -D` 全量反汇编后 grep 这两个地址，
-     看谁写它（`str` / `adrp+add`）—— 写它的那个函数就是「本该初始化它的构造」。
-  3. 若写它的代码在 sdk 里且需要某个宿主服务（vsync/显示/线程）才能跑 → 按既有做法补 HLE；
-     若它在 main 里、只是没被调用 → 查调用链上谁跳过它（多半又是个服务缺面）。
-- 命令或编辑目标：`llvm-objdump -D --start-address=<函数入口> --stop-address=<函数尾>`；全量反汇编 grep 用
-  `D:\Switch\totk-work\disasm-na044\main.elf`（已包好）；改动只落在 `dm/host/hle_*.c`。
-- 成功判据：不再崩 `main+0xbde1e4`；日志继续推进（NVN/Vulkan 行或新崩溃点）。
-- 失败判据：仍崩同址 → 说明「填首字段」的方式不对，按对象类型改（例如该填的是事件句柄而不是指针）。
-- 回滚点：机内 `trim-b63`；代码 `git checkout 81f493e -- dm/host/hle_sdkinit.c`。
-- 需要写入的证据：函数入口与调用链、`0x3abade8` 的写入者、新构建号与 `game_b64.log`。
+- 前置条件：手机在线；trim-b63 已装；`main.elf` 已包好（`D:\Switch\totk-work\disasm-na044\main.elf`）。
+- 动作（一次一个）：
+  1. **全量反汇编后 grep 引用**：`llvm-objdump -D main.elf > main.dis`，然后 grep `0x3abade8` 与 `0x394cc38`，
+     列出所有 `adrp+add` / `str` 引用点 —— 写首字段的那个 `str` 就是本该跑的构造。
+  2. **同步看调用者**：反汇编 `main+0xc58c20` 所在函数入口（从 0xc58c20 往前找 `stp x29,x30`），确认这条链属于哪个子系统
+     （帧调度 / vsync 管理器 / 音频时钟），避免修错对象。
+  3. 若构造代码需要某个宿主服务（多半又是显示/vsync/线程族）→ 按既有做法补 HLE；若它只是没被调用 → 查是谁跳过。
+- 命令或编辑目标：`llvm-objdump -D main.elf > main.dis` + grep；改动只落在 `dm/host/hle_*.c`，不许用裸模块偏移。
+- 成功判据：不再崩 `main+0xbde1e4`；日志推进到 NVN/Vulkan 行或新崩溃点。
+- 失败判据：仍崩同址 → 该对象首字段不是「指针」而是别的东西（按 `+0x20/+0x28` 的用途重判类型）。
+- 回滚点：机内 trim-b63；代码 `git checkout 7d8584f -- dm/host/hle_sdkinit.c`。
+- 需要写入的证据：写入者地址与所属函数、子系统判定、新构建号与 `game_b64.log`。
 
 ## 长操作两阶段日志
 

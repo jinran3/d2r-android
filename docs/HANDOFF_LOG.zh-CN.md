@@ -33,6 +33,25 @@
 产物：`dm/android/build/D2R-Android-port.apk`（trim-b60）；真机日志 `D:/Switch/totk-work/device/game_b60.log`（92 行）
 结果：SUCCESS（fs 重载接缝修好，卡点前移到 nn::vi）
 
+## 2026-10-23 09:28 Asia/Shanghai — [SESSION] NA-049 定位：崩溃函数 = main+0xbde198，与 GetSystemTick / 一对单例同族
+
+- **函数入口找到**：`main+0xbde198`（`stp x29,x30,[sp,#-0x30]!`）。逻辑：
+  ```text
+  adrp x8,0x394c000 ; ldr x8,[x8,#0xf08]   ; x8 = 全局 main+0x394cf08 → 指向对象 main+0x3abaeb8
+  adrp x21,0x394c000; ldr x21,[x21,#0xc38] ; x21 = 全局 main+0x394cc38 → 指向对象 main+0x3abade8
+  x9 = 0xa3d70a30d70b（魔数，smulh 后 = 除以 100）
+  ldr x8,[x8]        ; 读 0x3abaeb8 的首字段（一个计数/时间值）再 /100
+  ldr x9,[x21]       ; 读 0x3abade8 的首字段 —— **这里是 0**
+  ldr x8,[x9,#0x20]  ; ← 崩（x9=0）
+  ```
+- **兄弟函数 `main+0xbde138`**（同区，结构相似）：`ldr x8,[x0] → blr [x8,#0xc0]` → `bl PLT 0x2ba3a90` → `str x0,[x19,#0xe0]` → 尾调 `[x8,#0xd8]`。
+  该 PLT 槽 `main+0x3979098` = **`nn::os::GetSystemTick`** ⇒ 这一族函数在**读系统滴答、按 100 换算**，
+  并把结果存进对象 `+0xe0`（"上次 tick"字段）—— 是帧调度/计时类代码。
+- 两个目标对象都在同一段：`main+0x3abade8`（首字段 0，待查）与 `main+0x3abaeb8`（首字段是 tick 源）。
+- 三个地址（`0x3abade8` / `0x3abade8 的槽 0x394cc38` / `0x3abaeb8 的槽 0x394cf08`）**在符号表里都没有名字**（无名数据区），
+  `0x394cf08` 与 `0x394cc38` 都在 DT_RELR 表里、链接期值分别是 `0x3abaeb8` / `0x3abade8` ⇒ 装载无误，问题在对象未被初始化。
+- 栈：`main+0xbde154 ← main+0xc58c20 ← main+0xbb95a8`（nnMain 内）。**还没找到「谁该写 0x3abade8 的首字段」**。
+
 ## 2026-10-23 09:08 Asia/Shanghai — [SESSION] NA-047 真机通过：`am::GetApplicationFunctions` 支付后越过 sdk+0x1ea684，卡点进 main+0xbde1e4
 
 - **NA-047 结果**：设备接回后 `adb install -r`（versionName `trim-b63`）+ `deploy_totk.py --no-push` exit 0。
