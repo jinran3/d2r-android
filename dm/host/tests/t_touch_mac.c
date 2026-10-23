@@ -15,21 +15,8 @@ int dm_shop_open(void) { return 0; }   // 商人页（dm_actions.c）的桩：�
 int dm_padmode_current(void) { return 0; }   // 手柄 / 触屏模式（dm_padmode.c）的桩：触屏 | Stub for controller / touch mode (dm_padmode.c): touch
 uint64_t dm_padmode_page_keys(uint64_t m) { (void)m; return 0; } void dm_padmode_legend_hide(const char *l, int a) { (void)l; (void)a; } int dm_padmode_busy(void) { return 0; } uint64_t dm_padmode_page_held(void) { return 0; } void dm_padmode_page_pulse(uint64_t m) { (void)m; } void dm_padmode_ident_hint(int on) { (void)on; } void dm_padmode_legend(int a, const char *t) { (void)a; (void)t; } const char *dm_str(uint8_t *b, const char *k) { (void)b; return k; }   // 手柄页键 / 提示条 / 取串的桩（个人仓库手柄翻页用，触屏下不走） | Stubs for controller page keys / button legend / string fetch (used by controller paging of the personal stash, not reached under touch)
 int dm_swapskill_wset(void) { return -1; }
-int dm_pages_cur(void) { return 0; } int dm_pages_count(void) { return 5; } void dm_pages_request_flip(int d) { (void)d; }   // 个人仓库多页（dm_pages.c）桩 | stubs for the multi-page personal stash (dm_pages.c)
-void dm_vault_ui_flip(int dir) { (void)dir; }
-int dm_vault_ui_pager_hit(int x, int y) { (void)x; (void)y; return 0; }
-void dm_vault_request_deposit(uint32_t id) { (void)id; }
-uint32_t dm_vault_ui_held(void) { return 0; }
-int dm_vault_ui_over(int x, int y) { (void)x; (void)y; return 0; }
-int dm_vault_ui_tip_gate(int x, int y) { (void)x; (void)y; return 0; }
-int dm_pouch_tip_gate(int x, int y) { (void)x; (void)y; return 0; }
-int dm_vault_ui_blocks(int x, int y) { (void)x; (void)y; return 0; }
-int dm_vault_ui_tap(int x, int y) { (void)x; (void)y; return 0; }
-int dm_vault_ui_drag(int phase, int x, int y) { (void)phase; (void)x; (void)y; return 0; }
 uint32_t dm_swapskill_itemsig(void) { return 0; }   // 副手组技能当前武器组（dm_actions.c）的桩：读不到 | stub for the current weapon set of the swap-set skill (dm_actions.c): cannot be read
 _Atomic int g_dm_frz_want, g_dm_frozen; void dm_freeze_frame(int want) { (void)want; }   // 面板冻结（diag.c）的桩 | stub for the panel freeze (diag.c)
-void dm_elysium_arm(int on) { (void)on; }   // 极乐世界勾选（dm_elysium.c）的桩 | stub for the Elysium checkbox (dm_elysium.c)
-void dm_custom_on_uimsg(const char *cat, const char *act, const char *arg) { (void)cat; (void)act; (void)arg; }   // 「自定义」设置（dm_custom.c）的桩 | stub for the "Custom" settings (dm_custom.c)
 void dm_belt_put(unsigned id) { (void)id; }
 void dm_ui_rect(int *x, int *y, int *w, int *h) { *x = *y = *w = *h = 0; }
 int dm_screen_real(int *w, int *h) { (void)w; (void)h; return 0; }
@@ -39,9 +26,6 @@ void dm_inv_sort(int page) { (void)page; }
 int dm_diag_difficulty(void) { return -1; }
 uint64_t dm_fs_commit_count(void) { return 0; }
 void dm_held_equip(int bodyloc) { (void)bodyloc; }
-int dm_rift_merc_unlocked(void) { return 1; }
-int dm_rift_merc_slot_empty(int loc) { (void)loc; return 0; }
-void dm_rift_merc_locked_hint(void) {}
 void dm_stash_take(int count) { (void)count; }
 void dm_shop_buy(void) {}
 int dm_cursor_item(void *out) { (void)out; return 0; }
@@ -108,7 +92,3 @@ int dm_held_stow_result(void) { return -1; }
 int dm_held_pending(void) { return 0; }
 void uimsg_emit(const char *cat, const char *act, const char *arg) { (void)cat; (void)act; (void)arg; }
 void dm_item_identify_free(unsigned id) { (void)id; }   // 免费鉴定（dm_actions.c）的桩 | stub for free identify (dm_actions.c)
-int dm_runeword_long_press(const void *ci) { (void)ci; return 0; }   // 符文之语助手（dm_runeword.c）的桩 | stub for the runeword helper (dm_runeword.c)
-int dm_runeword_list_open(void) { return 0; }
-void dm_runeword_button(const char *name) { (void)name; }
-void dm_runeword_list_close(void) {}

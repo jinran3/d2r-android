@@ -78,19 +78,14 @@ def capture(command, label, timeout=None):
 
 
 def derived_tables(romfs, workspace):
-    """从 RomFS 生成三张真实表（放进工作目录，**不写源码树**），再拆成运行时的 derived.tsv。
-    壳模式的 APK 里只有空表与条数，这三张表的**内容**随数据包走（标签 EXP / VTPART / VTROW / VTSET / BRT）。
-    Generate the three real tables from the RomFS into the workspace (never the source tree), then split them into
+    """从 RomFS 生成真实表（放进工作目录，**不写源码树**），再拆成运行时的 derived.tsv。
+    壳模式的 APK 里只有空表与条数，这些表的**内容**随数据包走（标签 EXP / TAROW）。
+    Generate the real tables from the RomFS into the workspace (never the source tree), then split them into
     the runtime derived.tsv. A shell APK only carries empty tables and their counts; the *content* travels with the
-    package (tags EXP / VTPART / VTROW / VTSET / BRT)."""
+    package (tags EXP / TAROW)."""
     tables = workspace / "tables"
     tables.mkdir(parents=True, exist_ok=True)
-    # 亮度表要 --rows：默认输出只有"条数"（构建用的替身），数据行由这里进 derived.tsv。
-    # The brightness generator needs --rows: by default it only prints the count (the build stub); the data rows
-    # are what goes into derived.tsv here.
-    generators = (("dm_vault_tab.h", ROOT / "ios/tools/gen_vault_table.py", ()),
-                  ("dm_hud_exp.h", ROOT / "ios/tools/gen_hud_exp.py", ()),
-                  ("dm_bright_levels.inc", ROOT / "tools/gen_bright_levels.py", ("--rows",)))
+    generators = (("dm_hud_exp.h", ROOT / "ios/tools/gen_hud_exp.py", ()),)
     for name, generator, extra in generators:
         table = capture([sys.executable, generator, romfs, *extra], "生成 " + name, timeout=30 * 60)
         if not table.strip():
@@ -221,6 +216,14 @@ def main():
     parser.add_argument("--reuse", type=Path, default=None,
                         help="复用已解出的数据目录（应有 ExeFS/、RomFS/、game/、shaders/spirv/），跳过最慢的两步")
     parser.add_argument("--subgroup", type=int, default=64)
+    parser.add_argument("--ruleset", default="touch-run-v4",
+                        help="改写规则域：touch-run-v4（D2R 触屏版，默认）/ totk-run-v1（TotK v1.4.2） | rewriter rules domain")
+    parser.add_argument("--exefs", type=Path, default=None,
+                        help="已解出的 ExeFS 目录（TotK 用：游戏包是 NCA，ExeFS 由 dm/tools/switch_nca.py 解出） | already extracted ExeFS directory")
+    parser.add_argument("--romfs-layout", choices=("data", "root"), default="data",
+                        help="RomFS 布局：data（D2R 默认）/ root（TotK：整棵树保留相对路径）| RomFS layout")
+    parser.add_argument("--modules-only", action="store_true",
+                        help="只做模块那一步（改写 + 打成 ELF 库），不组装数据包 | only do the module step (rewrite + pack into ELF libraries)")
     args = parser.parse_args()
 
     work = args.workspace
@@ -236,43 +239,56 @@ def main():
                     raise PackageError(f"复用目录缺少 {required}：{reuse / required}")
             say(f"复用已解出的数据：{reuse}")
             spirv = reuse / "shaders" / "spirv"
-            (spirv / "host-subgroup-size.txt").write_text(str(args.subgroup) + "\n")
+            (spirv / "host-subgroup-size.txt").write_text(str(args.subgroup) + "\n", encoding="utf-8")
             # 复用路径也重做 derived.tsv：三张表从复用目录里的 RomFS 生成只要几十秒，比缓存它更不容易出错。
             # The reuse path regenerates derived.tsv too: the three tables come from the RomFS in the reuse
             # directory in tens of seconds, which is less error-prone than caching them.
             derived = derived_tables(reuse / "RomFS", reuse)
             run([sys.executable, HERE / "build_package.py", "assemble", output,
                  "--game", reuse / "game", "--romfs", reuse / "RomFS", "--shaders", spirv, "--derived", derived,
-                 "--note", "assembled from reused data"], "汇编数据包", timeout=60 * 60)
+                 "--note", "assembled from reused data", "--romfs-layout", args.romfs_layout], "汇编数据包", timeout=60 * 60)
             say(f"完成：{output}（{output.stat().st_size / 2**30:.2f} GiB）")
             return
 
-        game_input = gather_game_files(args.game, work / "input")
-        base, update = find_title_files(game_input)
-        say(f"本体 = {base.name}（{base.stat().st_size / 2**30:.2f} GiB）")
-        say(f"更新 = {update.name}（{update.stat().st_size / 2**30:.2f} GiB）")
-        keys = unpack_keys(args.keys, work)
-
-        base_nsp = to_nsp(base, work)
-        update_nsp = to_nsp(update, work)
-
         produce = work / "produce"
         layout = produce / "layout"
-        run([sys.executable, HERE / "extract_packages.py", base_nsp, update_nsp, keys, layout,
-             "--hactool", HACTOOL], "用密钥解出 ExeFS 与 RomFS（最慢的两步之一）", timeout=6 * 60 * 60)
-        romfs, exefs = layout / "RomFS", layout / "ExeFS"
-        for path, label in ((romfs, "RomFS"), (exefs, "ExeFS")):
-            if not path.is_dir():
-                raise PackageError(f"解包没有产出 {label}：{path}")
+        romfs = None
+        if args.exefs:
+            # 自备 ExeFS（TotK：游戏包是 NCA，ExeFS 由 dm/tools/switch_nca.py 解出，RomFS 还要等 BKTR 补丁）
+            exefs = args.exefs
+            if not exefs.is_dir():
+                raise PackageError(f"--exefs 指向的目录不存在：{exefs}")
+            say(f"用自备的 ExeFS：{exefs}")
+        else:
+            game_input = gather_game_files(args.game, work / "input")
+            base, update = find_title_files(game_input)
+            say(f"本体 = {base.name}（{base.stat().st_size / 2**30:.2f} GiB）")
+            say(f"更新 = {update.name}（{update.stat().st_size / 2**30:.2f} GiB）")
+            keys = unpack_keys(args.keys, work)
+            base_nsp = to_nsp(base, work)
+            update_nsp = to_nsp(update, work)
+            run([sys.executable, HERE / "extract_packages.py", base_nsp, update_nsp, keys, layout,
+                 "--hactool", HACTOOL], "用密钥解出 ExeFS 与 RomFS（最慢的两步之一）", timeout=6 * 60 * 60)
+            romfs, exefs = layout / "RomFS", layout / "ExeFS"
+            for path, label in ((romfs, "RomFS"), (exefs, "ExeFS")):
+                if not path.is_dir():
+                    raise PackageError(f"解包没有产出 {label}：{path}")
 
         game = produce / "game"
+        produce.mkdir(parents=True, exist_ok=True)
         game.mkdir(exist_ok=True)
-        environment = dict(os.environ, DM_TARGET="android", DM_RULESET="touch-run-v4")
+        environment = dict(os.environ, DM_TARGET="android", DM_RULESET=args.ruleset)
+        say(f"规则域 = {args.ruleset}")
         for module in ("main", "sdk", "subsdk0"):
             run([sys.executable, ROOT / "tools" / "patch_nso.py", exefs / module, game, module],
                 f"改写模块 {module}", env=environment)
         run([sys.executable, HERE / "guest_elf.py", game, game, "main", "sdk", "subsdk0"],
             "把模块打成 ELF 动态库", env=environment)
+        if args.modules_only:
+            say(f"只做模块：产物在 {game}")
+            return
+        if romfs is None:
+            raise PackageError("自备 ExeFS 时只能出模块部分：RomFS（BKTR 补丁）、着色器与派生表还没就绪")
 
         # 三张宿主表从 RomFS 生成到工作目录，再拆成运行时数据 derived.tsv（随包走）。不再写源码树：
         # 仓库里提交的是运行时替身，任何构建都不该被一组由游戏文件生成的头文件污染。
@@ -289,7 +305,7 @@ def main():
         if not spirv.is_dir():
             raise PackageError("着色器翻译没有产出 spirv 目录：" + str(spirv))
         # 汇编器会校验着色器目录里的分组档位文件，所以必须先写上。
-        (spirv / "host-subgroup-size.txt").write_text(str(args.subgroup) + "\n")
+        (spirv / "host-subgroup-size.txt").write_text(str(args.subgroup) + "\n", encoding="utf-8")
 
         run([sys.executable, HERE / "build_package.py", "assemble", output,
              "--game", game, "--romfs", romfs, "--shaders", spirv, "--derived", derived,

@@ -11,8 +11,10 @@ For the build steps of the whole project see `README.md` and `setup.sh` in the r
 ### Taking over the NVN interface
 
 - The game's main program imports only one NVN symbol, `nvnBootstrapLoader`; all other NVN functions are obtained through it by name. The host forcibly takes over this import (`nvn/hle_nvn.c`), and not a single instruction of the original graphics driver is executed.
-- The game fetches the addresses of 523 names in total (`nvn/names.txt`). Each name has a thunk (`nvn/nvn_thunks.S`, a generated file): it first increments that function's call count and then jumps to the implementation.
-- Of these, the 216 that have call sites in the game's main program (`nvn/nvn_slots.tsv`) all have implementations: 203 are implemented according to NVN semantics, and 13 are empty implementations (`g_nops` in `hle_nvn.c`). The remaining 307 are connected to a red-reporting stub that, when called, prints `【红】NVN 未实现被调用：名字` in the log ("[red] unimplemented NVN function called: name").
+- The name table has 536 entries (`nvn/names.txt`): **D2R's 523** (order unchanged, so the slot indices are unchanged) plus **13 that only TotK uses** (appended at the end). Each name has a thunk (`nvn/nvn_thunks.S`, a generated file): it first increments that function's call count and then jumps to the implementation.
+- D2R: the 216 that have call sites in the game's main program (`nvn/nvn_slots.tsv`) all have implementations: 203 are implemented according to NVN semantics, and 13 are empty implementations (`g_nops` in `hle_nvn.c`). The remaining 307 are connected to a red-reporting stub that, when called, prints `【红】NVN 未实现被调用：名字` in the log ("[red] unimplemented NVN function called: name").
+- TotK: 213 interfaces are actually called by its main program (`nvn/nvn_calls_totk.tsv`, from a static scan of the TotK main .text); **110 of them have implementations and 103 still do not** (those hit the red stub). Check the coverage with `dm/gfx/tools/nvn_coverage.py`.
+- A name that is not in the table fails to resolve (`nvn_lookup` returns NULL) and the guest gets a null pointer. All 534 names TotK resolves are in the table ✓.
 - Every implementation gets a compile-time signature check against `nvn/nvn_protos.h` (a generated file). The calling conventions of Apple arm64 and the Switch differ for integer parameters narrower than 32 bits, so on the host side `NVNboolean` parameters are always received as `uint32_t` and only the low 8 bits are examined.
 
 ### Two layers: record and replay

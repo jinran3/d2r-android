@@ -6,13 +6,18 @@ import struct
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from host_env import tool   # Windows: 补 .cmd/.bat/.exe 后缀（无扩展名的 clang 是给 bash 用的脚本）
+
 root = Path(__file__).resolve().parents[1]
 out = Path(sys.argv[1]).resolve()
 toolchain = Path(sys.argv[2])
 out.mkdir(parents=True, exist_ok=True)
-clang = toolchain / "aarch64-linux-android29-clang"
+# 不经 host_env.tool() 解析的话，Windows 上拿到的是 NDK 的 shell 脚本本体，
+# CreateProcess 执行它会报 WinError 193（不是有效的 Win32 应用程序）。
+clang = tool(toolchain / "aarch64-linux-android29-clang")
 subprocess.run([str(clang), "-c", str(root / "tests/probe.S"), "-o", str(out / "probe.o")], check=True)
-subprocess.run([str(toolchain / "llvm-objcopy"), "-O", "binary", "--only-section=.text", str(out / "probe.o"), str(out / "probe.code")], check=True)
+subprocess.run([str(tool(toolchain / "llvm-objcopy")), "-O", "binary", "--only-section=.text", str(out / "probe.o"), str(out / "probe.code")], check=True)
 code = (struct.pack("<II", 0x14000002, 0x4000) + (out / "probe.code").read_bytes()).ljust(0x1000, b"\0")
 ro = bytearray(0x100)
 ro[:4] = b"MOD0"

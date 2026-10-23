@@ -55,7 +55,13 @@ PATCH_OFF = (len(IMG) + 0xFFFF) & ~0xFFFF
 # ---- Registered cuts: {NSO build ID: [(offset, original bytes, new bytes, reason)]} ----
 # Networking cuts (excluded scope: Battle.net / online play): taken from a community offline fix (LFS Mod Offline Fix for v2228224, which differs from the official 94012 main in only these 7 words).
 # Measured: the system service layer (nifm offline / DNS black hole / account service) cannot get around it: the game itself sends Battle.net requests directly and allows offline play according to the "last online" time.
-CUTS = {'db0507f36b84200ac05f75d76ed5026f': [
+# TotK v1.4.2 的 main 构建号登记在此，但表为空：TotK 侧还没有「跑不起来就必须改」的剪口，
+# 空表是正确状态（每条要加的剪口都必须带原字节断言）。
+# TotK v1.4.2's main build id is registered here with an empty table: TotK has no cuts yet
+# (a cut is only for something that cannot run without it), and every future cut must carry the
+# original-byte assertion. An empty table is the correct state.
+CUTS = {'5cb42b1cf25469fb0635fd046453d843': [],
+        'db0507f36b84200ac05f75d76ed5026f': [
     # （放进所有产物共用的基础改写）：游戏显存分配器预算 260 MB → 512 MB
     # (Placed in the base rewrite shared by all build outputs): game video memory allocator budget 260 MB → 512 MB
     (0x8524c4, '0808a2d2', '0800a4d2', '显存分配器初始化配置：mov x8,#0x10400000（260 MB）→ mov x8,#0x20000000（512 MB），随后 movk #0xa0,lsl48 与 str [sp,#0x238] 不变；'
@@ -76,8 +82,6 @@ CUTS = {'db0507f36b84200ac05f75d76ed5026f': [
      '不触发 0x80ec44 的联网检查、断网弹窗与回标题页）；r4 版目标 0x8019bc 会置联机模式 1，实测仍回标题页并弹断网框'),
     # 宿主原生实现剪口（仅宿主：真值模拟器不应用，Ryujinx 不认识 0x80 起的宿主调用号；等价由逐块解码 5511/5511 一致证明）
     # Cuts for host-native implementations (host only: the ground-truth emulator does not apply them, Ryujinx does not know host call numbers from 0x80 up; equivalence is proven by per-block decoding matching 5511/5511)
-    (0x1b0ee60, 'fc6fbaa9fa6701a9', '011000d4c0035fd6', 'TACT BLTE 块 zlib 解码入口（DecodeZlib）→ svc #0x80 ; ret：宿主用 libdeflate 实现'
-     '（hle_tact.c，调用号登记在 hle.h SVC_HOST_TACT_ZLIB）；改写器先打剪口再扫描，svc #0x80 自动成为宿主门，门块保存恢复 x30，ret 回原调用者', '仅宿主'),
     # 宿主测试开关的落点（仅宿主）：缺省宿主原样转调，行为不变
     # Hook points for host test switches (host only): by default the host forwards as is, behavior unchanged
     (0x5d3a88, 'a27a0194', '211000d4', '收包泵 0x5d3960 投递客户端命令包的调用点 bl 0x632510 → svc #0x81：宿主缺省以原参数原样调用 0x632510（返回值调用方不用）；'
@@ -134,30 +138,13 @@ CUTS = {'db0507f36b84200ac05f75d76ed5026f': [
     # (initial value 0), and the probe at 0xb1bcfc over the whole r15 cvd5 run hit 0 times (the write site never executed) ⇒ only table B is read throughout. The cut tree = 17 single-file loads via 0x7f72e0; same as the supplementary proof of
     # the language reload cut above (the same 0xdf67f0 read transaction, paired, no external waiters)
     (0x7f669c, '370b0036', '59000014', '字符串表装载 tbz w23, #0（是否装 legacy 表 A）→ b 0x7f6800：表 A 无读者（选表标志恒 0 → 表 B），整段 17 个 legacy 文件不装'),
-    # Granny 段解码（BitKnit2）两条流式段读取路径的逐块解码调用点：宿主缺省原样转调 0x11f4af0（预解码方案 A 的替换落点，hle_granny.c）
-    # The per-block decode call sites of the two streaming segment read paths of Granny segment decoding (BitKnit2): by default the host forwards as is to 0x11f4af0 (the replacement hook point of pre-decode plan A, hle_granny.c)
-    (0x11f02dc, '05120094', '611000d4', '段读取 0x11f0110 逐块解码 bl 0x11f4af0(ctx, 块, 长度) → svc #0x83：宿主缺省以原参数原样调用并回填 w0（hle.h SVC_HOST_GRANNY_A）', '仅宿主'),
-    # 掉落光（仅宿主）：物品取外观定义路径 bl 0xa14dc4(资源管理器, 单位, x8 输出字符串) → svc #0x87：宿主原样代调，
-    # 对模式 3 / 5（地上 / 掉落中）的物品按规则把路径改指覆盖层里的带光变体（dm_dropfilter.c svc_ground_asset；hle.h SVC_HOST_GROUND_ASSET）
-    # 一档掉落音（仅宿主）：落地取掉落音 bl 0x470c20(物品, &触发帧) → svc #0x88：宿主原样代调，一档物品换成提示音（dm_dropfilter.c svc_drop_sound）
-    # Drop light (host only): the item's appearance definition path lookup bl 0xa14dc4(resource manager, unit, x8 output string) → svc #0x87: the host forwards the call as is,
-    # and for items in mode 3 / 5 (on the ground / dropping) repoints the path by rule to the lit variant in the overlay (dm_dropfilter.c svc_ground_asset; hle.h SVC_HOST_GROUND_ASSET)
-    # Tier-one drop sound (host only): fetching the drop sound on landing bl 0x470c20(item, &trigger frame) → svc #0x88: the host forwards the call as is, and tier-one items get a notification sound instead (dm_dropfilter.c svc_drop_sound)
-    (0x468f2c, '3d1f0094', '011100d4', '物品落地取掉落音调用点 bl 0x470c20 → svc #0x88：宿主原样代调后按规则把一档物品的掉落音换成提示音（其余原样）', '仅宿主'),
-    (0x8fa590, '0d6a0494', 'e11000d4', '物品外观路径调用点 bl 0xa14dc4 → svc #0x87：宿主原样代调后按规则改指地上物品的带光变体（存储 / 穿戴 / 腰带 / 镶嵌不碰）', '仅宿主'),
-    # 进局出生点（进局落在城镇小站旁、尸体与人同处；仅宿主）：玩家进局函数 0x5d7f70 里给玩家、给尸体各取一次出生点，都是 bl 0x5596c0(数据版本, 幕, 关卡, 格类型 0, &x, &y, 单位尺寸)
-    # → svc #0x8a（玩家）/ #0x8b（尸体）：宿主原样代调；进局在城镇时改按「小站格 13 + 固定安全距离」取点，人、尸体、佣兵由原版一次放好（不再第 2 拍换关挪人，尸体不再留在原出生点）（dm_townwp.c svc_join_spawn）
-    # Run-entry spawn point (entering a run lands next to the town waypoint, with the corpse in the same place as the player; host only): the player join function 0x5d7f70 fetches a spawn point once for the player and once for the corpse, both via bl 0x5596c0(data version, act, level, cell type 0, &x, &y, unit size)
-    # → svc #0x8a (player) / #0x8b (corpse): the host forwards the call as is; when the run is entered in town it instead picks the point by "waypoint cell 13 + a fixed safe distance", and the player, corpse and mercenary are placed in one go by the original game (the player is no longer moved by a level change on tick 2, and the corpse no longer stays at the original spawn point) (dm_townwp.c svc_join_spawn)
-    (0x5d8040, 'a005fe97', '411100d4', '玩家进局取出生点调用点 bl 0x5596c0 → svc #0x8a：宿主原样代调，进局在城镇时出生点换成小站旁（hle.h SVC_HOST_JOIN_SPAWN）', '仅宿主'),
-    (0x5d8400, 'b004fe97', '611100d4', '进局给尸体取落点调用点 bl 0x5596c0 → svc #0x8b：同上，尸体与人取同一个点（hle.h SVC_HOST_JOIN_CORPSE）', '仅宿主'),
-    (0x11f0914, '77100094', '811000d4', '段读取 0x11f07d0 逐块解码 bl 0x11f4af0(ctx, 块, 长度) → svc #0x84：同上（hle.h SVC_HOST_GRANNY_B）', '仅宿主'),
 ]}
 # ---- 已登记观测门：{NSO 构建号: [(偏移, 编号, 原指令字, 理由)]}。编号与宿主 hle.h 的 OBS_* 一致；
 # 原指令须与位置无关（不得 PC 相对 / 分支 / 涉 x18·tpidr），离线断言；宿主未挂回调时门块进出一次即返回 ----
 # ---- Registered observation gates: {NSO build ID: [(offset, number, original instruction word, reason)]}. Numbers match OBS_* in the host's hle.h;
 # the original instruction must be position independent (no PC-relative / branch / anything involving x18 or tpidr), asserted offline; when the host has no callback attached the gate block goes in and out once and returns ----
-OBS = {'db0507f36b84200ac05f75d76ed5026f': [
+OBS = {'5cb42b1cf25469fb0635fd046453d843': [],
+        'db0507f36b84200ac05f75d76ed5026f': [
     (0xb1dc60, 1, 'd10603ff', 'UI 消息总线虚函数实现入口（x1 = 消息 {u64 类型哈希, u64 动作哈希, char* 面板名, …}）：'
      'DM_UIMSG 消息流与 DM_BOOTPROF 启动分段的唯一来源；原指令 sub sp, sp, #0x180'),
     (0x5d3bc0, 2, 'd10503ff', '服务端拍入口（x0 = 游戏对象 G）：DM_TICKS 逐拍 6 格状态哈希（dm/verify/tick_state_format.md，与真值 swtick.py 同一采集点）；'
@@ -173,9 +160,53 @@ BUILD_ID = d[0x40:0x50].hex()
 # 构建期产品规则：旧原资源/对拍域默认不变；触屏版单独出新版本，不在运行时写客体代码。
 # Build-time product rules: the old original-resource / comparison domain is unchanged by default; the touchscreen version is issued separately as a new version, and guest code is not written at runtime.
 RULESET = os.environ.get('DM_RULESET', 'native')
-assert RULESET in ('native', 'touch-run-v4'), f'未知规则域 {RULESET}'
+# 规则域决定要不要在「跨平台必需改写」之外再叠加玩法类的定点剪口：
+#   native        —— 只做必需改写 + 按构建号登记的 CUTS，不叠加玩法规则（真值对拍用）
+#   touch-run-v4  —— 暗黑2 的触屏/跑步规则域（D2R 专属，需要 RULE_BUILD 构建号断言）
+#   totk-run-v1   —— 王国之泪的首版规则域：目前不带任何剪口，只走必需改写。
+#                    TotK 的 CUTS/OBS 必须按它自己的构建号逐条登记；在此之前表为空是正确状态。
+# RULESET selects whether game-specific in-place cuts are applied on top of the
+# cross-platform-required rewrites:
+#   native       -- required rewrites plus build-id-keyed CUTS only (ground-truth comparison)
+#   touch-run-v4 -- Diablo II's touch/run domain (D2R-specific; asserts RULE_BUILD)
+#   totk-run-v1  -- Tears of the Kingdom's first domain: no cuts yet, required rewrites only.
+#                   TotK's CUTS/OBS must be registered per its own build id; empty is correct until then.
+RULESETS = ('native', 'touch-run-v4', 'totk-run-v1')
+assert RULESET in RULESETS, f'未知规则域 {RULESET}（可选：{", ".join(RULESETS)}）'
 RULE_BUILD = 'db0507f36b84200ac05f75d76ed5026f'
+# TotK 的四个模块构建号（v1.4.2，2026-10-20 实测：解包更新包后读 NSO 头 0x40–0x50）。
+# 规则域 totk-run-v1 按这张表钉死构建号：换了 TotK 版本要么显式改这张表，要么停下来重新定位
+# 每条必需改写的地址（必需改写本身是按指令模式扫的，与游戏无关；地址只出现在 CUTS/OBS/PARAMS 里）。
+# The four TotK module build ids (v1.4.2, measured on 2026-10-20 by unpacking the update and reading
+# NSO header 0x40-0x50). The totk-run-v1 domain pins the build id to this table: on a different TotK
+# version, either update this table explicitly or stop and re-locate the addresses of the required
+# rewrites (the required rewrites themselves are found by instruction pattern and are game-agnostic;
+# addresses only appear in the CUTS/OBS/PARAMS tables).
+TOTK_BUILDS = {
+    'main': '5cb42b1cf25469fb0635fd046453d843',
+    'sdk': '5cf080e800530a7f25bd528ec875c27b',
+    'subsdk0': '3308c1d216f788397d1451c8345a16cd',
+    'rtld': '82a3cf78789f9d9858c52379d8d2d129',
+}
+# RULE_RUN 只对 D2R 的触屏规则域成立；totk-run-v1 因此天然不套用任何 D2R 剪口与私有门。
+# RULE_RUN is true only for D2R's touch domain, so totk-run-v1 never applies D2R cuts or private gates.
 RULE_RUN = RULESET == 'touch-run-v4' and NAME == 'main'
+# x18 改写：暗黑2 的 main 把 x18 当 TLS 指针（宿主把它换到线程槽 K18，宿主的 C 代码会踩 x18）。
+# 实测 TotK v1.4.2 的 main 把 x18 当**普通寄存器**用（.text 里 24,204 条指令提到 x18、18,572 条提到 w18，
+# 例如 0x3f00 `add x18, x19, #0x260`、0xa761c `stxr w17, w18, [x10]`），所以 D2R 那套「x18 = TLS」的
+# 前提对 TotK 不成立。TotK 规则域先**不做 x18 改写**（svc / tpidr / cntpct 照旧改写），x18 在宿主调用
+# 之间的保全改由宿主侧补（见 docs/HANDOFF.zh-CN.md 的 NA-029：宿主入口要回写 x18）。
+# x18 rewriting: Diablo II's main uses x18 as the TLS pointer (the host redirects it to thread slot K18,
+# because the host's C code clobbers x18). Measured on TotK v1.4.2's main, x18 is a **general-purpose
+# register** (24,204 instructions in .text mention x18 and 18,572 mention w18, e.g. 0x3f00
+# `add x18, x19, #0x260` and 0xa761c `stxr w17, w18, [x10]`), so D2R's "x18 = TLS" premise does not
+# hold for TotK. The TotK domain therefore does **no** x18 rewriting for now (svc / tpidr / cntpct are
+# still rewritten); preserving x18 across host calls is left to the host side (NA-029: the host entry
+# must write x18 back).
+REWRITE_X18 = RULESET != 'totk-run-v1'
+if RULESET == 'totk-run-v1':
+    assert NAME in TOTK_BUILDS, f'TotK 规则域不认识这个模块 {NAME}（已知：{", ".join(sorted(TOTK_BUILDS))}）'
+    assert BUILD_ID == TOTK_BUILDS[NAME], f'TotK 规则构建号不符 {BUILD_ID}（{NAME} 期望 {TOTK_BUILDS[NAME]}）'
 if RULE_RUN:
     import hashlib
     assert BUILD_ID == RULE_BUILD, f'Run规则构建号不符 {BUILD_ID}'
@@ -574,8 +605,15 @@ for o in range(0, TEXT_END, 4):
     if w & 0xFFFFFFE0 == 0xD53BD060: kinds[o] = ('tpidrro_r', None); continue
     if w & 0xFFFFFFE0 == 0xD53BE020: kinds[o] = ('cntpct', w & 31); continue
     if w & 0xFFFFFFE0 == 0xD53BE040: kinds[o] = ('cntvct', w & 31); continue
+    # x18/w18 只会占这四个寄存器字段；字段里没有 18 的字不必反汇编（上游 d2r-mobile#55 的预筛：
+    # 候选从 720 万降到 19 万，三个模块一趟 78.5s → 20.2s；语义不变，产物逐字节相同）。
+    # x18/w18 can only occupy these four register fields, so words without a match need no disassembly
+    # (the prefilter from upstream d2r-mobile#55: 7.2M candidates down to 189k, one pass over the three
+    # modules 78.5s -> 20.2s; semantics unchanged, byte-identical output).
+    if REWRITE_X18 and not any((w >> p) & 31 == 18 for p in (0, 5, 10, 16)):
+        continue
     for ins in md.disasm(IMG[o:o + 4], o):
-        if has18(ins): kinds[o] = ('x18', None)
+        if REWRITE_X18 and has18(ins): kinds[o] = ('x18', None)
 
 # 按函数取指令表，找窗口与跳转表
 # Take the instruction table per function, find the windows and jump tables
@@ -669,13 +707,7 @@ if RULE_RUN and PRIVATE_GATES:
     obs.append((0x4b7230, 11, "d10183ff", "client per-unit tick update entry (unit): while frozen the host swaps x0 to a stand-in unit carrying only the skip flag ([+0x124] bit 23), so the function takes its own early-out to the epilogue; all six call sites are inside the client tick simulation 0x461b80 / 0x461e60"))
     obs.append((0x4b74d0, 12, "f81e0ff3", "client per-unit per-frame update entry (unit): drives model animation / interpolation from the tick fraction; while frozen the host swaps x0 to a stand-in unit (type 9, no render component) so both the callee 0x2a18d0 and this function take their own early-outs"))
     obs.append((0x2c3c90, 13, "f81c0ff7", "render per-frame entry, called right after the main loop writes the world frame step [0x20cebb8] and world time [0x3114208]: while frozen the host rewrites the step to 0 and the world time to its value at freeze, the same thing the game's own pause path does at 0x2c1574"))
-    obs.append((0xadc434, 14, "d10143ff", "TextBoxWidget text-changed entry (widget): reads the raw text at +0x88 and rebuilds the display; host rewrites +0x88 for strings our item-notes generator annotated with colour codes (TextBoxWidget draws U+E07E as '*'), exact-match table only, everything else untouched"))
-    obs.append((0x442bc0, 15, "a9ba6ffc", "client event-message entry (x0 = packet; byte 1 = event subtype, jump table 0x1da6752): subtype 0x17 = offline difficulty scale changed -> 0x20f91c chat line + system notification; host rewrites byte 1 past the table (default branch, nothing shown) only for 0x17 and only in a rift game (dm_rift.c); otherwise untouched. orig stp x28, x27, [sp, #-0x60]!"))
-    obs.append((0x634000, 16, "d10143ff", "server level change by level number (game, player, level, kind), used by waypoints / portals / quest moves: in a rift game, when the player leaves a rift map for a level that is neither town nor a rift map, the host swaps w2 to the rift's next map so the destination is replaced inside the single native transition"))
-    obs.append((0x711040, 17, "d101c3ff", "server quest event 'monster killed' entry (game, monster, attacker), the only entry (callers 0x7d8550 kill, 0x7ab8dc); in a rift game, for a monster that died on a rift map, the host swaps x1 to a stand-in whose +0xc0 is null so the function takes its own early return (0x711064): bosses in the rift are combat only, no quest state / quest notifications"))
     obs.append((0x3d84a0, 18, "d10143ff", "NotificationPanel message handler entry (panel, message): on InputMessage / ControllerActionBegin with action id 9 (the menu key) the native handler re-sends the notice callback and marks the message bus consumed, so the first menu press only dismisses the notice. In touch mode the host swaps x1 to a copy of the message whose action id is not 9: the notice stays until it times out and the menu key opens the menu; controller mode keeps the native behaviour"))
-    obs.append((0x463f40, 19, "f81c0ff7", "client per-frame position-error smoothing entry (s0 = frame length in ticks), called by the main loop right after all units were extrapolated in place and before the per-unit error is added back: the native error is only computed on start / stop (0x4639c0, which runs before the tick loop), so a sharp turn inside a tick snaps the extrapolated position back in one frame; the host adds that frame's jump to the local player's error fields (path +0x2a8 / +0x2ac, same clamp as native) and the native code decays it"))
-    obs.append((0x9da5b0, 20, "d104c3ff", "model yaw component per-frame update entry (x1 = argument block: +8 component, +0x20 -> +8 unit): the body turn speed is instance data on the component (+0x10..+0x2c min / max degrees per second for controller / mouse, +0x34 spring parameter); the host only reads them for the local player when a test switch is set"))
     obs.append((0x2f7664, 7, "6dbb23e9", "touch target rank: candidate compare entry (closure, unit, kind, s0=score); host raises Boss/elite score, native eligibility unchanged"))
 for off, oid, ow, why in obs:
     w = struct.unpack_from('<I', IMG, off)[0]
@@ -686,113 +718,6 @@ for off, oid, ow, why in obs:
     assert off < TEXT_END and off not in kinds and not any(lo <= off < hi for wseg in windows for lo, hi in [(wseg[0].address, wseg[-1].address + 4)]), f'观测门与改写点冲突 {off:#x}'
     put_branch(off, site_obs(off, oid, w)); stat('obs')
 
-# 秘境出口改道（r36 起）：分支门 0x89，挂在「按出口砖的连接换关」main+0x7cc1e0(游戏, 玩家, 砖) 的入口。它的四个调用者（点出口砖 0x6dbea0、
-# 入口物件 0x6aeaa0 / 0x6b0500、任务 0x7314c0）都在各自的判定通过之后才调它；目的地不是关卡号而是砖的对端房间（同一幕已生成的地图里），换不成别的幕。
-# 宿主在秘境局里把 w2 / w3 换成（秘境下一张图, 11）并让 x8≠0 → 门块直接跳去「按关卡号换关」0x634000，同一个调用者、只发生一次换关；其余情形执行原指令回 0x7cc1e4。
-# 门块与 0x85 分支门逐字同构（structck ⑪ 按 hle.h 登记表核）；与观测门 15 / 16 一样只在带宿主私有门的产物里（touch）
-# Rift exit rerouting (since r36): branch gate 0x89, hooked at the entry of "change level by the exit tile's connection" main+0x7cc1e0(game, player, tile). Its four callers (clicking an exit tile 0x6dbea0,
-# entrance objects 0x6aeaa0 / 0x6b0500, quest 0x7314c0) all call it only after their own checks have passed; the destination is not a level id but the tile's peer room (in the already generated map of the same act), so it cannot be switched to another act.
-# In a rift run the host replaces w2 / w3 with (the rift's next map, 11) and makes x8≠0 → the gate block jumps straight to "change level by level id" 0x634000, same caller, exactly one level change; in all other cases the original instruction is executed and control returns to 0x7cc1e4.
-# The gate block is word-for-word isomorphic with the 0x85 branch gate (structck ⑪ checks it against the hle.h registry); like observation gates 15 / 16 it exists only in build outputs with host-private gates (touch)
-if RULE_RUN and PRIVATE_GATES:
-    off, word, tgt = 0x7cc1e0, 0xd10183ff, 0x634000
-    assert struct.unpack_from('<I', IMG, off)[0] == word and off in set(starts) and tgt in set(starts)
-    assert off < TEXT_END and off not in kinds and not any(seg[0].address <= off < seg[-1].address + 4 for seg in windows)
-    start = here()
-    emit(STP_PRE(8, 31, 31, -16))
-    emit(STP_PRE(29, 30, 31, -16))
-    emit_gate_call(); emit(BLR(30))
-    ret = here(); emit(LDP_POST(29, 30, 31, 16))
-    emit(0x34000068)
-    emit(LDP_POST(8, 31, 31, 16)); emit(B(here(), tgt))
-    emit(LDP_POST(8, 31, 31, 16)); emit(word); emit(B(here(), off + 4))
-    gates.append((ret, 'svc', 0x89, off))
-    put_branch(off, start); stat('rift_exit')
-    cuts.append((off, struct.pack('<I', word).hex(), struct.pack('<I', B(off, start)).hex(),
-                 'rift exit redirect: tile-link level change entry -> host swaps (level, kind) and x8!=0 takes the branch to level-number change 0x634000; otherwise original ->0x7cc1e4; svc89', '仅宿主'))
-
-# 秘境里存档时的当前幕（r38 起）：分支门 0x8c，挂在原版写存档头函数 0x6fa3e0 里「取难度」那条 main+0x6fa9d0（ldrb w10, [x21, #0x104]）。
-# 它的上一条 0x6fa9cc 刚把「玩家当前在第几幕」读进 w9（ldrb w9, [x24, #0x2e8]），下面 0x6fa9e4 / 0x6fa9e8 写成难度字节 0x80 | 幕号（.d2s 0x98–0x9a），
-# 下次进局落哪个城由它定。宿主在人处于秘境图里时把 w9 换成 4（第五幕 → 重进落哈洛加斯），只动写进存档的这一个值，运行中的幕号不碰。
-# 用分支门而不是「替换一条指令」：structck 只认「bl 调用点」「入口」「分支门」三种登记形态。宿主永远让 x8 = 0（不走跳转那一路），
-# 门块恢复 x8、执行原指令、回 0x6fa9d4；跳转目标填回点本身只为满足模板（走不到）。门块与 0x85 / 0x89 逐字同构
-# Current act written to the save while in a Rift (since r38): branch gate 0x8c, hooked at the "read difficulty" instruction main+0x6fa9d0 (ldrb w10,
-# [x21, #0x104]) inside the original save-header writer 0x6fa3e0.
-# The preceding instruction 0x6fa9cc has just loaded "which act the player is currently in" into w9 (ldrb w9, [x24, #0x2e8]); below, 0x6fa9e4 / 0x6fa9e8
-# write it as the difficulty byte 0x80 | act number (.d2s 0x98–0x9a),
-# which decides which town the next session starts in. While the player is in a Rift map the host replaces w9 with 4 (Act 5 → re-enter in Harrogath);
-# only this one value written to the save is changed, the running act number is untouched.
-# A branch gate is used rather than "replace one instruction": structck only recognizes three registered forms, "bl call site", "entry" and "branch
-# gate". The host always sets x8 = 0 (the jump path is never taken);
-# the gate block restores x8, executes the original instruction and returns to 0x6fa9d4; the jump target is set to the return point itself only to
-# satisfy the template (never reached). The gate block is word-for-word identical in structure to 0x85 / 0x89
-if RULE_RUN and PRIVATE_GATES:
-    off, word, tgt = 0x6fa9d0, 0x394412aa, 0x6fa9d4   # 函数中间的一条指令（同 0x85 那扇门），不要求是函数入口；原指令不依赖 pc | An instruction in the middle of a function (same as gate 0x85); it need not be a function entry; the original instruction does not depend on pc
-    assert struct.unpack_from('<I', IMG, off)[0] == word
-    assert off < TEXT_END and off not in kinds and not any(seg[0].address <= off < seg[-1].address + 4 for seg in windows)
-    start = here()
-    emit(STP_PRE(8, 31, 31, -16))
-    emit(STP_PRE(29, 30, 31, -16))
-    emit_gate_call(); emit(BLR(30))
-    ret = here(); emit(LDP_POST(29, 30, 31, 16))
-    emit(0x34000068)
-    emit(LDP_POST(8, 31, 31, 16)); emit(B(here(), tgt))
-    emit(LDP_POST(8, 31, 31, 16)); emit(word); emit(B(here(), off + 4))
-    gates.append((ret, 'svc', 0x8c, off))
-    put_branch(off, start); stat('rift_save_act')
-    cuts.append((off, struct.pack('<I', word).hex(), struct.pack('<I', B(off, start)).hex(),
-                 'rift save act: save-header writer, right after it loads the current act into w9 -> host swaps w9 to 4 (act V) while the player is in a rift map; x8 stays 0, original insn runs ->0x6fa9d4; svc8c', '仅宿主'))
-# 佣兵加装备位（r39 起）：分支门 0x8d，挂在原版通用放置校验 main+0x6493a8 的怪物主人分支里 main+0x64a34c（mov w9, w25）。
-# 这一段（0x64a314–0x64a354）对怪物类主人只放行两类物品：0x574bc0(物品, 3 护甲)、0x574bc0(物品, 0x25 头盔)，都不是就走武器那条（按 monstats 的左右手类型），再不中就拒。
-# 门挂在「是不是头盔」返回之后、cbnz w0 之前：宿主在「主人是玩家的佣兵 + 秘境最高通关 ≥ 10 层 + 物品是腰带 / 鞋 / 手套 / 戒指 / 项链」时把 w0 改成 1，
-# 走头盔同一条放行路径（后面的部位格子、部位空不空等通用检查照常）。宿主永远让 x8 = 0；门块与 0x85 / 0x89 / 0x8c 逐字同构
-# Extra mercenary equipment slots (since r39): branch gate 0x8d, hooked in the monster-owner branch of the original game's generic placement check main+0x6493a8 at main+0x64a34c (mov w9, w25).
-# This section (0x64a314–0x64a354) lets through only two kinds of items for monster-type owners: 0x574bc0(item, 3 armor) and 0x574bc0(item, 0x25 helm); if neither, it takes the weapon path (by the left / right hand types in monstats), and if that fails too it rejects.
-# The gate is hooked after the "is it a helm" call returns and before cbnz w0: when "the owner is the player's mercenary + highest rift level cleared ≥ 10 + the item is a belt / boots / gloves / ring / amulet", the host changes w0 to 1,
-# taking the same pass path as the helm (the generic checks that follow, such as the body location cell and whether the location is empty, run as usual). The host always sets x8 = 0; the gate block is word-for-word isomorphic with 0x85 / 0x89 / 0x8c
-if RULE_RUN and PRIVATE_GATES:
-    off, word, tgt = 0x64a34c, 0x2a1903e9, 0x64a350   # 原指令不依赖 pc | The original instruction does not depend on pc
-    assert struct.unpack_from('<I', IMG, off)[0] == word
-    assert off < TEXT_END and off not in kinds and not any(seg[0].address <= off < seg[-1].address + 4 for seg in windows)
-    start = here()
-    emit(STP_PRE(8, 31, 31, -16))
-    emit(STP_PRE(29, 30, 31, -16))
-    emit_gate_call(); emit(BLR(30))
-    ret = here(); emit(LDP_POST(29, 30, 31, 16))
-    emit(0x34000068)
-    emit(LDP_POST(8, 31, 31, 16)); emit(B(here(), tgt))
-    emit(LDP_POST(8, 31, 31, 16)); emit(word); emit(B(here(), off + 4))
-    gates.append((ret, 'svc', 0x8d, off))
-    put_branch(off, start); stat('merc_slot')
-    cuts.append((off, struct.pack('<I', word).hex(), struct.pack('<I', B(off, start)).hex(),
-                 'merc slots: placement check, monster-owner branch right after the helm type test -> host sets w0=1 for ring/amulet/boots/gloves/belt on a hireling (rift best >= 10 for new equips; always on load); x8 stays 0, original insn runs ->0x64a350; svc8d', '仅宿主'))
-# 佣兵加装备位的客户端那一半（r39 同代）：分支门 0x8e，挂在客户端「佣兵能不能穿这件」函数 main+0x3bea44(佣兵, 物品) 里 main+0x3beb58（mov x0, x19）。
-# 这个函数和服务端那段同一个规则：0x574bc0(物品, 3 护甲)、0x574bc0(物品, 0x25 头盔) 中一个就返回 1，都不是走武器那条。物品格控件拿它的结果画「不可放置」的红色、
-# 决定松手时放不放——不改它，已解锁的新格拖着对的物品悬停也是红的、原版放下不成（原先靠触摸层兜底直接调 0x3bed60）。
-# 门挂在「mov w1, #0x25」之后、这次类型判断的 bl 之前：宿主在「秘境最高通关 ≥ 10 层 + 物品是腰带 / 鞋 / 手套 / 戒指 / 项链」时把 w1 换成该物品自己的类型号，
-# 类型判断自然成立、走头盔同一条返回 1 的路。宿主永远让 x8 = 0；门块与 0x8d 逐字同构
-# Client half of the extra mercenary equipment slots (same generation as r39): branch gate 0x8e, hooked inside the client's "can the mercenary wear this" function main+0x3bea44(mercenary, item) at main+0x3beb58 (mov x0, x19).
-# This function follows the same rule as the server-side section: if either 0x574bc0(item, 3 armor) or 0x574bc0(item, 0x25 helm) matches it returns 1, and if neither does it takes the weapon path. The item cell widget uses its result to draw the "cannot place" red and
-# to decide whether to place on release -- without changing it, an unlocked new cell still shows red when the right item is dragged over it, and the original game's drop fails (previously the touch layer's fallback called 0x3bed60 directly).
-# The gate is hooked after "mov w1, #0x25" and before the bl of this type check: when "highest rift level cleared ≥ 10 + the item is a belt / boots / gloves / ring / amulet", the host replaces w1 with the item's own type number,
-# so the type check passes naturally and takes the same return-1 path as the helm. The host always sets x8 = 0; the gate block is word-for-word isomorphic with 0x8d
-if RULE_RUN and PRIVATE_GATES:
-    off, word, tgt = 0x3beb58, 0xaa1303e0, 0x3beb5c   # 原指令不依赖 pc | The original instruction does not depend on pc
-    assert struct.unpack_from('<I', IMG, off)[0] == word
-    assert off < TEXT_END and off not in kinds and not any(seg[0].address <= off < seg[-1].address + 4 for seg in windows)
-    start = here()
-    emit(STP_PRE(8, 31, 31, -16))
-    emit(STP_PRE(29, 30, 31, -16))
-    emit_gate_call(); emit(BLR(30))
-    ret = here(); emit(LDP_POST(29, 30, 31, 16))
-    emit(0x34000068)
-    emit(LDP_POST(8, 31, 31, 16)); emit(B(here(), tgt))
-    emit(LDP_POST(8, 31, 31, 16)); emit(word); emit(B(here(), off + 4))
-    gates.append((ret, 'svc', 0x8e, off))
-    put_branch(off, start); stat('merc_slot_client')
-    cuts.append((off, struct.pack('<I', word).hex(), struct.pack('<I', B(off, start)).hex(),
-                 'merc slots (client): hireling can-equip check, between "mov w1,#0x25" and the type test -> host swaps w1 to the item\'s own type for ring/amulet/boots/gloves/belt (rift best >= 10); x8 stays 0, original insn runs ->0x3beb5c; svc8e', '仅宿主'))
-
 # ---- 参数位（仅宿主）：{NSO 构建号: [(偏移 A, 原字 A, 偏移 B, 原字 B, 寄存器, 键, 理由)]}。
 # 原处两条造常数指令改成第一条跳补丁区参数跳板、第二条 nop；跳板间接取键页值后跳回第一条之后（A+4）：A、B 不相邻时中间的原指令照常执行
 # （曾跳回 B+4，运行模式通知处理 0xe10d5c/0xe10d60 越过 adrp x19.. 与另一跳板，切掌机即崩；structck ⑩ 核跳板出口）。
@@ -801,7 +726,8 @@ if RULE_RUN and PRIVATE_GATES:
 # The two constant-building instructions at the original site are changed so that the first jumps to a parameter trampoline in the patch area and the second is a nop; the trampoline fetches the key page value indirectly and jumps back to just after the first (A+4): when A and B are not adjacent, the original instructions in between execute as usual
 # (it used to jump back to B+4; in the operation-mode notification handler 0xe10d5c/0xe10d60 that skipped adrp x19.. and another trampoline, and switching to handheld crashed immediately; structck ⑩ checks the trampoline exit).
 # xR must not be read or written between A and B (offline assertion: the instructions in between do not contain xR). The host supplies values according to the front end, Mac supplies the original constants → behavior unchanged ----
-PARAMS = {'db0507f36b84200ac05f75d76ed5026f': [
+PARAMS = {'5cb42b1cf25469fb0635fd046453d843': [],
+           'db0507f36b84200ac05f75d76ed5026f': [
     (0xe12d8c, 'd280c813', 0xe12d90, 'f2c07093', 19, 'KRES1', '启动初始化：主机模式输出分辨率 1600x900（{u32 宽, u32 高} 打包）'),
     (0xe12e1c, 'd280a008', 0xe12e20, 'f2c05a08', 8, 'KRES0', '启动初始化：掌机模式输出分辨率 1280x720'),
     (0xe10d60, 'd280c818', 0xe10d80, 'f2c07098', 24, 'KRES1', '运行模式变化通知（0x1f）处理：主机模式 1600x900'),
@@ -909,21 +835,3 @@ with open(P('obs.tsv'), 'w') as f:
     f.write(f'# BUILD_ID\t{BUILD_ID}\n')
     for off, oid, ow, why in obs: f.write(f'{off:#x}\t{oid}\t{ow}\t{why}\n')
 print(NAME, stats, 'cuts', len(cuts), 'obs', len(obs), 'patch', len(patch), 'PATCH_OFF', hex(PATCH_OFF), 'slot_refs', len(fix), 'gates', len(gates))
-# 启动块清单随 main 出：取仓库版本化数据 dm/data/bootlist_<main 构建号>.tsv 原样拷进产物目录并写 sha256（清单入库、不每版重录；
-# 记录本身有竞态——同产物三次记录块集合 5292 / 5114 / 5281、发起线程亦有不同——重录只在构建号变化或主动改进时做，提交附 mini A/B）
-# The boot block list ships with main: take the repository's versioned data dm/data/bootlist_<main build ID>.tsv, copy it as is into the build output directory and write its sha256 (the list is checked in, not re-recorded for every version;
-# the recording itself is racy -- three recordings of the same build output gave block sets of 5292 / 5114 / 5281, and the initiating threads also differed -- re-record only when the build ID changes or for a deliberate improvement, and attach an A/B from the second Mac to the commit)
-if NAME == 'main':
-    import hashlib, shutil
-    BL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', f'bootlist_{BUILD_ID}.tsv')
-    if not os.path.isfile(BL):   # 公开仓库不带这份清单（它每行带原版资源块的开头字节）：没有就不预取，启动时少一步提前解码，别的不受影响 | the public repository does not ship this list (each line carries the first bytes of an original resource block): without it there is no prefetch, so launch skips one ahead-of-time decode step and nothing else is affected
-        print('bootlist 没有启动块清单，跳过（不预取）。要用的话自己录一份：dm/tools/tact_bootlist.py')
-        for n in ('bootlist.tsv', 'bootlist.sha256'):   # 产物目录里以前留下的也去掉：留着会被当成这一次的产物带进安装包和壳的清单 | Leftovers from earlier runs in the build output directory are removed too: if kept they would be taken as outputs of this run and carried into the install package and the shell manifest
-            if os.path.exists(os.path.join(outdir, n)): os.remove(os.path.join(outdir, n))
-    else:
-        hd = open(BL, encoding='utf-8').readline().split()
-        if hd[-1:] != [BUILD_ID]: sys.exit(f'【红】{BL} 头行构建号 {hd[-1:]} 与 main {BUILD_ID} 不符')
-        shutil.copyfile(BL, os.path.join(outdir, 'bootlist.tsv'))
-        sha = hashlib.sha256(open(BL, 'rb').read()).hexdigest()
-        open(os.path.join(outdir, 'bootlist.sha256'), 'w').write(f'{sha}  bootlist.tsv\n')
-        print('bootlist', os.path.relpath(BL), sha[:12])

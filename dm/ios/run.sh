@@ -26,16 +26,16 @@ if [ "$1" = build ]; then
   gl=$(grep -c 'if (log_port && !pthread_create(&lp, NULL, log_port_main' Sources/main.m)
   [ "$nl" = 1 ] && [ "$gl" = 1 ] || { t "🔴 端口监听核对失败：listen( 共 $nl 处（只许 1），开关守卫 $gl 处（须 1）"; exit 1; }
   # 原版衍生资源（加宽储藏箱、百宝囊框、选角面板、小地图终点、技能图集、底部 UI v4 …）不进仓库，每次从游戏文件生成（tools/gen_assets.py；dm/README.md「从你的游戏文件生成资源」）
-  # Assets derived from the original game (widened stash, pouch frame, character select panel, minimap goal, skill atlas, bottom UI v4 ...) are not committed to the repository and are generated from game files every time (tools/gen_assets.py; dm/README.md 「从你的游戏文件生成资源」(Generate assets from your game files))
+  # Assets derived from the original game (widened stash, character select panel, minimap goal, skill atlas, bottom UI v4 ...) are not committed to the repository and are generated from game files every time (tools/gen_assets.py; dm/README.md 「从你的游戏文件生成资源」(Generate assets from your game files))
   python3 tools/gen_assets.py "${DM_ROMFS_SRC:-${DM_ROOT:-$HOME/dm-work}/data/switch/3.3.94012/Update/RomFS}" || { t "🔴 gen_assets 失败（见上）"; exit 1; }
-  make -s -C ../host dm_vault_tab.h dm_hud_exp.h dm_bright_levels.inc ROMFS="${DM_ROMFS_SRC:-${DM_ROOT:-$HOME/dm-work}/data/switch/3.3.94012/Update/RomFS}" || { t "🔴 宿主表头生成失败（见上）"; exit 1; }
+  make -s -C ../host dm_hud_exp.h ROMFS="${DM_ROMFS_SRC:-${DM_ROOT:-$HOME/dm-work}/data/switch/3.3.94012/Update/RomFS}" || { t "🔴 宿主表头生成失败（见上）"; exit 1; }
   python3 tools/gen_build.py ../host Gen > Gen/dm.xcconfig || { t "🔴 gen_build 失败"; exit 1; }
   F=$(python3 tools/gen_embed.py $OUT Gen/embed.S $MODS) || { t "🔴 gen_embed 失败"; exit 1; }
   echo "OTHER_LDFLAGS = \$(inherited) \$(DM_FRAMEWORKS) $F" >> Gen/dm.xcconfig
   for m in $MODS; do cp $OUT/$m.fixups.tsv $OUT/$m.gates.tsv Gen/dm/; done
-  # 启动块清单（缺省开预取：宿主到产物目录 = App 内 dm/ 找 bootlist.tsv）+ main.cuts.tsv（宿主据此核清单构建号）；产物没有就不带
-  # Boot block list (prefetch on by default: the host looks for bootlist.tsv in the build output directory = dm/ inside the App) + main.cuts.tsv (the host uses it to check the list's build ID); not included if the build output lacks them
-  for f in bootlist.tsv main.cuts.tsv; do [ -f $OUT/$f ] && cp $OUT/$f Gen/dm/; done
+  # main.cuts.tsv 随壳走（宿主据此核构建号）；产物没有就不带
+  # main.cuts.tsv travels with the shell (the host uses it to check the build ID); not included if the build output lacks it
+  for f in main.cuts.tsv; do [ -f $OUT/$f ] && cp $OUT/$f Gen/dm/; done
   # 图形：着色器映射表（与 Mac 同一份）+ iOS 版 metallib 缓存（PC 链 iphoneos 目标，已编，覆盖映射表 6,938/6,938；APFS 克隆不占空间）
   # Graphics: shader mapping table (the same copy as on Mac) + iOS metallib cache (PC chain iphoneos target, already compiled, covers 6,938/6,938 of the mapping table; APFS clones take no space)
   cp ../gfx/nvn/shader_map.tsv Gen/dm/   # 映射表（B 路线只用来查阶段） | Mapping table (route B only uses it to look up the stage)
@@ -70,15 +70,15 @@ if [ "$1" = build ]; then
     [ -d "$o/data" ] || continue; grep -q '^vfs-root = ' "$o/data/.build.config" 2>/dev/null || { t "🔴 覆盖层 $o 里没有可用的配置文件 data/.build.config"; exit 1; }
   done
   [ -f Gen/romfs_overlay/data/.build.config ] || { t "🔴 没生成覆盖层 Gen/romfs_overlay"; exit 1; }
-  # 免费的开发者账号（个人团队）签不了这几项权限：DM_FREE_ACCOUNT=1 时从工程描述里去掉再生成。去掉后少的是 iCloud 存档同步、
+  # 免费的开发者账号（个人团队）签不了这几项权限：DM_FREE_ACCOUNT=1 时从工程描述里去掉再生成。去掉后少的是
   # 持续执行模式与更高的内存上限；游戏照常运行（地址预留已按不带扩展虚拟寻址也放得下来定，见 host/hle_svc.c）
   # A free developer account (personal team) cannot sign these entitlements: with DM_FREE_ACCOUNT=1 they are removed from the project
-  # description before generating. What is lost is iCloud save sync,
+  # description before generating. What is lost is
   # sustained execution mode and the higher memory limit; the game runs as usual (the address reservation is already sized to fit without
   # extended virtual addressing, see host/hle_svc.c)
   if [ "${DM_FREE_ACCOUNT:-0}" = 1 ]; then
-    python3 tools/project_free.py project.yml project_free.yml || { t "🔴 DM_FREE_ACCOUNT：免费档的工程描述没生成（见上）"; exit 1; }   # 去掉签不了的六行权限与用不上的资源下载扩展 | remove the six entitlement lines it cannot sign and the asset download extension it has no use for
-    xcodegen generate -q --spec project_free.yml >/dev/null || { t "🔴 xcodegen 失败"; exit 1; }; rm -f project_free.yml; t "按免费账号生成：不带 iCloud / 持续执行 / 增加内存上限 / 扩展虚拟寻址，也不带资源下载扩展（只占一个应用标识）"
+    python3 tools/project_free.py project.yml project_free.yml || { t "🔴 DM_FREE_ACCOUNT：免费档的工程描述没生成（见上）"; exit 1; }   # 去掉签不了的三行权限与用不上的资源下载扩展 | remove the three entitlement lines it cannot sign and the asset download extension it has no use for
+    xcodegen generate -q --spec project_free.yml >/dev/null || { t "🔴 xcodegen 失败"; exit 1; }; rm -f project_free.yml; t "按免费账号生成：不带持续执行 / 增加内存上限 / 扩展虚拟寻址，也不带资源下载扩展（只占一个应用标识）"
   else
   xcodegen generate -q >/dev/null || { t "🔴 xcodegen 失败"; exit 1; }
   fi

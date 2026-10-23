@@ -4,9 +4,6 @@
  "host": {
   "trigger": "UnloadPanel:LoadScreenPanel+60",
   "keys": "X@OpenPanel:MainMenuButtonRibbon>OpenPanel:CharacterSelectPanel,DOWN@%0.5+0.03>UpdateCharacterInfo,A@%0.5>SelectCharacter,A@%1>FrontEndNavigation:ToGame",
-  "env": {
-   "DM_TOWNWP_OFF": "1"
-  }
  },
  "viewport": [
   0,

@@ -592,9 +592,6 @@ static void boot_prepare(void) {
             }
         };
         if ([fm fileExistsAtPath:sv]) writable();
-        // 全新存档 = 新设备：iCloud 同步状态与同步备份（save.test.cloudstate / .cloudbak）一并清掉，否则旧局的同步记录还在，同步按「这台的存档被换了」处理（cfc：首装那条路没走到）
-        // Brand-new save = new device: also clear the iCloud sync state and sync backup (save.test.cloudstate / .cloudbak); otherwise the old run's sync record is still there and sync treats it as "this device's save was replaced" (cfc: the first-install path was not reached)
-        for (NSString *x in @[@".cloudstate", @".cloudbak"]) { NSString *p = [sv stringByAppendingString:x]; if ([fm fileExistsAtPath:p]) [fm removeItemAtPath:p error:nil]; }
         if ([fm fileExistsAtPath:sv] && ![fm removeItemAtPath:sv error:&e]) plog("boot: 删旧存档失败 %s", e.localizedDescription.UTF8String);
         else if (!strcmp(sf, "empty")) { [fm createDirectoryAtPath:sv withIntermediateDirectories:YES attributes:nil error:nil]; plog("boot: 本局从空存档起（Documents/save.test 已清空 = 首次启动；Documents/save 未动）"); }   // =empty：无存档（冒烟的触摸玩家路径：建角进局） | =empty: no save (the touch player path of the smoke test: create a character and enter a run)
         else if (![fm copyItemAtPath:ref toPath:sv error:&e]) plog("boot: 标准存档副本失败 %s", e.localizedDescription.UTF8String);
@@ -606,19 +603,8 @@ static void boot_prepare(void) {
     }
     for (NSString *d in @[@"save", @"temp"])
         [fm createDirectoryAtPath:[doc stringByAppendingPathComponent:d] withIntermediateDirectories:YES attributes:nil error:nil];
-    { void dm_custom_init(const char *dir); dm_custom_init(doc.fileSystemRepresentation); }   // 「自定义」设置文件在 Documents（覆盖层选择等启动期的读也要用，存档还没挂） | The "Custom" settings file lives in Documents (boot-time reads such as overlay selection need it too, and the save is not mounted yet)
     setenv("DM_ROMFS", romfs.fileSystemRepresentation, 0);
     NSString *bundledOverlay = [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:g_astc_dir ? @"romfs_overlay_astc" : @"romfs_overlay"];   // 老机型补充包：贴图指向补充包的那套 | Legacy Device Pack: the set whose textures point to the Legacy Device Pack
-    {   // 走覆盖层的自定义开关（物品注释…）：构建时出了全部组合 romfs_overlay_variants/<键+键…>（gen_romfs_overlay.py），按已生效的开关挑键集合正好相等的那份；全关用 romfs_overlay。重启后生效 | Custom switches that go through the overlay (item annotations...): the build produces every combination as romfs_overlay_variants/<key+key...> (gen_romfs_overlay.py); pick the one whose key set exactly equals the switches in effect; with all off use romfs_overlay. Takes effect after restart
-        int dm_custom_get(const char *key);
-        NSString *vdir = [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:g_astc_dir ? @"romfs_overlay_astc_variants" : @"romfs_overlay_variants"];
-        NSArray<NSString *> *vs = [fm contentsOfDirectoryAtPath:vdir error:nil] ?: @[];
-        NSMutableSet<NSString *> *all = [NSMutableSet set], *on = [NSMutableSet set];
-        for (NSString *v in vs) [all addObjectsFromArray:[v componentsSeparatedByString:@"+"]];
-        for (NSString *k in all) if (dm_custom_get(k.UTF8String)) [on addObject:k];
-        for (NSString *v in vs) if ([[NSSet setWithArray:[v componentsSeparatedByString:@"+"]] isEqualToSet:on]) { bundledOverlay = [vdir stringByAppendingPathComponent:v]; break; }
-        if (on.count && [bundledOverlay.lastPathComponent isEqualToString:@"romfs_overlay"]) plog("boot: 🔴 开关组合 %s 没有对应的覆盖层，按全关启动", [on.allObjects componentsJoinedByString:@"+"].UTF8String);
-    }
     if (g_astc_dir) bundledOverlay = [NSString stringWithFormat:@"%@:%@", bundledOverlay, g_astc_dir];   // 第二层：补充包（data/<档名>，覆盖层索引指向它） | Second layer: the Legacy Device Pack (data/<archive name>, which the overlay index points to)
     if (g_astc_dir || [fm fileExistsAtPath:bundledOverlay]) { setenv("DM_ROMFS_OVERLAY", bundledOverlay.fileSystemRepresentation, 1); plog("boot: RomFS 覆盖层 %s", bundledOverlay.fileSystemRepresentation); }
     else plog("boot: 🔴 App 内缺 romfs_overlay（底部 UI v4），按原版 HUD 启动");
@@ -650,7 +636,6 @@ static void *boot_thread(void *arg) {
       plog("boot: 前端给游戏的输出分辨率 主机 %llux%llu / 掌机 %llux%llu", r & 0xffffffff, r >> 32, r0 & 0xffffffff, r0 >> 32); }
     g_T[6] = since_start();
     plog("启动计时 T5 boot_thread 入口 %.1f ms · T6 dm_main 前 %.1f ms", g_T[5], g_T[6]);
-    { void dm_cloud_boot(void); dm_cloud_boot(); }   // iCloud 同步：挂存档之前把云端更新的角色 / 共享仓库换进来（最多等 5 秒；cloud_ios.m） | iCloud sync: before mounting saves, swap in the characters / shared stash that are newer in the cloud (wait at most 5 seconds; cloud_ios.m)
     plog("boot: dm_main %s", argv[1]);
     int rc = dm_main(g_boot_argc, argv);
     plog("boot: dm_main 返回 %d", rc);

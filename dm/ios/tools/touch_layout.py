@@ -168,34 +168,13 @@ INSERT = {
 # layout units, origin = horizontal center of the screen), vertically 450–1750 (title and description above, buttons below). On the real device, trying to tap the warlock always gave the druid or the sorceress.
 CLASS_STRIPS = [('Amazon', -1500, -1092), ('Assassin', -1092, -750), ('Necromancer', -750, -396), ('Barbarian', -396, -18),
                 ('Paladin', -18, 372), ('Sorceress', 372, 750), ('Warlock', 750, 1158), ('Druid', 1158, 1640)]
-# 建角「选择游戏模式」页的「极乐世界」勾选项（原版勾选框 + 标题 + 一行说明，放在标准 / 专家那行下面左侧；它是附加项，不是第三种模式）。
-# 勾选框 = 原版开关按钮（建局高级选项 / 储藏箱页那个勾选框的图），标题与说明用本页牌子上的两个字样式。点击消息是空操作，勾选由控件自己切换，
-# 宿主读它的状态（dm_cursor.c dm_fe_bliss）。位置数字（-1551, 1330）宿主那边也用到，改这里要一起改。
-# The 「极乐世界」(Elysium) checkbox item on the character creation 「选择游戏模式」(Select game modes) page (original-game checkbox + title + one line of description, placed at the left below the standard / hardcore row; it is an add-on, not a third mode).
-# Checkbox = the original game's toggle button (the checkbox image from the game creation advanced options / stash page), and the title and description use the two text styles from this page's plaques. The tap message is a no-op, the check state is toggled by the widget itself,
-# and the host reads its state (dm_cursor.c dm_fe_bliss). The position numbers (-1551, 1330) are also used on the host side, so change them together when changing here.
-_BLISS = ('        { "type": "Widget", "name": "TouchBlissWidget", "children": [\n        {\n            "type": "ToggleButtonWidget", "name": "TouchBliss",\n            "fields": {\n'
-          '                "rect": { "x": -1551, "y": 1330 }, "hitMargin": { "left": 30, "top": 30, "right": 30, "bottom": 30 },\n'
-          '                "filename": "Lobby\\\\CreateGame\\\\CreateGame_AdvancedCheckbox",\n                "untoggledFrame": 0, "untoggledPressedFrame": 1, "untoggledHoveredFrame": 3, "untoggledDisabledFrame": 2,\n'
-          '                "toggledFrame": 4, "toggledPressedFrame": 5, "toggledHoveredFrame": 6,\n                "onClickMessage": "PanelManager:ClosePanel:TouchBliss",\n            }\n        },\n        ] },\n'
-          '        { "type": "TextBoxWidget", "name": "TouchBlissTitle", "fields": { "rect": { "x": -1451, "y": 1322, "width": 690, "height": 60 }, "text": "@dmBlissTitle", "style": "$StyleCharacterModeSelectTitle" } },\n'
-          '        { "type": "TextBoxWidget", "name": "TouchBlissDesc", "fields": { "rect": { "x": -1451, "y": 1400, "width": 3000, "height": 120 }, "text": "@dmBlissDesc", "style": "$StyleCharacterModeSelectDescription" } },\n')
-INSERT['controller/console/characteroptionspanelhd.json'] = (r'\{\s*"type"\s*:\s*"ButtonLegendWidget"\s*,\s*"name"\s*:\s*"CharacterOptionsLegend"', _BLISS)
-def pad_bliss(s):   # 手柄版建角模式页（原版布局原样）+ 「极乐世界」那一行（同触屏版定稿的那一行）+ 勾选框左边一个原版 Y 键帽（Switch 手柄左键）： | Controller-version character-creation mode page (original layout unchanged) + the "Elysium" row (the same row as finalized for the touch version) + an original Y keycap to the left of the checkbox (the left face button on a Switch controller):
-    # 这一页原版只有写死的几行、没有自由光标，做不成「移上去按 A」，按 Y 勾 / 取消（dm_cursor.c；做不成可聚焦的一行就用快捷键，哪个键都行）
-    # 「天梯 / 非天梯」一行同触屏版一样挪走（单机只支持标准 / 专家）；键位提示条留着（手柄版界面）
-    # In the original game this page has only a few hard-coded rows and no free cursor, so "move onto it and press A" cannot be done;
-    # press Y to check / uncheck (dm_cursor.c; when a focusable row cannot be made, use a shortcut key, and any key will do).
-    # The "Ladder / Non-Ladder" row is moved away just as in the touch version (single player only supports Standard / Hardcore);
-    # the button legend is kept (controller-version UI).
+def pad_charopt(s):   # 手柄版建角模式页（原版布局原样）：去掉「天梯 / 非天梯」那一行与提示条里的「X 经典版」 | Controller-version character-creation mode page (original layout unchanged): removes the "Ladder / Non-Ladder" row and the "X Classic" entry in the button legend:
     s, n = offscreen(s, types=(), names=('LadderFlag', 'LadderToggle', 'NonLadderToggle', 'LadderCenter')); assert n == 4, n
     # 提示条里的「X 经典版」去掉（宿主同时把这一页的 X 收掉，dm_cursor.c）：单机只支持资料片的标准 / 专家角色，同触屏版
     # Remove "X Classic" from the button legend (the host also swallows X on this page, see dm_cursor.c): single player only supports
     # Standard / Hardcore expansion characters, same as the touch version.
     s, n = re.subn(r'\{\s*"action"\s*:\s*"option2"\s*,\s*"description"\s*:\s*"@LegacyGameVersionSwitch"\s*\}\s*,?', '', s); assert n == 1, n
-    at, add = INSERT['controller/console/characteroptionspanelhd.json']; ms = list(re.finditer(at, s)); assert len(ms) == 1
-    key = '        { "type": "ImageWidget", "name": "TouchBlissKey", "fields": { "rect": { "x": -1665, "y": 1330, "scale": 1.5 }, "filename": "Controller/ControllerButtons/Switch/ButtonLeft" } },\n'
-    return s[:ms[0].start()] + add.lstrip() + key + '        ' + s[ms[0].start():]
+    return s
 def set_rect(s, name, x, y, w, h):
     m = re.search(r'"name"\s*:\s*"%s"' % re.escape(name), s); assert m, name
     r = re.compile(r'"rect"\s*:\s*\{[^}]*\}').search(s, m.end()); assert r and r.start() - m.end() < 200, name
@@ -353,13 +332,13 @@ INGAME = {
     # 中心换到面板坐标 = (282,1274) / (1018,1274)；按钮图 58 像素 = 116 单位见方 → 左上角 (224,1216) / (960,1216)
     # 交易页只留一颗修理：「全部修理」挪到左格；单件修理去掉（物品上本来就能单件修），空出的右格放「刷新货架」（同赌博页刷新钮的位置与原图）。
     # 刷新钮借单件修理那颗控件 button_repair：面板打开函数 0x409b90 按名字只在交易 / 修理页显示它，正好是刷新钮该出现的时机；图 / 音 / 说明换成赌博页刷新钮的原版值，
-    # 点击发空操作消息 PanelManager:ClosePanel:TouchShopRefresh，宿主 dm_shoprefresh.c 照赌博刷新的写法再发一次「打开交易」并置这个商人的待刷新标志（原版货单机制重刷）
+    # 点击发空操作消息 PanelManager:ClosePanel:TouchShopRefresh；宿主侧「刷新货架」实现已随 D2R 专属模块在裁剪批 7a 摘除（TotK 不沿用），本按钮在 TotK 分支上没有宿主实现
     # The two repair buttons: the keyboard-and-mouse positions (169,1277 / 877,1277) are set to the notches of the keyboard-and-mouse background image; the controller-layout panel uses a different background image (Controller/Panel/Vendor/V2/VendorForge_BG, placed at -2,100),
     # whose notches are elsewhere -- moved over as-is the buttons sit skewed outside the lower-left edge of the notches. Measured on the controller-layout background image: the two notches are at x 72–212 / 440–580, y 542–632 pixels in the image (1 pixel = 2 units),
     # centers converted to panel coordinates = (282,1274) / (1018,1274); the button image is 58 pixels = 116 units square → top-left corners (224,1216) / (960,1216)
     # The trade page keeps only one repair button: 「全部修理」(Repair All) moves to the left cell; single-item repair is removed (items can already be repaired individually on the item itself), and the freed right cell holds 「刷新货架」(Refresh Stock) (same position and original image as the gamble page refresh button).
     # The refresh button borrows the single-item repair widget button_repair: the panel open function 0x409b90 shows it by name only on the trade / repair page, which is exactly when the refresh button should appear; image / sound / description are replaced with the original-game values of the gamble page refresh button,
-    # and the tap sends the no-op message PanelManager:ClosePanel:TouchShopRefresh; the host dm_shoprefresh.c, written the same way as the gamble refresh, sends 'open trade' once more and sets this vendor's pending-refresh flag (re-rolled by the original game's stock list mechanism)
+    # and the tap sends the no-op message PanelManager:ClosePanel:TouchShopRefresh; the host-side "Refresh Stock" implementation was removed with the D2R-only module in trim batch 7a (not carried over to TotK), so this button has no host implementation on the TotK line
     'controller/vendorpanellayouthd.json': ('vendorpanellayouthd.json', [('button_repair', None, '"rect": { "x": 960, "y": 1216 }, "filename": "PANEL\\\\Vendors\\\\Gambling_Refresh_Button", "sound": "cursor_gamble_refresh_hd", "tooltipString": "@refresh", "onClickMessage": "PanelManager:ClosePanel:TouchShopRefresh"'),
         # 不修理的商人（基德、阿卡拉…）不显示 button_repair：同一颗刷新钮再挂一份，名字用 button_blank——面板打开函数 0x409b90 按名字找它，
         # 在「不修理」的交易页与赌博页显示（面板模式 +0x168：0 交易不修理 / 1 交易会修理 / 2 赌博；button_repair 只在 1、button_refresh 只在 2、button_blank 在 ≠ 1）。
@@ -469,89 +448,6 @@ def _inv_touch(hint):   # hint 已不用：底部手势提示字去掉（手势�
         s, n = offscreen(s)
         return s, n
     return fn
-# 符文之语助手清单：物品栏面板下的一组原版控件，全摆在屏幕外、字是空的；
-# 长按匹配底材时宿主（dm/host/dm_runeword.c）写字、量宽、摆位置，「一键合成」按钮只在符文齐且此刻可取用的那几行挪回来。
-# 每个符文之语两行：名字（金）+ 需要等级（灰）一行；符文串一行，每枚符文一个文字框（「#13 夏」），缺的那枚换成红色那一份。
-# 原版文字框不认行内颜色码（真机：U+E07E 显示成「*」）、也不换行不裁剪，所以一种颜色一个控件；符文框开 fitToText，宿主按游戏量出的宽度（+0x78）逐个往右排，保证不出底板、不压按钮。
-# 全部包在一个容器 TouchRwBox 里：直接挂物品栏下会让面板直接子控件过 256 个，安全阀的面板巡检（dm_cursor.c ui_panel_heal，子控件数 > 256 判不可见）
-# 就把开着的物品栏判成「屏上没面板」补发 ClosePanel（真机 y2–y6 四局）。容器不设 rect，子控件坐标仍按物品栏面板算。
-# 底板 = 半透明深色矩形（同原版说明框的观感）；按钮 = 难度选择框那颗原版按钮图（FrontEnd_ButtonMed）。按钮发 PanelManager:ClosePanel:TouchRwGo<行号>（空操作，宿主当信号收）
-# Runeword helper list: a group of original-game widgets under the inventory panel, all placed off screen with empty text;
-# on a long press that matches a base item the host (dm/host/dm_runeword.c) writes the text, measures widths and places them, and the 「一键合成」(Craft) button is moved back only for the rows whose runes are complete and available right now.
-# Two lines per runeword: name (gold) + required level (gray) on one line; the rune string on one line, one text box per rune (「#13 夏」(#13 Shael)), with a missing rune replaced by its red copy.
-# The original game's text box does not honor inline color codes (real device: U+E07E shows as '*'), and neither wraps nor clips, so there is one widget per color; rune boxes enable fitToText, and the host lays them out to the right one by one using the width measured by the game (+0x78), making sure they do not leave the backing or cover the button.
-# Everything is wrapped in one container TouchRwBox: hanging them directly under the inventory would push the panel's direct child widgets past 256, and the safety valve's panel patrol (dm_cursor.c ui_panel_heal, more than 256 child widgets is judged invisible)
-# would then judge the open inventory as 'no panel on screen' and send an extra ClosePanel (four real-device runs y2-y6). The container has no rect, and child widget coordinates are still relative to the inventory panel.
-# Backing = semi-transparent dark rectangle (same look as the original game's tooltip); button = the original-game button image from the difficulty selection box (FrontEnd_ButtonMed). The button sends PanelManager:ClosePanel:TouchRwGo<row number> (a no-op that the host receives as a signal)
-_RW_N = 15
-def _rw_text(name, w, size, color, h='left', fit=False, ht=56):
-    return ('        { "type": "TextBoxWidget", "name": "%s", "fields": { "rect": { "x": 99999, "y": 99999, "width": %d, "height": %d }, "text": "", %s'
-            '"style": { "pointSize": %d, "fontColor": { "r": %d, "g": %d, "b": %d, "a": 255 }, "alignment": { "h": "%s", "v": "center" } } } },\n') % ((name, w, ht, '"fitToText": true, ' if fit else '', size) + color + (h,))
-_RW = ('        { "type": "Widget", "name": "TouchRwBox", "children": [\n'
-       + '        { "type": "RectangleWidget", "name": "TouchRwBg", "fields": { "rect": { "x": 99999, "y": 99999, "width": 1125, "height": 400 }, "color": [ 0.055, 0.055, 0.055, 0.92 ] } },\n'
-       + _rw_text('TouchRwTitle', 1125, 38, (235, 235, 235), 'center')
-       # 翻页一排（一页放不下时宿主才挪回来）：照搬键鼠版仓库页 StashNavigation 的两颗箭头与页码字（同图、同帧号、同字样式），点击改发空操作消息给宿主
-       # Paging row (the host moves it back only when one page is not enough): copied from the two arrows and page number text of StashNavigation on the keyboard-and-mouse stash page (same images, same frame numbers, same text style), with taps changed to send a no-op message to the host
-       + ''.join('        { "type": "ButtonWidget", "name": "TouchRwPg%s", "fields": { "rect": { "x": 99999, "y": 99999, "width": 64, "height": 64 }, "filename": "PANEL\\\\Stash\\\\Stash_%sArrow", '
-                 '"normalFrame": 0, "pressedFrame": 2, "hoveredFrame": 1, "disabledFrame": 3, "onClickMessage": "PanelManager:ClosePanel:TouchRwPg%s" } },\n' % (k, a, k) for k, a in (('Prev', 'Left'), ('Next', 'Right')))
-       # 条目之间的分隔线（每个符文之语之间隔一行）：包里没有虚线素材，用原版暂停菜单列表的分隔线图 PauseMenu/Divider_Medium，调暗不抢字
-       # Divider lines between entries (one line between each runeword): the package has no dashed-line asset, so the original game's pause menu list divider image PauseMenu/Divider_Medium is used, dimmed so it does not compete with the text
-       + ''.join('        { "type": "ImageWidget", "name": "TouchRwSep%d", "fields": { "rect": { "x": 99999, "y": 99999, "scale": 1.25 }, "filename": "PauseMenu\\\\Divider_Medium", "transparency": 0.35 } },\n' % k for k in range(7))
-       + '        { "type": "TextBoxWidget", "name": "TouchRwPage", "fields": { "text": "", "rect": { "x": 99999, "y": 99999, "width": 230, "height": 64 }, '
-         '"style": { "fontColor": "$PanelTitleColor", "pointSize": "$MediumFontSize", "alignment": { "v": "center", "h": "center" }, "spacing": "$MinimumSpacing", "dropShadow": "$DefaultDropShadow" } } },\n'
-       # 每行的控件（15 行 × 名字 / 等级 / 12 枚符文 / 灰字 / 按钮 = 240 个）另包一层容器 TouchRwRows：全挂在 TouchRwBox 下会过 256 个，
-       # 交互层与触点脚本按名字找控件的遍历（子控件数 > 256 当不可见）就找不到它们（加了 TouchRwHint 后 257 个，tap_ui TouchRwGo0 全部找不到）
-       # The widgets of each row (15 rows × name / level / 12 runes / gray text / button = 240) are wrapped in another container TouchRwRows: hanging them all under TouchRwBox would exceed 256,
-       # and the traversal by which the interaction layer and touch point scripts find widgets by name (more than 256 child widgets counts as invisible) would then not find them (257 after adding TouchRwHint, and tap_ui TouchRwGo0 could find none of them)
-       + '        { "type": "Widget", "name": "TouchRwRows", "children": [\n'
-       + ''.join(_rw_text('TouchRwName%d' % i, 520, 36, (199, 179, 119), fit=True, ht=46) + _rw_text('TouchRwLv%d' % i, 300, 28, (160, 160, 160), fit=True, ht=40)
-                 + ''.join(_rw_text('TouchRwR%d_%d%s' % (i, j, c), 300, 30, col, fit=True, ht=40) for j in range(6) for c, col in (('w', (235, 235, 235)), ('r', (255, 90, 90))))
-                 # 底材在共享仓库（原版不能直接镶）时按钮那一格换成一行灰字：原版说明框的灰 $FontColorGray
-                 # When the base item is in the shared stash (the original game cannot socket it directly) the button cell is replaced with a line of gray text: the gray of the original game's tooltip, $FontColorGray
-                 + ('        { "type": "TextBoxWidget", "name": "TouchRwHint%d", "fields": { "rect": { "x": 99999, "y": 99999, "width": 400, "height": 40 }, "text": "@dmRwHint", "fitToText": true, '
-                    '"style": { "pointSize": 28, "fontColor": "$FontColorGray", "alignment": { "h": "left", "v": "center" } } } },\n') % i
-                 + ('        { "type": "ButtonWidget", "name": "TouchRwGo%d", "fields": { "rect": { "x": 99999, "y": 99999, "width": 408, "scale": 0.75 }, "filename": "FrontEnd/HD/Final/FrontEnd_ButtonMed", "hoveredFrame": 3, '
-                    '"textString": "@dmRwGo", "textColor": "$LightButtonTextColor", "text/style": "$StyleFEButtonText", "onClickMessage": "PanelManager:ClosePanel:TouchRwGo%d" } },\n') % (i, i)
-                 for i in range(_RW_N))
-       + '        ] },\n'
-       # 手柄模式的选中框：原版手柄选中框（同编年史仓库格子的金框），框住十字键选中的那一行；触屏模式一直在屏外
-       # Selection frame in controller mode: the original controller selection frame (same as the gold frame on Chronicle vault cells), framing the row selected with
-       # the D-pad; always off-screen in touch mode
-       + '        { "type": "NineTileImageWidget", "name": "TouchRwSel", "fields": { "rect": { "x": 99999, "y": 99999, "width": 1000, "height": 100 }, "backgroundColor": [ 0, 0, 0, 0 ], '
-         '"filename": "Controller/PANEL/ControllerSelector/ControllerSelectorBorder", "tileScale": 0.5 } },\n'
-       # 符文之语详情（点暗金色的名字显示该符文之语的属性）：放在最后（画在最上层）。属性文字是游戏自己生成的原版说明（宿主 rw_desc，同编年史），
-       # 文字框样式照抄原版物品说明框（_profilehd.json TooltipStyle：白字、提示框字号、居中、行序倒排、处理 | 字符）；页式：清单底板里换成详情，左上角原版仓库左箭头 +「返回」
-       # 字号：原版提示框字号（手柄版 42）一屏放不下长的（全表 99 条最长 24 行）；两份文字框，32 号放得下就用它，放不下换 22 号（宿主按量出的高挑）
-       # Runeword details (tapping the unique-gold name shows that runeword's properties): placed last (drawn on the top layer). The property text is the original game's description generated by the game itself (host rw_desc, same as the chronicle),
-       # and the text box style is copied from the original game's item tooltip (_profilehd.json TooltipStyle: white text, tooltip font size, centered, reversed line order, handling of the | character); page style: the details replace the list inside the list backing, with the original game's stash left arrow + 「返回」(Back) at the top left
-       # Font size: the original game's tooltip font size (42 in the controller layout) cannot fit the long ones on one screen (longest of all 99 entries in the table is 24 lines); two text boxes, use size 32 if it fits and switch to size 22 if not (the host picks by the measured height)
-       + ''.join('        { "type": "TextBoxWidget", "name": "TouchRwDesc%s", "fields": { "rect": { "x": 99999, "y": 99999, "width": 1000, "height": 600 }, "text": "", "fitToText": true, '
-                 '"style": { "fontColor": "$FontColorWhite", "pointSize": %d, "alignment": { "h": "center", "v": "top" }, "options": { "pipeCharacterBehavior": "handle", "newlineHandling": "reversed" } } } },\n' % (k, pt)
-                 for k, pt in (('', 32), ('S', 22)))
-       + '        { "type": "ButtonWidget", "name": "TouchRwBack", "fields": { "rect": { "x": 99999, "y": 99999, "width": 64, "height": 64 }, "filename": "PANEL\\\\Stash\\\\Stash_LeftArrow", '
-         '"normalFrame": 0, "pressedFrame": 2, "hoveredFrame": 1, "disabledFrame": 3, "onClickMessage": "PanelManager:ClosePanel:TouchRwBack" } },\n'
-       + _rw_text('TouchRwBackTxt', 300, 34, (199, 179, 119), fit=True, ht=64).replace('"text": "",', '"text": "@Return",')
-       + ('        { "type": "ButtonWidget", "name": "TouchRwDetGo", "fields": { "rect": { "x": 99999, "y": 99999, "width": 408, "scale": 0.75 }, "filename": "FrontEnd/HD/Final/FrontEnd_ButtonMed", "hoveredFrame": 3, '
-          '"textString": "@dmRwGo", "textColor": "$LightButtonTextColor", "text/style": "$StyleFEButtonText", "onClickMessage": "PanelManager:ClosePanel:TouchRwDetGo" } },\n')
-       + '        ] },\n')
-def _rw_children_check():
-    """清单控件各层容器的直接子控件数都要 ≤ 256：交互层 / 触点脚本 / 安全阀遍历面板树时，子控件数 > 256 的容器当不可见（踩到过两次）。 | The number of direct child widgets of each container level of the list widget must be ≤ 256: when the interaction layer / touch point script / safety valve traverse the panel tree, a container with more than 256 child widgets is treated as invisible (hit twice)."""
-    import json
-    t = '{"c":[' + _RW.replace('        ] },\n', ']},').rstrip().rstrip(',') + ']}'
-    def walk(w, path):
-        ch = w.get('children', [])
-        if len(ch) > 256: raise SystemExit('touch_layout：符文之语清单容器 %s 直接子控件 %d 个，超过 256' % (path, len(ch)))
-        for c in ch: walk(c, path + '/' + c.get('name', '?'))
-    walk(json.loads(re.sub(r',(\s*[}\]])', r'\1', t)), '')
-def _inv_rw(s):
-    _rw_children_check()
-    s, n = offscreen(s)
-    i = s.rstrip().rfind(']'); assert s.rstrip().endswith('}') and i > 0
-    return s[:i].rstrip(' ') + _RW + '    ' + s[i:], n + 1
-def pad_inv_rw(s):   # 手柄版物品栏（原版布局，不挪任何东西）+ 符文之语清单控件：手柄模式按住对比键打开同一份清单（gen_romfs_overlay.py 手柄版布局） | Controller inventory (original layout, nothing moved) + runeword list widgets: in controller mode holding the compare button opens the same list (gen_romfs_overlay.py controller layouts)
-    _rw_children_check()
-    i = s.rstrip().rfind(']'); assert s.rstrip().endswith('}') and i > 0
-    return s[:i].rstrip(' ') + _RW + '    ' + s[i:]
 # 技能绑定页（技能树里给技能键配技能的框，两排各六格）：格下原来是手柄键图标（已整体透明），换成屏幕上技能键的名字。
 # 格 1–6 = A B Y X R ZR；触摸技能键 = 攻击(A) F1(B) F2(X) F3(Y) F4(R)（dm_touch_controls.c skill[]），第二套 F5–F8。第 3、4 格对调位置，屏上顺序就是 F1 F2 F3 F4。
 # 第 6 格（ZR）触摸下没有对应的技能键，不标字。
@@ -650,299 +546,6 @@ def _chronicle_touch(s):
            '            ]\n        }\n    ')
     end = s.rstrip().rstrip('}').rstrip(); assert end.endswith(']'); at = len(end) - 1
     return s[:at].rstrip() + add + s[at:], 1
-# 编年史第四个页签「首领」= 刷怪积分牌。页签条加第四项，消息发 ToggleChildPanel:TouchKillBoard——
-# 游戏照常关掉当前列表页、去开一个不存在的面板（宿主实测：中间留空，不报错）；那块空地由这里加的控件 TouchKillBoard 占：
-# 照原版列表页（ChronicleBaseListPanelHD.json）的摆法与美术——普通 / 噩梦 / 地狱三个勾选、右上下拉（排序）、左列五幕、左下总数框、右列每个首领一行（任务日志图标 + 两行字）。
-# 名单与字由宿主 dm_kills.c 写（键 = dm_kills.c 的 k_rows），显示 / 隐藏、切幕、排序、滚动高度也由它管；点击一律发无害的 ClosePanel:TouchKB_*（同自定义页）
-# Chronicle fourth tab 「首领」(Bosses) = the kill board. A fourth item is added to the tab strip, and its message sends ToggleChildPanel:TouchKillBoard --
-# the game closes the current list page as usual and goes to open a panel that does not exist (measured on the host: the middle is left empty, no error); that empty area is occupied by the widget TouchKillBoard added here:
-# following the placement and art of the original game's list page (ChronicleBaseListPanelHD.json) -- three checkboxes Normal / Nightmare / Hell, top-right dropdown (sort), five acts in the left column, total count box at the bottom left, one row per boss in the right column (quest log icon + two lines of text).
-# The roster and text are written by the host dm_kills.c (keys = k_rows in dm_kills.c), which also manages show / hide, act switching, sorting and scroll height; all taps send a harmless ClosePanel:TouchKB_* (same as the custom page)
-KB_ROW_H = 188   # 原版行底图的高（底图不拉伸）。三行字：名字 + 击杀 / 首杀 + 暗金套装 / 最快 · 最近 · 平均；宿主 dm_kills.c KB_ROW_H 同值 | Height of the original game's row background image (the background image is not stretched). Three lines of text: name + kills / first kill + unique and set / fastest, latest, average; same value as KB_ROW_H in the host dm_kills.c
-# 每行的原版图标（hd/global/ui/QuestIcons，第 0 帧 = 金色）：按原版任务认，没有对应任务的用 Done（任务日志里的暗色骷髅章）
-# Each row's original-game icon (hd/global/ui/QuestIcons, frame 0 = gold): matched by the original game's quest; rows with no corresponding quest use Done (the dark skull stamp in the quest log)
-KB_ICON = {'andariel': 'a1q6', 'countess': 'a1q4', 'bloodraven': 'a1q2', 'cowking': 'Misc\\CowKing', 'corpsefire': 'a1q1', 'smith': 'a1q5', 'griswold': 'a1q3', 'rakanishu': 'a1q3',
-           'duriel': 'a2q6', 'summoner': 'a2q5', 'radament': 'a2q1', 'fangskin': 'a2q3',
-           'mephisto': 'a3q6', 'council': 'a3q5', 'bremm': 'a3q6', 'wyand': 'a3q6', 'maffer': 'a3q6',
-           'diablo': 'a4q2', 'vizier': 'a4q2', 'deseis': 'a4q2', 'infector': 'a4q2', 'izual': 'a4q1', 'hephasto': 'a4q3',
-           'baal': 'a5q6', 'nihlathak': 'a5q4', 'shenk': 'a5q1', 'frozenstein': 'a5q3', 'ancients': 'a5q5',
-           'colenzo': 'a5q6', 'achmel': 'a5q6', 'bartuc': 'a5q6', 'ventar': 'a5q6', 'lister': 'a5q6'}
-def _kb_keys():   # 名单的键取自 dm_kills.c（一处定义） | The keys of the roster are taken from dm_kills.c (defined in one place)
-    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'host', 'dm_kills.c'), encoding='utf-8').read()
-    ks = re.findall(r'\{"([a-z]+)", (?:"[^"]*"|NULL), ([1-5]), K_', src)
-    if len(ks) < 60 or len({k for k, _ in ks}) != len(ks): raise SystemExit('touch_layout：从 dm_kills.c 读到的积分牌名单不对（%d 行）' % len(ks))
-    return [(k, int(a)) for k, a in ks]
-def _kb_text(name, x, y, w, h, color, size, align='left', text=''):
-    return {'type': 'TextBoxWidget', 'name': name, 'fields': {'rect': {'x': x, 'y': y, 'width': w, 'height': h}, 'text': text,
-            'style': {'fontColor': color, 'pointSize': size, 'alignment': {'h': align, 'v': 'center'}}}}
-def _kb_check(name, x, label):
-    return [{'type': 'ToggleButtonWidget', 'name': name, 'fields': {'rect': {'x': x, 'y': 0, 'width': 65, 'height': 65}, 'sound': 'cursor_menu_select_hd',
-             'filename': 'Lobby\\CreateGame\\CreateGame_AdvancedCheckbox', 'untoggledFrame': 0, 'untoggledPressedFrame': 1, 'untoggledHoveredFrame': 3, 'untoggledDisabledFrame': 2,
-             'toggledFrame': 4, 'toggledPressedFrame': 5, 'toggledHoveredFrame': 6, 'onClickMessage': 'PanelManager:ClosePanel:' + name}},
-            {'type': 'TextBoxWidget', 'name': name + '_Text', 'fields': {'text': label, 'rect': {'x': x + 80, 'y': -5, 'height': 50}, 'style': '$StyleSettingsTitle', 'fitToText': True}}]
-_KB_SPACER = {'type': 'Widget', 'name': 'spacer', 'fields': {'rect': {'width': 20, 'height': 65}}}
-def _kb_row(key):
-    ic = KB_ICON.get(key, 'Done')
-    return {'type': 'Widget', 'name': 'TouchKB_' + key, 'fields': {'rect': {'x': 0, 'y': 0, 'width': 1157, 'height': KB_ROW_H}}, 'children': [
-        {'type': 'ImageWidget', 'name': 'Bg', 'fields': {'filename': 'PANEL\\Chronicle\\Slot_list_item_XL'}},
-        {'type': 'ImageWidget', 'name': 'Icon', 'fields': {'rect': {'x': 22, 'y': 24, 'scale': 0.83}, 'filename': 'QuestIcons\\' + ic}},
-        _kb_text('Name', 180, 8, 640, 60, '$FontColorWhite', '$LootFilterMediumLargeFontSize'),
-        _kb_text('Kills', 760, 8, 360, 60, '$FontColorGoldYellow', '$LootFilterMediumLargeFontSize', 'right'),
-        _kb_text('First', 180, 76, 560, 48, '$FontColorMoreLightGray', '$LootFilterSmallFontSize'),
-        _kb_text('Drops', 740, 76, 380, 48, '$FontColorMoreLightGray', '$LootFilterSmallFontSize', 'right'),
-        _kb_text('Times', 180, 126, 940, 48, '$FontColorMoreLightGray', '$LootFilterSmallFontSize')]}
-def _kb_board():
-    acts = []
-    for i in range(6):   # 第一至五幕 + 秘境（秘境成绩挂在积分牌第六项） | Acts one to five + rift (rift results hang on the sixth item of the kill board)
-        y = 80 + 100 * i
-        acts += [{'type': 'ImageWidget', 'name': 'TouchKB_ActArrow%d' % i, 'fields': {'rect': {'x': 0, 'y': y}, 'filename': 'PANEL\\Chronicle\\Btn_collapse'}},
-                 {'type': 'ToggleButtonWidget', 'name': 'TouchKB_Act%d' % i, 'fields': {'rect': {'x': 100, 'y': y, 'width': 360, 'height': 100}, 'sound': 'cursor_menu_select_hd',
-                  'filename': 'PANEL\\Chronicle\\Slot_list_small_golddeco', 'untoggledFrame': 0, 'toggledFrame': 1, 'onClickMessage': 'PanelManager:ClosePanel:TouchKB_Act%d' % i},
-                  'children': [_kb_text('Text', 35, 0, 315, 100, '$FontColorWhite', '$MediumFontSize', text=('@dmKbAct%d' % (i + 1)) if i < 5 else '@dmKbRift')]}]
-    # 外层 TouchKillBoard 用原版列表页同一个矩形变量（各档位的位置 / 缩放跟原版一致）；里层 TouchKB_Body 缺省挪出屏幕（游戏不认 visible: false），
-    # 宿主切到这一页时挪回 (0, 0)：面板刚打开那一帧宿主还够不着它，放在屏外就不会闪一帧
-    # The outer TouchKillBoard uses the same rectangle variable as the original game's list pages (position / scaling in each profile match the original game); the inner TouchKB_Body is moved off screen by default (the game does not honor visible: false),
-    # and the host moves it back to (0, 0) when switching to this page: on the frame the panel has just opened the host cannot reach it yet, and keeping it off screen avoids a one-frame flash
-    return {'type': 'Widget', 'name': 'TouchKillBoard', 'fields': {'rect': '$OptionsPanelRect', 'anchor': {'x': 0.5}}, 'children': [
-        {'type': 'Widget', 'name': 'TouchKB_Body', 'fields': {'rect': {'x': 99999, 'y': 0, 'width': 1730, 'height': 1284}}, 'children':
-        [{'type': 'StackWidget', 'name': 'TouchKB_DiffStack', 'fields': {'rect': {'x': 0, 'y': 0, 'height': 65, 'width': 1300}, 'direction': 'LeftRight', 'padding': 15},   # 照原版 QualityStack | Follows the original game's QualityStack
-          'children': _kb_check('TouchKB_D0', 0, '@strCreateGameNormalText') + [_KB_SPACER] + _kb_check('TouchKB_D1', 406, '@strCreateGameNightmareText') + [_KB_SPACER] + _kb_check('TouchKB_D2', 950, '@strCreateGameHellText')}] + [
-        {'type': 'DropdownListWidget', 'name': 'TouchKB_Sort', 'fields': {'rect': {'x': -390, 'y': 0, 'width': 610, 'height': 105, 'scale': 0.65},
-            'background': {'rect': {'width': 610, 'height': 105}, 'filename': 'PANEL/DropdownButton_Large_Center', 'leftCap/filename': 'PANEL/DropdownButton_Large_Left', 'rightCap/filename': 'PANEL/DropdownButton_Large_Right'},
-            # 选了哪项宿主按显示的字认（dm_kills.c kb_sort）。onUpdateMessage 带的是选项号：发 ClosePanel 会让游戏把选项号当面板名、取空崩（宿主实测），这里发一条没人收的
-            # The host recognizes which item was selected by the displayed text (dm_kills.c kb_sort). onUpdateMessage carries the option index: sending ClosePanel would make the game treat the option index as a panel name and crash on a null fetch (measured on the host), so here a message nobody receives is sent
-            'pressedFrame': 1, 'disabledFrame': 2, 'hoveredFrame': 3, 'anchor': {'x': 1.0}, 'states': ['@dmKbSortAct', '@dmKbSortCount', '@dmKbSortFast'],
-            'onUpdateMessage': 'TouchKillBoardMessage:Sort', 'text/rect': {'scale': 1.538}, 'text/anchor': {'x': 0, 'y': -0.3}, 'textMargin': {'left': 20, 'right': 290},
-            'text/style': '$StyleFilterRuleListButtonTextSmall', 'text/truncateWithEllipsis': True, 'textColor': '$FontColorLightGold'}},
-        {'type': 'ImageWidget', 'name': 'TouchKB_TypeBar', 'fields': {'rect': {'x': 466, 'y': 80}, 'filename': 'Panel\\Chronicle\\Chronicle_ScrollBar_Small'}}] + acts + [
-        {'type': 'ImageWidget', 'name': 'TouchKB_TotalBox', 'fields': {'rect': {'x': 0, 'y': 1000, 'width': 450, 'height': 110}, 'filename': 'PANEL\\Chronicle\\Footer_BG_Progress'}, 'children': [
-            {'type': 'TextBoxWidget', 'name': 'TouchKB_Total', 'fields': {'text': '', 'rect': {'y': 15, 'width': 450, 'height': 40}, 'style': {'pointSize': '$MediumFontSize', 'alignment': {'h': 'center', 'v': 'center'}}}},
-            {'type': 'ImageWidget', 'name': 'FillBg', 'fields': {'rect': {'x': 25, 'y': 65, 'width': 450, 'height': 80}, 'filename': 'PANEL\\Chronicle\\ProgressBar_Small_2'}}]},
-        ] + [_kb_page(i) for i in range(5)] + [_kb_rift_page()]}]}
-# 右列每幕一页（滚动条 + 滚动区 + 本幕各行）：滚动位置存在游戏的滚动控件里、宿主改不了，切幕时只换页（不在屏上的页挪到屏外），各幕的滚动位置各自留着
-# Right column, one page per act (scrollbar + scroll area + that act's rows): the scroll position is stored in the game's scroll widget and the host cannot change it, so switching acts only swaps pages (pages not on screen are moved off screen), and each act keeps its own scroll position
-def _kb_page(i):
-    return {'type': 'Widget', 'name': 'TouchKB_Page%d' % i, 'fields': {'rect': {'x': 99999, 'y': 0, 'width': 1730, 'height': 1284}}, 'children': [
-        {'type': 'ImageWidget', 'name': 'TouchKB_ListBar', 'fields': {'rect': {'x': -20, 'y': 80}, 'anchor': {'x': 1.0}, 'filename': 'Panel\\Chronicle\\Chronicle_Scrollbar_Large'}, 'children': [
-            {'type': 'ScrollControllerWidget', 'name': 'TouchKB_ScrollController%d' % i, 'fields': {'rect': {'x': -31, 'y': 29, 'width': 26, 'height': 1095}, 'anchor': {'x': 1.0},
-             'upArrowFilepath': 'FrontEnd\\HD\\Final\\FrontEnd_ScrollUpBtn', 'downArrowFilepath': 'FrontEnd\\HD\\Final\\FrontEnd_ScrollDownBtn', 'barFilepath': 'PauseMenu\\VerticalIndicator',
-             'viewName': 'TouchKB_Scroll%d' % i, 'wheelScrollSound': 'cursor_scroll_hd', 'buttonScrollSound': 'cursor_scroll_hd'}}]},
-        {'type': 'Widget', 'name': 'TouchKB_ListBox', 'fields': {'rect': {'x': 530, 'y': 80, 'width': 1157, 'height': 1200}}, 'children': [
-            {'type': 'ScrollViewWidget', 'name': 'TouchKB_Scroll%d' % i, 'fields': {'fitToParent': True, 'scrollControllerName': 'TouchKB_ScrollController%d' % i}, 'children': [
-                {'type': 'Widget', 'name': 'TouchKB_List', 'fields': {'rect': {'x': 0, 'y': 0, 'width': 1157, 'height': KB_ROW_H * sum(1 for _, a in _kb_keys() if a == i + 1)}},
-                 'children': [_kb_row(k) for k, a in _kb_keys() if a == i + 1]}]}]}]}
-# 编年史第五页签「秘境」（选层页要像编年史仓库 / 积分牌一样用原版控件和图元）。宿主 dm_rift_ui.c 切页、写字、收点按（ClosePanel:TouchRF_*）。
-# 左列：选层（原版大厅大箭头 ±1、前端小按钮 ±10、前端中按钮「开始」，都带按下态）+ 本层说明 + 安亚赌博率；进行中时换成「继续 / 放弃」（宿主挪进挪出）。
-# 右列：10 档首通奖励，一行一项（积分牌同款行底图），物品用原版物品图。图标路径与 dm_rift.c 里程碑物品对应
-# 尺寸口径：图元像素 × 2 = 布局单位（行底图 Slot_list_item_XL 578×92 像素 = 原版列表行 1157×188）。行内几何取原版编年史列表行 ChronicleItemListItem：
-#   物品格 = 行底图左侧那块暗格，物品图容器 (20, 20, 140, 140)，文字从 x 180 起；列表区 (530, 80, 1157, 1200)，左栏 0–460（原版编年史列表页 / 积分牌同值）。
-# 间距一套：8 / 16 / 24 / 40（组内行距 64、组间 40、标题到内容 15 = 原版标题条 65 → 内容 80）。
-# 第一行那排小标题（选择层数 / 秘境进行中 / 本层已完成、首通奖励、每档另得…）上抬 24（「第一行文字整体压线了，往上抬一些」）。
-# 压的不是金线：Mac 截图逐行量，标题字下沿到金线的间距和「本层」小标题一样（都是 3 像素）；压的是面板底图自己在内容区顶上那道横向接缝
-# （截图 y 173–176，上面是浅色横带、下面是深色内容底），字的下半截骑在接缝上。上抬 24 单位（约 8 像素）后字整个落在接缝上方的浅色带里，
-# 字下沿离接缝 4 像素；金线和下面的内容不动
-# Fifth Chronicle tab "Rift" (the level selection page must use original widgets and graphics, like the Chronicle vault / kill board). The host's
-# dm_rift_ui.c switches pages, writes text and receives taps (ClosePanel:TouchRF_*).
-# Left column: level selection (original lobby large arrows ±1, front-end small buttons ±10, front-end medium button "Start", all with pressed states) +
-# level description + Anya gamble rate; while in progress it is replaced by "Continue / Abandon" (the host moves them in and out).
-# Right column: 10 tiers of first-clear rewards, one per row (same row background as the kill board), items shown with original item images. Icon paths
-# correspond to the milestone items in dm_rift.c
-# Size convention: graphic pixels × 2 = layout units (row background Slot_list_item_XL 578×92 pixels = original list row 1157×188). In-row geometry is
-# taken from the original Chronicle list row ChronicleItemListItem:
-#   item cell = the dark cell on the left of the row background, item image container (20, 20, 140, 140), text starts at x 180; list area (530, 80,
-#   1157, 1200), left column 0–460 (same values as the original Chronicle list page / kill board).
-# One spacing scale: 8 / 16 / 24 / 40 (row pitch within a group 64, between groups 40, title to content 15 = original title bar 65 → content 80).
-# The row of small headings on the first line (select level / Rift in progress / level completed, first-clear rewards, each tier also grants...) is
-# raised by 24 ("the whole first line of text sits on the line, raise it a bit").
-# What it sat on was not the gold line: measured row by row on a Mac screenshot, the gap from the bottom of the heading text to the gold line is the
-# same as for the "this level" small heading (3 pixels each); it sat on the horizontal seam of the panel background itself at the top of the content
-# area
-# (screenshot y 173 to 176, a light horizontal band above and the dark content background below), with the lower half of the text riding on the seam.
-# After raising by 24 units (about 8 pixels) the text falls entirely inside the light band above the seam,
-# with the bottom of the text 4 pixels from the seam; the gold line and the content below are unchanged
-RF_T0 = -24
-RF_EN_CAP, RF_EN_NOTE = 31, 26   # 英文版：按钮上方说明、右上那句的字号（点数） | English version: font sizes (points) of the caption above the buttons and of the top-right sentence
-RF_EN_PT = 32   # 英文版左栏标签的字号（点数）：$SmallFontSize 在这块面板里和中号几乎一样大（Mac 截图，换了没变化），直接给数 | font size (points) of the left column labels in the English version: in this panel $SmallFontSize is almost the same size as medium (Mac screenshot, swapping it made no difference), so a number is given directly
-RF_SLOT = (20, 20, 140)   # 原版物品格：左上 (20, 20)、边长 140 | Original game's item cell: top-left (20, 20), side length 140
-RF_MS = [(10, '@dmRiftMsItem10', '@dmRiftMsSub10', 'Items/misc/charm/charm_large', (49, 147), (2, 4, 48, 146)), (20, '@dmRiftMsItem20', '', 'Items/misc/quest/mephisto_soul_stone', (49, 49), (9, 4, 39, 49)),
-         (30, '@dmRiftMsItem30', '', 'Items/misc/torch/torch', (49, 98), (9, 5, 38, 95)), (40, '@dmRiftMsItem40', '@dmRiftMsSub40', 'Items/weapon/polearm/war_scythe', (98, 196), (3, 3, 93, 192)),
-         (50, '@dmRiftMsItem50', '@dmRiftMsSub50', 'Items/misc/body_part/fragment_magic', (49, 49), (2, 0, 48, 48), 1.3), (60, '@dmRiftMsItem60', '', 'Items/weapon/orb/dragon_stone', (49, 147), (5, 7, 46, 136)),
-         (70, '@dmRiftMsItem70', '', 'Items/armor/circlet/diadem', (98, 98), (0, 20, 95, 87)), (80, '@dmRiftMsItem80', '', 'Items/armor/armor/victors_silk', (98, 147), (2, 10, 94, 139)),
-         (90, '@dmRiftMsItem90', '@dmRiftMsSub90', 'Items/misc/charm/charm_large', (49, 147), (2, 4, 48, 146)), (100, '@dmRiftMsItem100', '@dmRiftMsSub100', 'Items/misc/rune/zod_rune', (49, 49), (3, 4, 47, 48))]   # 物品图像素尺寸（从原版 .sprite 读出的帧宽 × 高）；先祖暗金珠宝用原版暗金图表 hd/items/uniques.json 给这六件配的图（body_part/fragment_*，三种造型），不是底材 cjw 的钻石图 | Item image pixel sizes (frame width × height read from the original game's .sprite); the ancestral unique jewels use the images that the original game's unique table hd/items/uniques.json assigns to these six items (body_part/fragment_*, three looks), not the diamond image of the base item cjw
-def _rf_btn(name, x, y, sprite, frames, scale, text='', pt='$MediumLargeFontSize'):
-    f = {'rect': {'x': x, 'y': y, 'scale': scale}, 'filename': sprite, 'onClickMessage': 'PanelManager:ClosePanel:' + name, 'sound': 'cursor_menu_select_hd'}
-    f.update(frames)
-    if text: f.update({'textString': text, 'pointSize': pt, 'textColor': '$LightButtonTextColor', 'text/style': '$StyleFEButtonText'})   # 照原版暂停菜单按钮的写法 | Written the same way as the original game's pause menu buttons
-    return {'type': 'ButtonWidget', 'name': name, 'fields': f}
-_RF_ARROW = {'hoveredFrame': 1, 'pressedFrame': 2, 'disabledFrame': 3}   # 大厅大箭头 4 帧：暗 / 亮 / 更亮 / 灰（常态第 0 帧） | Lobby large arrow, 4 frames: dark / bright / brighter / grayed (normal state is frame 0)
-_RF_BTN = {'pressedFrame': 1, 'disabledFrame': 2, 'hoveredFrame': 3}     # 前端按钮 4 帧：常态 / 按下 / 灰 / 悬停 | Front-end button, 4 frames: normal / pressed / grayed / hover
-def _rf_icon(icon, px, bb, up=1.0):   # up：方形小件允许放大到的倍数（先祖暗金珠宝原图偏小，放大到与别的行视觉一致、不出格）   # 物品图按「可见部分」（不透明像素外框 bb，原版图读出）缩进原版物品格、居中；细长物品按格子高度定比例（可见高占格高 95%），方形小件不放大 | up: the factor up to which small square items may be enlarged (the original image of the ancestral unique jewel is on the small side; enlarged until visually consistent with the other rows without leaving the cell) # the item image is fitted by its 'visible part' (bounding box bb of the opaque pixels, read from the original game's image) into the original game's item cell and centered; slender items are scaled by the cell height (visible height takes 95% of the cell height), small square items are not enlarged
-    x0, y0, side = RF_SLOT; bw, bh = (bb[2] - bb[0]) * 2, (bb[3] - bb[1]) * 2
-    k = side * 0.95 / bh if bh > bw * 1.4 and px[1] * 2 > side else min(side * 0.95 / bw, side * 0.95 / bh, up)   # 细长 = 可见高 > 宽 1.4 倍且原图比格子高 | Slender = visible height > 1.4× width and the original image is taller than the cell
-    return {'type': 'ImageWidget', 'name': 'Icon', 'fields': {'rect': {'x': round(x0 + side / 2 - (bb[0] * 2 + bw / 2) * k), 'y': round(y0 + side / 2 - (bb[1] * 2 + bh / 2) * k), 'scale': round(k, 4)}, 'filename': icon}}
-def _rf_row(i, m, name, sub, icon, px, bb, up=1.0):
-    # 两行字：第一行「层数 + 物品名」（MediumLarge，物品名原版暗金色），第二行小一号说明；两行左对齐 x 180。状态字右对齐、整行垂直居中，右留白 20 = 左边距
-    # Two lines of text: the first line 'level number + item name' (MediumLarge, item name in the original game's unique gold), the second line a description one size smaller; both lines left-aligned at x 180. Status text is right-aligned and vertically centered in the whole row, with right padding 20 = left margin
-    dx = 34 if m >= 100 else 0   # 三位数的层号多一个数字宽，物品名右移（Mac 截图：「100 层」压住物品名） | A three-digit level number is one digit wider, so the item name shifts right (Mac screenshot: 「100 层」(100) covered the item name)
-    return {'type': 'Widget', 'name': 'TouchRF_Row%d' % i, 'fields': {'rect': {'x': 0, 'y': KB_ROW_H * i, 'width': 1157, 'height': KB_ROW_H}}, 'children': [
-        {'type': 'ImageWidget', 'name': 'Bg', 'fields': {'filename': 'PANEL\\Chronicle\\Slot_list_item_XL'}}, _rf_icon(icon, px, bb, up),
-        _kb_text('Tier', 180, 30 if sub else 0, 150 + dx, 70 if sub else 188, '$FontColorWhite', '$MediumLargeFontSize', text='@dmRiftMsTier%d' % m),
-        _kb_text('Name', 330 + dx, 30 if sub else 0, 520 - dx, 70 if sub else 188, '$FontColorGoldYellow', '$MediumLargeFontSize', text=name),
-        _kb_text('Sub', 180, 100, 670, 56, '$FontColorMoreLightGray', '$MediumFontSize', text=sub),
-        _kb_text('State', 850, 0, 287, 188, '$FontColorMoreLightGray', '$MediumLargeFontSize', 'right', text='@dmRiftMsNo')]}
-def _rf_kv(k, y, label, vcolor='$FontColorWhite'):   # 「标签 + 值」一行：标签灰、左列左对齐；值（缺省白）右列右对齐（左栏 0–460） | One 'label + value' row: label gray, left-aligned in the left column; value (white by default) right-aligned in the right column (left column 0–460)
-    # 英文版：同一句英文比中文宽，标签写全称（Enemy Power / Next Unique）用中号字会顶到数值。每行另放一个小一号的标签控件 …LE，
-    # 缺省摆在屏外；游戏语言不是中文时宿主把它挪进来、把中号那个挪出去（dm_rift_ui.c）。中文画面不变
-    # English version: the same sentence is wider in English than in Chinese, and a full-name label (Enemy Power / Next Unique) in the medium font would run
-    # into the value. Each row gets an extra, one-size-smaller label widget ...LE,
-    # placed off screen by default; when the game language is not Chinese the host moves it in and moves the medium one out (dm_rift_ui.c). The Chinese
-    # screen is unchanged
-    return [_kb_text('TouchRF_%sL' % k, 0, y, 250, 56, '$FontColorMoreLightGray', '$MediumFontSize', 'left', label),
-            _kb_text('TouchRF_%sLE' % k, 99999, y, 330, 56, '$FontColorMoreLightGray', RF_EN_PT, 'left', label),
-            _kb_text('TouchRF_%s' % k, 230, y, 250, 56, vcolor, '$MediumFontSize', 'right')]
-RF_LW = 500                         # 左栏宽（列表区 530 起，栏间 30） | Left column width (list area starts at 530, column gap 30)
-RF_X10_K = 0.66                     # ±10：前端小按钮 366×92 × 0.66 = 242×61，字 52（约按钮高的 45%） | ±10: front-end small button 366×92 × 0.66 = 242×61, text 52 (about 45% of the button height)
-RF_X10 = (0, 258)                   # 两钮间隔 16，左右与箭头组对齐（0–500） | Gap of 16 between the two buttons, left and right aligned with the arrow group (0–500)
-RF_DIV_W = 1590                     # 原版 PauseMenu/Divider 在 scale 1 时的长度（布局单位，截图量出） | Length of the original game's PauseMenu/Divider at scale 1 (layout units, measured from a screenshot)
-def _rf_div(name, x, y, w=500):   # 分隔金线按所在栏宽缩放 | The gold divider line is scaled to the width of its column
-    return {'type': 'ImageWidget', 'name': name, 'fields': {'rect': {'x': x, 'y': y, 'scale': round(w / RF_DIV_W, 4)}, 'filename': 'PauseMenu\\Divider'}}
-def _rf_key(name, cap, by):   # 手柄模式下贴在按钮左端的原版键帽（Switch 手柄：右 = A、上 = X；48×45 原图放大 1.5）。缺省在屏外，宿主在手柄模式挪进来（dm_rift_ui.c）；这一页原版底部提示条不在屏上 | The original button glyph placed at the left end of the button in controller mode (Switch controller: right = A, top = X; the 48x45 source image scaled by 1.5). Off screen by default, moved in by the host in controller mode (dm_rift_ui.c); on this page the original bottom button legend is not on screen
-    return {'type': 'ImageWidget', 'name': name, 'fields': {'rect': {'x': 99999, 'y': by + 26, 'scale': 1.5}, 'filename': 'Controller/ControllerButtons/Switch/' + cap}}
-def _rift_board():
-    # 左栏：标题 0–65 → 箭头组 80–188（大厅大箭头 94×108 原尺寸，层数大字在两箭头正中）→ ±10 两个等宽钮 212–267（前端小按钮 366×92 × 0.596 = 218×55，间隔 24，左右与箭头组对齐）
-    #   → 本层信息 5 行（行距 64）307–627 → 组间 40 → 安亚赌博 667–851 → 「开始」贴底：底边 = 右列列表底边 1280，宽 460（前端中按钮 470×118 × 0.979）
-    # 重排：三组（选择层数 / 本层 / 安亚赌博），每组标题金字 + 原版暂停菜单分隔金线；组内行距 60、组间 48；±10 用小一号按钮 + 正常字号（不顶满）
-    # Left column: title 0–65 → arrow group 80–188 (lobby large arrows 94×108 at original size, large level number text exactly between the two arrows) → two equal-width ±10 buttons 212–267 (front-end small button 366×92 × 0.596 = 218×55, gap 24, left and right aligned with the arrow group)
-    #   → this-level info 5 rows (row pitch 64) 307–627 → group gap 40 → Anya gamble 667–851 → 「开始」(Enter Rift) flush against the bottom: bottom edge = bottom edge of the right column list 1280, width 460 (front-end medium button 470×118 × 0.979)
-    # Re-layout: three groups (select level / this level / Anya gamble), each with a gold title + the original game's pause menu gold divider line; row pitch within a group 60, between groups 48; ±10 uses a one-size-smaller button + normal font size (not filling the full width)
-    sel = [_kb_text('TouchRF_PickT', 0, RF_T0, 500, 60, '$FontColorGoldYellow', '$MediumFontSize', 'left', '@dmRiftSelT'), _rf_div('TouchRF_DivA', 0, 62),
-           _rf_btn('TouchRF_M1', 0, 96, 'Lobby/Final/LobbyArrowLargeL', _RF_ARROW, 1.0), _rf_btn('TouchRF_P1', 406, 96, 'Lobby/Final/LobbyArrowLargeR', _RF_ARROW, 1.0),
-           _kb_text('TouchRF_Num', 94, 96, 312, 108, '$FontColorLightGold', '$HugeFontSize', 'center', '1'),
-           _rf_btn('TouchRF_M10', RF_X10[0], 224, 'FrontEnd/HD/Final/FrontEnd_ButtonSmall', _RF_BTN, RF_X10_K, '-10', 52), _rf_btn('TouchRF_P10', RF_X10[1], 224, 'FrontEnd/HD/Final/FrontEnd_ButtonSmall', _RF_BTN, RF_X10_K, '+10', 52)]
-    sel += [_kb_text('TouchRF_InfT', 0, 332, 500, 60, '$FontColorGoldYellow', '$MediumFontSize', 'left', '@dmRiftInfT'), _rf_div('TouchRF_DivB', 0, 394)]
-    for n, (k, lab) in enumerate((('Range', '@dmRiftRange'), ('Best', '@dmRiftBest'), ('Str', '@dmRiftStr'), ('Lvl', '@dmRiftLvl'), ('Time', '@dmRiftTime'))): sel += _rf_kv(k, 414 + 64 * n, lab)
-    sel += [_kb_text('TouchRF_GamT', 0, 760, 500, 60, '$FontColorGoldYellow', '$MediumFontSize', 'left', '@dmRiftGamT'), _rf_div('TouchRF_DivC', 0, 822)] + []
-    # 四行（行距 64，同「本层」）：左边灰字标签（暗金 / 套装 / 通关后暗金 / 通关后套装）+ 右对齐的值（暗金色、套装绿各一个控件，宿主填其一）。
-    # 两行整句、两列并排都超出栏宽（Mac 截图：被截断 / 互相压住）；五行带小标题在真机上太挤（行距 56、末行贴着「开始」）
-    # Four rows (row pitch 64, same as 「本层」(This Level)): gray label on the left (unique / set / unique after clear / set after clear) + right-aligned value (one widget each in unique gold and set green; the host fills one of them).
-    # Two rows of full sentences and two side-by-side columns both exceed the column width (Mac screenshot: truncated / overlapping each other); five rows with a subtitle are too cramped on the real device (row pitch 56, last row touching 「开始」(Enter Rift))
-    for n in range(4): sel += [_kb_text('TouchRF_Gam%dL' % n, 0, 842 + 64 * n, 300, 56, '$FontColorMoreLightGray', '$MediumFontSize', 'left'), _kb_text('TouchRF_Gam%dLE' % n, 99999, 842 + 64 * n, 330, 56, '$FontColorMoreLightGray', RF_EN_PT, 'left'), _kb_text('TouchRF_Gam%dU' % n, 230, 842 + 64 * n, 250, 56, '$FontColorGoldYellow', '$MediumFontSize', 'right'), _kb_text('TouchRF_Gam%dS' % n, 230, 842 + 64 * n, 250, 56, '$FontColorGreen', '$MediumFontSize', 'right')]
-    sel += [_rf_btn('TouchRF_Start', 0, 1155, 'FrontEnd/HD/Final/FrontEnd_ButtonMed', _RF_BTN, 1.064, '@dmRiftBtnStart'), _rf_key('TouchRF_KeyA', 'ButtonRight', 1155)]
-    # 进行中页：层数大字 96–204 → 「本层」小节（标题 332、金线 394、三行 414 / 478 / 542，与选层页同位）→ 放弃一组（说明 746、按钮 818–943）→ 继续一组贴底（说明 1083、按钮 1155，同「开始」）。
-    # 信息—放弃—继续三段间距相等（各 140）；按钮上方的说明都是四到八个字的短句、居中（放弃那句与「本层」三行宿主按「守护者打倒没有」换说法）
-    # In-progress page: large level number text 96–204 → 「本层」(This Level) section (title 332, gold line 394, three rows 414 / 478 / 542, same positions as the level selection page) → abandon group (caption 746, button 818–943) → continue group flush against the bottom (caption 1083, button 1155, same as 「开始」(Enter Rift)).
-    # The three sections info - abandon - continue are equally spaced (140 each); the captions above the buttons are all short phrases of four to eight characters, centered (for the abandon caption and the three 「本层」(This Level) rows the host changes the wording depending on whether the guardian has been defeated)
-    cho = [_kb_text('TouchRF_ChT', 0, RF_T0, 500, 60, '$FontColorGoldYellow', '$MediumFontSize', 'left', '@dmRiftTitleRun'), _rf_div('TouchRF_DivD', 0, 62),
-           _kb_text('TouchRF_ChTier', 0, 96, 500, 108, '$FontColorLightGold', '$HugeFontSize', 'center'),
-           _kb_text('TouchRF_ChInfT', 0, 332, 500, 60, '$FontColorGoldYellow', '$MediumFontSize', 'left', '@dmRiftInfT'), _rf_div('TouchRF_DivE', 0, 394)]
-    for n, (k, lab) in enumerate((('ChLeft', '@dmRiftTimeLeft'), ('ChProg', '@dmRiftProgress'), ('ChNote', ''))): cho += _rf_kv(k, 414 + 64 * n, lab)
-    # 按钮上方两句说明的英文版控件（…E，字号 RF_EN_CAP，缺省在屏外；游戏语言不是中文时宿主换用，见 dm_rift_ui.c）：英文句子比中文宽，中号小字放不下
-    # English version widgets for the two caption sentences above the buttons (...E, font size RF_EN_CAP, off screen by default; the host switches to them
-    # when the game language is not Chinese, see dm_rift_ui.c): English sentences are wider than Chinese and do not fit in the medium-size small text
-    cho += [_kb_text('TouchRF_AbTE', 99999, 746, 500, 56, '$FontColorMoreLightGray', RF_EN_CAP, 'center'), _kb_text('TouchRF_ContTE', 99999, 1083, 500, 56, '$FontColorMoreLightGray', RF_EN_CAP, 'center')]
-    cho += [_kb_text('TouchRF_AbT', 0, 746, 500, 56, '$FontColorMoreLightGray', '$SmallFontSize', 'center', '@dmRiftCapVoid'),
-            _rf_btn('TouchRF_Abandon', 0, 818, 'FrontEnd/HD/Final/FrontEnd_ButtonMed', _RF_BTN, 1.064, '@dmRiftBtnAbandon'),
-            _kb_text('TouchRF_ContT', 0, 1083, 500, 56, '$FontColorMoreLightGray', '$SmallFontSize', 'center', '@dmRiftCapCont'),
-            _rf_btn('TouchRF_Cont', 0, 1155, 'FrontEnd/HD/Final/FrontEnd_ButtonMed', _RF_BTN, 1.064, '@dmRiftBtnCont'),
-            # 本层已完成时次按钮换成「重新选层」（进度已记，叫「放弃」读着不对）。按钮上的字宿主改不了，所以放一个同位置的按钮，宿主按「守护者打倒没有」挪进挪出
-            # When this level is completed the secondary button becomes "Reselect level" (progress is already recorded, so "Abandon" reads wrong). The host cannot
-            # change button text, so a button is placed at the same position and the host moves it in and out according to "has the Guardian been defeated"
-            _rf_btn('TouchRF_Resel', 99999, 818, 'FrontEnd/HD/Final/FrontEnd_ButtonMed', _RF_BTN, 1.064, '@dmRiftBtnResel'),
-            _rf_key('TouchRF_KeyA2', 'ButtonRight', 1155), _rf_key('TouchRF_KeyX', 'ButtonTop', 818)]
-    right = [_kb_text('TouchRF_MsT', 530, RF_T0, 500, 60, '$FontColorGoldYellow', '$MediumFontSize', 'left', '@dmRiftMsT'), _rf_div('TouchRF_DivR', 530, 62, 1157),
-             _kb_text('TouchRF_MsN', 1030, RF_T0, 657, 60, '$FontColorMoreLightGray', '$SmallFontSize', 'right', '@dmRiftMsN'),
-             # 英文版的这一句写物品原名（Token of Absolution），比中文长一倍：另放一个更宽、字号更小的控件，缺省在屏外，英文时宿主换用
-             # In the English version this sentence uses the item's original name (Token of Absolution) and is twice as long as the Chinese: a separate, wider widget
-             # with a smaller font is added, off screen by default, and the host switches to it for English
-             _kb_text('TouchRF_MsNE', 99999, RF_T0, 757, 60, '$FontColorMoreLightGray', RF_EN_NOTE, 'right', '@dmRiftMsNEn'),
-             {'type': 'ImageWidget', 'name': 'TouchRF_ListBar', 'fields': {'rect': {'x': -20, 'y': 80}, 'anchor': {'x': 1.0}, 'filename': 'Panel\\Chronicle\\Chronicle_Scrollbar_Large'}, 'children': [
-                 {'type': 'ScrollControllerWidget', 'name': 'TouchRF_ScrollController', 'fields': {'rect': {'x': -31, 'y': 29, 'width': 26, 'height': 1095}, 'anchor': {'x': 1.0},
-                  'upArrowFilepath': 'FrontEnd\\HD\\Final\\FrontEnd_ScrollUpBtn', 'downArrowFilepath': 'FrontEnd\\HD\\Final\\FrontEnd_ScrollDownBtn', 'barFilepath': 'PauseMenu\\VerticalIndicator',
-                  'viewName': 'TouchRF_Scroll', 'wheelScrollSound': 'cursor_scroll_hd', 'buttonScrollSound': 'cursor_scroll_hd'}}]},
-             {'type': 'Widget', 'name': 'TouchRF_ListBox', 'fields': {'rect': {'x': 530, 'y': 80, 'width': 1157, 'height': 1200}}, 'children': [
-                 {'type': 'ScrollViewWidget', 'name': 'TouchRF_Scroll', 'fields': {'fitToParent': True, 'scrollControllerName': 'TouchRF_ScrollController'}, 'children': [
-                     {'type': 'Widget', 'name': 'TouchRF_List', 'fields': {'rect': {'x': 0, 'y': 0, 'width': 1157, 'height': KB_ROW_H * len(RF_MS)}},
-                      'children': [_rf_row(i, *r) for i, r in enumerate(RF_MS)]}]}]}]
-    return {'type': 'Widget', 'name': 'TouchRift', 'fields': {'rect': '$OptionsPanelRect', 'anchor': {'x': 0.5}}, 'children': [
-        {'type': 'Widget', 'name': 'TouchRF_Body', 'fields': {'rect': {'x': 99999, 'y': 0, 'width': 1730, 'height': 1284}}, 'children': [
-            {'type': 'Widget', 'name': 'TouchRF_Sel', 'fields': {'rect': {'x': 0, 'y': 0, 'width': 500, 'height': 1284}}, 'children': sel},
-            {'type': 'Widget', 'name': 'TouchRF_Cho', 'fields': {'rect': {'x': 99999, 'y': 0, 'width': 500, 'height': 1284}}, 'children': cho}] + right}]}
-def _rift_panel(s):
-    # 独立「大秘境」面板（点门开独立面板，不走编年史的页签）。借原版建好、我们不用的「消息记录」面板外壳（MessageLogPanel；暂停菜单那颗按钮已换成分享诊断日志，见 _pause_no_help），
-    # 布局整份换掉：外框照编年史面板（全屏 0.7 暗底 + 选项底图 + 标题 + 关闭钮 + 内容底图，ChroniclePanelHD.json 原样抄），没有页签条，内容 = _rift_board。
-    # 面板类要的原版子控件（ClickCatcher / ListContainer / ScrollBar 等）照留、挪到屏外（类代码按名字找它们）
-    # Standalone 「大秘境」(Greater Rift) panel (tapping the portal opens a standalone panel, not through the chronicle's tabs). It borrows the shell of the 「消息记录」(Message Log) panel that the original game builds and we do not use (MessageLogPanel; that button in the pause menu has been replaced with Share Diagnostics, see _pause_no_help),
-    # and the layout is replaced entirely: the outer frame follows the chronicle panel (full-screen 0.7 dark backdrop + options background image + title + close button + content background image, copied as-is from ChroniclePanelHD.json), with no tab strip, content = _rift_board.
-    # The original-game child widgets required by the panel class (ClickCatcher / ListContainer / ScrollBar etc.) are kept and moved off screen (the class code finds them by name)
-    for a in ('"type": "MessageLogPanel", "name": "MessageLogPanel"', '"name": "ListContainer"', '"name": "ScrollBar"', '"name": "ChatEntryTemplate"'):
-        if s.count(a) != 1: raise SystemExit('touch_layout：消息记录面板不是原样（%s），大秘境面板没换' % a)
-    off = {'rect': {'x': 99999, 'y': 0, 'width': 10, 'height': 10}}
-    native = [{'type': 'ClickCatcherWidget', 'name': 'ClickCatcher', 'fields': off},
-              {'type': 'RectangleWidget', 'name': 'MessageLogBackground', 'fields': off},
-              {'type': 'ImageWidget', 'name': 'Background', 'fields': off},
-              {'type': 'TextBoxWidget', 'name': 'title', 'fields': dict(off, text='')},
-              {'type': 'ChatListWidget', 'name': 'ListContainer', 'fields': off, 'children': [
-                  {'type': 'ListItemWidget', 'name': 'ChatEntryTemplate', 'fields': {'rect': {'x': 0, 'y': 0, 'width': 10, 'height': 10}}, 'children': [
-                      {'type': 'TextBoxWithLinksWidget', 'name': 'MessageText', 'fields': {'fitToParent': True}}]}]},
-              {'type': 'ImageWidget', 'name': 'ScrollBarBackground', 'fields': off, 'children': [
-                  {'type': 'ScrollControllerWidget', 'name': 'ScrollBar', 'fields': {'rect': {'x': 0, 'y': 0, 'width': 10, 'height': 10}, 'viewName': 'ListContainer'}}]}]
-    close = 'PanelManager:ClosePanel:MessageLogPanel'
-    frame = [{'type': 'RectangleWidget', 'name': 'TouchRF_Dim', 'fields': {'fitToScreen': True, 'color': [0.0, 0.0, 0.0, 0.7]}, 'children': [
-                 {'type': 'ClickCatcherWidget', 'name': 'TouchRF_Catcher', 'fields': {'fitToParent': True}},
-                 {'type': 'Widget', 'name': 'TouchRF_Anchor', 'fields': {'anchor': {'x': 0.5, 'y': 0.5}, 'rect': '$SettingsPanelAnchorRect'}, 'children': [
-                     {'type': 'ImageWidget', 'name': 'TouchRF_FrameBg', 'fields': {'filename': '\\PANEL\\Options\\FrontEndOptionsBG'}},
-                     {'type': 'TextBoxWidget', 'name': 'TouchRF_Title', 'fields': {'rect': {'x': 0, 'y': 45, 'width': 1950, 'height': 103}, 'text': '@dmRiftPanelTitle', 'style': '$StyleTitleBlock'}},
-                     {'type': 'ButtonWidget', 'name': 'TouchRF_CloseBtn', 'fields': {'rect': {'x': 1868, 'y': 8}, 'filename': 'PANEL\\closebtn_4x', 'hoveredFrame': 3, 'onClickMessage': close,
-                      'tooltipString': '@strClose', 'sound': 'cursor_close_window_hd', 'acceptsEscKeyEverywhere': True}}]}]},
-             {'type': 'ImageWidget', 'name': 'TouchRF_ContentBg', 'fields': {'rect': '$SettingsPanelBackgroundRect', 'anchor': {'x': 0.5}, 'filename': 'Controller/Panel/Options/Panel_Options_BG'}},
-             # 触摸关闭钮：同编年史 _chronicle_touch（右上角）
-             # Touch close button: same as the chronicle's _chronicle_touch (top-right corner)
-             {'type': 'Widget', 'name': 'TouchCloseBox', 'fields': {'rect': {'x': -998, 'y': 256, 'width': 2600, 'height': 121, 'scale': '$ConsoleUIScale'}, 'anchor': {'x': 0.5}}, 'children': [
-                 {'type': 'ButtonWidget', 'name': 'TouchClose', 'fields': {'rect': {'x': 2236, 'y': -171}, 'filename': 'PANEL\\HUD_02\\front_panel', 'sound': 'cursor_close_window_hd', 'onClickMessage': close}}]}]
-    board = _rift_board(); board['children'][0]['fields']['rect']['x'] = 0; board['children'][0]['fields']['rect']['y'] = -54   # 没有页签条：内容上移 54，吃掉标题下的空带，底边留出与左边距相当的空（原先上空下贴底）   # 内容缺省就在屏上（编年史版要切页签才挪进来） | No tab strip: content moves up 54, taking up the empty band under the title, leaving a gap at the bottom edge comparable to the left margin (previously empty at the top and flush against the bottom) # the content is on screen by default (the chronicle version only moves it in when the tab is switched)
-    lay = {'basedOn': 'MessageLogPanel_800x600HD.json', 'type': 'MessageLogPanel', 'name': 'MessageLogPanel',
-           'fields': {'priority': 9002, 'fitToParent': True, 'defaultWidget': 'TouchRF_Start'}, 'children': native + frame + [board]}
-    return json.dumps(lay, ensure_ascii=False, indent=1), 1
-# 积分牌「秘境」页（第六项）：一行总览 + 每层一行（只显示限时内通关过的层，宿主按层号从高到低排、其余挪出屏），行样式同首领行
-# Kill board 「秘境」(Rift) page (sixth item): one summary row + one row per level (only levels cleared within the time limit are shown; the host sorts by level number from high to low and moves the rest off screen), row style same as the boss rows
-RIFT_ROWS = 100
-def _kb_rift_row(name):
-    return {'type': 'Widget', 'name': name, 'fields': {'rect': {'x': 99999, 'y': 0, 'width': 1157, 'height': KB_ROW_H}}, 'children': [
-        {'type': 'ImageWidget', 'name': 'Bg', 'fields': {'filename': 'PANEL\\Chronicle\\Slot_list_item_XL'}},
-        {'type': 'ImageWidget', 'name': 'Icon', 'fields': {'rect': {'x': 22, 'y': 24, 'scale': 0.83}, 'filename': 'QuestIcons\\Done'}},
-        _kb_text('Name', 180, 8, 640, 60, '$FontColorWhite', '$LootFilterMediumLargeFontSize'),
-        _kb_text('Kills', 760, 8, 360, 60, '$FontColorGoldYellow', '$LootFilterMediumLargeFontSize', 'right'),
-        _kb_text('First', 180, 76, 560, 48, '$FontColorMoreLightGray', '$LootFilterSmallFontSize'),
-        _kb_text('Drops', 740, 76, 380, 48, '$FontColorMoreLightGray', '$LootFilterSmallFontSize', 'right'),
-        _kb_text('Times', 180, 126, 940, 48, '$FontColorMoreLightGray', '$LootFilterSmallFontSize')]}
-def _kb_rift_page():
-    return {'type': 'Widget', 'name': 'TouchKB_Page5', 'fields': {'rect': {'x': 99999, 'y': 0, 'width': 1730, 'height': 1284}}, 'children': [
-        {'type': 'ImageWidget', 'name': 'TouchKB_ListBar', 'fields': {'rect': {'x': -20, 'y': 80}, 'anchor': {'x': 1.0}, 'filename': 'Panel\\Chronicle\\Chronicle_Scrollbar_Large'}, 'children': [
-            {'type': 'ScrollControllerWidget', 'name': 'TouchKB_ScrollController5', 'fields': {'rect': {'x': -31, 'y': 29, 'width': 26, 'height': 1095}, 'anchor': {'x': 1.0},
-             'upArrowFilepath': 'FrontEnd\\HD\\Final\\FrontEnd_ScrollUpBtn', 'downArrowFilepath': 'FrontEnd\\HD\\Final\\FrontEnd_ScrollDownBtn', 'barFilepath': 'PauseMenu\\VerticalIndicator',
-             'viewName': 'TouchKB_Scroll5', 'wheelScrollSound': 'cursor_scroll_hd', 'buttonScrollSound': 'cursor_scroll_hd'}}]},
-        {'type': 'Widget', 'name': 'TouchKB_ListBox', 'fields': {'rect': {'x': 530, 'y': 80, 'width': 1157, 'height': 1200}}, 'children': [
-            {'type': 'ScrollViewWidget', 'name': 'TouchKB_Scroll5', 'fields': {'fitToParent': True, 'scrollControllerName': 'TouchKB_ScrollController5'}, 'children': [
-                {'type': 'Widget', 'name': 'TouchKB_List', 'fields': {'rect': {'x': 0, 'y': 0, 'width': 1157, 'height': KB_ROW_H * (RIFT_ROWS + 2)}},
-                 'children': [_kb_rift_row('TouchKB_RiftSum'), _kb_rift_row('TouchKB_RiftSum2')] + [_kb_rift_row('TouchKB_RiftT%d' % t) for t in range(1, RIFT_ROWS + 1)]}]}]}]}
-def _chronicle_killboard(s):
-    n = 0
-    # 页签宽度 266 → 320：原版三个页签每个固定宽 266、字用「中号」；我们整套界面用大字号（中号 28 → 40）之后，
-    # 英文 Runewords 九个字母放不下，显示成「Runewo…」（中文四个字放得下，所以一直没人看见；英文版第一阶段合入后线上就这样）。
-    # 四个页签统一加宽、整排仍居中（中文那排也跟着变宽，有意改动）；4 × 320 + 间隔 = 1286，面板内宽 1730，iPad 档同一套单位
-    # Tab width 266 → 320: each of the original three tabs has a fixed width of 266 and uses the "medium" font; after we moved the whole UI to large fonts
-    # (medium 28 → 40),
-    # the nine letters of the English Runewords no longer fit and it shows as "Runewo..." (the four Chinese characters fit, which is why nobody ever saw it;
-    # this is how released builds looked after phase one of the English version was merged).
-    # All four tabs are widened uniformly and the row stays centered (the Chinese row gets wider as well, an intentional change); 4 × 320 + gaps = 1286,
-    # panel inner width 1730, same units for the iPad profile
-    for a, b in (('"tabSize": { "x": 266, "y": 121 },', '"tabSize": { "x": 320, "y": 121 },'), ('"tabCount": 3,', '"tabCount": 4,'), ('"inactiveFrames": [ 0, 0, 0],', '"inactiveFrames": [ 0, 0, 0, 0],'), ('"activeFrames": [ 1, 1, 1],', '"activeFrames": [ 1, 1, 1, 1],'),
-                 ('"textStrings": [ "@Unique", "@Sets", "@Runewords"],', '"textStrings": [ "@Unique", "@Sets", "@Runewords", "@Bosses"],'),
-                 ('"ChroniclePanelMessage:ToggleChildPanel:ChronicleRunewordsListPanel"', '"ChroniclePanelMessage:ToggleChildPanel:ChronicleRunewordsListPanel",\n                    "ChroniclePanelMessage:ToggleChildPanel:TouchKillBoard"')):
-        if s.count(a) != 1: raise SystemExit('touch_layout：编年史页签条 %s 不是原样（原版布局变了？）' % a)
-        s = s.replace(a, b); n += 1
-    end = s.rstrip().rstrip('}').rstrip(); assert end.endswith(']'); at = len(end) - 1
-    return s[:at].rstrip() + ',\n        ' + json.dumps(_kb_board(), ensure_ascii=False) + '\n    ' + s[at:], n + 1
 # 下拉列表（编年史排序、选项页各下拉共用）：每行高 40，大字号（40）下几行字叠在一起——行高改 56
 # Dropdown list (shared by the chronicle sort and the dropdowns on the options pages): each row is 40 high, and at the large font size (40) several lines of text overlap -- row height changed to 56
 def _dropdown_rows(s):
@@ -1004,8 +607,7 @@ PRESENT = {
     'npcdialogpanelhd.json': _npc_menu,
     'chroniclebaselistpanelhd.json': _chronicle_no_search,
     'dropdownlistcontentshd.json': _dropdown_rows,
-    'chroniclepanelhd.json': lambda s: (lambda a: (lambda b: (b[0], a[1] + b[1]))(_chronicle_killboard(a[0])))(_chronicle_touch(s)),
-    'controller/messagelogpanelhd.json': _rift_panel,
+    'chroniclepanelhd.json': _chronicle_touch,
     # 战利品过滤器去掉、编年史保留、消息记录不要；另加第四个「分享诊断日志」（占原「消息记录」按钮）。
     # 暂停菜单 = 选项 / 保存并退出 / 编年史 / 分享诊断日志（中心距仍 240，四个落在原版六个的上下两端之内）；
     # 带佣兵页签的角色用的经典版没有编年史 = 选项 / 保存并退出 / 分享诊断日志（底图只放得下原版四个的跨度，中心距 225，正好铺满原版首末两个的位置）
@@ -1020,7 +622,6 @@ PRESENT = {
     'controller/buttonbindingmodalhd.json': _bind_touch,
     'youdiedmodalhd.json': lambda s: offscreen(s, types=(), names=('SubText',)),   # 死亡画面第二行「按 ＋ 继续。」（＋ = 手柄键图标）：下面就有「继续」按钮，这句不要（点一下能完成的提示直接去掉） | Second line of the death screen 「按 ＋ 继续。」(Press + to continue.) (+ = controller key icon): there is a 「继续」(Continue) button right below, so this sentence is dropped (hints for something done with one tap are removed outright)
     'controller/controlleroverlayhd.json': _overlay_touch,
-    'controller/console/switch/playerinventoryexpansionlayouthd.json': _inv_rw,   # 物品栏 + 符文之语清单控件（见 _RW） | Inventory + runeword list widgets (see _RW)
     'controller/playerinventoryexpansionlayouthd.json': _inv_touch(False),
 }
 # 字号（先用大字号）：产品走主机档 _profileConsoleHD（小 26 / 中 28 / 中大 32），前端按钮字在 2868×1320 上约 1.1 毫米高。
@@ -1104,13 +705,6 @@ def pad_boss_pct(text):   # 手柄版怪物血条 = 原版布局原样（条挂�
 PRESENT['controller/console/switch/npcdialogpanelhd.json'] = _npc_dialog_touch
 
 
-# 「重新绑定技能」框只留 1–5 列：第 6 列（ZR）已定成回城快捷键放在底部 UI，不再是技能位。两排各挪走一格。
-# The 「重新绑定技能」(Press button to rebind skill) box keeps only columns 1–5: column 6 (ZR) has been fixed as the town portal shortcut placed in the bottom UI and is no longer a skill slot. One cell is moved away from each of the two rows.
-def _bind_modal_5col(s):
-    s, n = offscreen(s, types=(), names=('SkillButton6', 'AltSkillButtonRT'))
-    if n != 2: raise SystemExit('touch_layout：绑定框第 6 列应为 2 格，找到 %d 格（原版布局变了？）' % n)
-    return s, n
-PRESENT['controller/buttonbindingmodalhd.json'] = _bind_modal_5col
 def build_present(romfs, outdir):
     """局内呈现改动。返回 ({包内逻辑路径(小写): 本地文件}, 改了几处)；某文件一处没改到即报错。 | In-game presentation changes. Returns ({logical path in package (lowercase): local file}, number of places changed); it is an error if any file has no place changed."""
     repl = {}; total = 0
@@ -1123,22 +717,22 @@ def build_present(romfs, outdir):
 # ---------- 选项页：视频页签整页去掉（iPhone 自己能调亮度），其余页签里与触摸产品无关的项藏掉 ----------
 # ---------- Options pages: the whole video tab page is removed (the iPhone can adjust brightness itself), and items in the other tabs unrelated to the touch product are hidden ----------
 def _settings_tabs(text):
-    """页签条去掉第一个（视频）：个数与四个并列数组各去首项；第四项「控制」换成「自定义」。 | Remove the first item (video) from the tab strip: drop the first entry from the count and from each of the four parallel arrays; the fourth item 「控制」(Controls) is replaced with 「自定义」(Custom)."""
+    """页签条去掉本平台不出现的「视频」与「控制」，只保留游戏 / 游戏设定 / 音频。 | Remove the Video and Controls tabs (not available on this platform), keeping Game / Game Settings / Audio."""
     n = 0
-    def drop_first(m):
-        nonlocal n; items = [x for x in re.split(r',\s*', m.group(2).strip().rstrip(',')) if x.strip()]; n += 1
-        return m.group(1) + ' ' + ', '.join(items[1:]) + ' ' + m.group(3)
-    new = re.sub(r'("(?:inactiveFrames|activeFrames|textStrings)"\s*:\s*\[)([^\]]*)(\])', drop_first, text)
-    new = re.sub(r'("tabMessages"\s*:\s*\[)([^\]]*)(\])', lambda m: m.group(1) + '\n' + ',\n'.join(x for x in [y.strip() for y in m.group(2).split(',')] if x and 'VideoOptionsPanel' not in x) + ',\n' + m.group(3), new)
-    new, k = re.subn(r'"tabCount"\s*:\s*5', '"tabCount": 4', new)
-    # 第四项原是「控制」（KeyBindingMenu，本平台不出现）：改成「自定义」，打开借来的视频页（见 _custom_page）
-    # The fourth item was originally 「控制」(Controls) (KeyBindingMenu, which does not appear on this platform): changed to 「自定义」(Custom), opening the borrowed video page (see _custom_page)
-    if new.count('"@Controls"') != 1 or new.count('SettingsPanelMessage:CheckChanges:KeyBindingMenu') != 1: raise SystemExit('touch_layout：页签条第四项不是原样「控制」，自定义页签没换')
-    # 第三项「游戏设定」：原版英文串 Game Settings 在 266 宽的页签里折成两行、第二行被截成「Se…」（英文版审计）；触屏页签条换成我们表里的串（中文不变、英文 Settings）。手柄版页签条是原版，不动
-    # Third item 「游戏设定」(Settings): the original English string Game Settings wraps to two lines in the 266-wide tab and the second line is truncated to "Se..." (English version audit); the touch tab bar uses the string from our table instead (Chinese unchanged, English Settings). The controller layout tab bar is the original and is left alone
+    def drop_two(m):
+        nonlocal n
+        items = [x for x in re.split(r',\s*', m.group(2).strip().rstrip(',')) if x.strip()]
+        if len(items) != 5: raise SystemExit('touch_layout：选项页签条应为 5 项，找到 %d 项（原版布局变了？）' % len(items))
+        del items[3], items[0]   # 原版第 1 项「视频」、第 4 项「控制」 | original item 1 "Video" and item 4 "Controls"
+        n += 1
+        return m.group(1) + ' ' + ', '.join(items) + ' ' + m.group(3)
+    new = re.sub(r'("(?:inactiveFrames|activeFrames|textStrings)"\s*:\s*\[)([^\]]*)(\])', drop_two, text)
+    new = re.sub(r'("tabMessages"\s*:\s*\[)([^\]]*)(\])', lambda m: m.group(1) + '\n' + ',\n'.join(x for x in [y.strip() for y in m.group(2).split(',')] if x and 'VideoOptionsPanel' not in x and 'KeyBindingMenu' not in x) + ',\n' + m.group(3), new)
+    new, k = re.subn(r'"tabCount"\s*:\s*5', '"tabCount": 3', new)
+    # 第三项「游戏设定」：原版英文串 Game Settings 在 266 宽的页签里折成两行、第二行被截成「Se...」（英文版审计）；触屏页签条换成我们表里的串（中文不变、英文 Settings）。
+    # Third item "Game Settings": the original English string wraps and is truncated in the 266-wide tab; the touch tab bar uses our table string (Chinese unchanged, English Settings).
     if new.count('"@GameSettingsTab"') != 1: raise SystemExit('touch_layout：页签条第三项不是原样「游戏设定」（原版布局变了？）')
     new = new.replace('"@GameSettingsTab"', '"@dmTabGameSettings"')
-    new = new.replace('"@Controls"', '"@KeyBindingTypeCustom"').replace('SettingsPanelMessage:CheckChanges:KeyBindingMenu', 'SettingsPanelMessage:CheckChanges:VideoOptionsPanel')
     return new, n + k + 1
 def _drop_rows(*rows):
     """把选项表里的整行（TableRowWidget "Row <名>"）删掉：表格按剩下的行重排，不留空行。每个名字必须恰好删到一行。 | Delete whole rows (TableRowWidget "Row <name>") from the options table: the table re-lays out the remaining rows and leaves no empty row. Each name must delete exactly one row."""
@@ -1156,108 +750,9 @@ def _drop_rows(*rows):
         text, k = re.subn(r'[ \t]*"tooltipString"\s*:\s*"[^"\n]*",?[ \t]*\r?\n', '', text)
         return text, n + k
     return fn
-# 「自定义」页：选项面板第四个页签。布局覆盖层只能替换已有路径，所以借原版「视频」页
-# （主机版 VideoOptionsPanelHD.json，触摸版已去掉视频页签）：页签条第四项（原「控制」= KeyBindingMenu，本平台不出现）改名「自定义」、打开 VideoOptionsPanel；
-# 视频页的表格整个换成我们的行：分节标题 + 每个开关一行原版勾选框（照「游戏」页「自动拾取金币」那一行的字段）。控件名 TouchCustom_<键>，
-# 宿主 dm_custom.c 读勾没勾、按应用 / 放弃 / 默认处理。勾选框的消息发一条无害的 ClosePanel（同「极乐世界」），游戏不认
-# 「自定义」(Custom) page: the fourth tab of the options panel. A layout overlay can only replace existing paths, so it borrows the original game's 「视频」(Video) page
-# (console version VideoOptionsPanelHD.json; the touch version has already removed the video tab): the fourth item of the tab strip (originally 「控制」(Controls) = KeyBindingMenu, which does not appear on this platform) is renamed 「自定义」(Custom) and opens VideoOptionsPanel;
-# the video page's table is replaced entirely with our rows: section header + one original-game checkbox per switch (following the fields of the 「自动拾取金币」(Auto Gold Pickup) row on the 「游戏」(Game) page). Widget names are TouchCustom_<key>,
-# and the host dm_custom.c reads whether each is checked and handles apply / discard / default. The checkbox message sends a harmless ClosePanel (same as 「极乐世界」(Elysium)), which the game does not recognize
-_CUSTOM_KEYS = ('auto_mana', 'merc_pot', 'drop_light', 'map_mark', 'item_notes', 'icloud', 'pot_pick', 'drop_haptic', 'gem_pick', 'store_btn', 'eco_fps', 'loot_filter', 'auto_buff')
-# 字在中英表（dm/i18n/ui_text.tsv 的 dmCustom<键名驼峰>），布局写 @键、跟原版语言走（英文版）；行高按中文行数分，英文必须同样行数（不然换语言排版变）
-# The text lives in the Chinese-English string table (dmCustom<key name in camel case> in dm/i18n/ui_text.tsv); layouts write @key and follow the
-# original game's language (English version); row height is assigned by the number of Chinese lines, and English must have the same number of lines
-# (otherwise the layout changes with the language)
-def _custom_key(key): return 'dmCustom' + ''.join(w.capitalize() for w in key.split('_'))   # auto_mana → dmCustomAutoMana（布局里 @键 遇下划线就断，键名不能带 _） | auto_mana → dmCustomAutoMana (in layouts @key stops at an underscore, so key names cannot contain _)
-def _custom_label(key):
-    import dm_i18n
-    t = {k: (zh, en) for k, zh, en in dm_i18n.rows()}[_custom_key(key)]
-    if t[0].count('\n') != t[1].count('\n'): raise SystemExit('touch_layout：自定义页 %s 的中英行数不同：%r / %r' % (key, t[0], t[1]))
-    return t[0]
-_CUSTOM_ROWS = tuple((k, '@' + _custom_key(k)) for k in _CUSTOM_KEYS)
-# 视频页的类会把它不认识的表格行整行隐藏（控件树：我们的行 +0x50 = 0，只剩没有勾选框的标题行可见），所以各行不进表格；
-# 但它不动滚动区里别的控件——各行包在一个容器 TouchCustomRows 里、挂在原版滚动区 ScrollView 下，内容多高原版就滚多高、滚出列表框的由原版裁掉
-# （和别的选项页同一套滚动：拖动、滚动条、滚轮）。原先各行直接钉在面板上、不在滚动区里，列表框只有 1260 高，11 行把行高压到了 98。
-# 尺寸取自同一控件树里表格排出来的值：行高 180；文字 1000×180；勾选框在行内 x 1315、70×70 垂直居中。标题行 180（下面的分隔金线按 180 行高摆）。
-# 第一行是语言开关（宿主键表里也排第一），之后是 _CUSTOM_KEYS 各行；加行 = 往 _CUSTOM_KEYS 加键（宿主 dm_custom.c 的 k_keys 同序加）
-# The video page's class hides any table row it does not recognize as a whole row (widget tree: our rows have +0x50 = 0, and only the header rows without checkboxes stay visible), so the rows do not go into the table;
-# but it does not touch other widgets in the scroll area -- the rows are wrapped in a container TouchCustomRows hung under the original scroll area ScrollView, so the original game scrolls as far as the content is tall and clips whatever scrolls out of the list box
-# (the same scrolling as the other option pages: drag, scrollbar, wheel). Previously the rows were pinned directly on the panel, outside the scroll area; the list box is only 1260 high, and 11 rows squeezed the row height down to 98.
-# Dimensions are taken from the values the table lays out in the same widget tree: row height 180; text 1000×180; checkbox at x 1315 within the row, 70×70, vertically centered. Header row 180 (the gold divider line below it is placed for a 180 row height).
-# The first row is the language switch (also first in the host's key table), followed by the rows of _CUSTOM_KEYS; adding a row = adding a key to _CUSTOM_KEYS (and to k_keys in the host's dm_custom.c in the same order)
-_CUSTOM_TITLE_H, _CUSTOM_LINE_H = 180, 180
-_CUSTOM_ALL = (('lang_en', '@dmCustomLang'),) + _CUSTOM_ROWS
-_CUSTOM_TEST_ROWS = int(os.environ.get('DM_CUSTOM_TEST_ROWS', '0'))   # 测试（造现场）：末尾多摆这么多行假行，验更多行时的滚动；产品不设 | test (test setup): append this many dummy rows at the end, to verify scrolling with more rows; not set in the product
-_CUSTOM_Y = [_CUSTOM_TITLE_H + _CUSTOM_LINE_H * i for i in range(len(_CUSTOM_ALL) + _CUSTOM_TEST_ROWS)]
-_CUSTOM_H = _CUSTOM_TITLE_H + _CUSTOM_LINE_H * (len(_CUSTOM_ALL) + _CUSTOM_TEST_ROWS)
-def _custom_toggle_row(i, key, label):
-    y, h = _CUSTOM_Y[i], _CUSTOM_LINE_H
-    return ('        { "type": "TextBoxWidget", "name": "TouchCustom_%s_Text", "fields": { "rect": { "x": 0, "y": %d, "width": 1000, "height": %d }, "text": "%s", "style": "$StyleSettingsText", "style/options/newlineHandling": "standard" } },\n'
-            '        { "type": "ToggleButtonWidget", "name": "TouchCustom_%s", "fields": {\n'
-            '            "rect": { "x": 1315, "y": %d, "width": 70, "height": 70 }, "sound": "cursor_menu_select_hd",\n'
-            '            "focusIndicatorPadding": "$OptionsToggleFocusIndicatorPadding", "focusIndicatorFilename": "$OptionsToggleFocusIndicatorFilename", "focusIndicatorOffset": { "x": 0, "y": -4 },\n'
-            '            "filename": "Lobby\\\\CreateGame\\\\CreateGame_AdvancedCheckbox",\n'
-            '            "untoggledFrame": 0, "untoggledPressedFrame": 1, "untoggledHoveredFrame": 3, "untoggledDisabledFrame": 2,\n'
-            '            "toggledFrame": 4, "toggledPressedFrame": 5, "toggledHoveredFrame": 6,\n'
-            '            "onClickMessage": "PanelManager:ClosePanel:TouchCustom_%s" } },\n') % (key, y, h, label, key, y + (h - 70) // 2, key)
-# 语言开关（第一行，普通行）：勾上 = 英文界面 + 英文语音，下次启动生效（宿主 dm_custom.c 的 lang_en、hle_fs.c settings_lang_apply）。
-# 「重启游戏后生效」那句先放在屏外，勾选与当前语言不一致时宿主挪到这一行文字的下半（横坐标取标签的）
-# Language switch (first row, an ordinary row): checked = English UI + English voice, effective at the next launch (lang_en in the host's dm_custom.c, settings_lang_apply in hle_fs.c).
-# The line 「重启游戏后生效」(Takes effect after restarting the game) is first placed off screen; when the checkbox does not match the current language the host moves it to the lower half of this row's text (x taken from the label)
-_CUSTOM_LANG_HINT = ''.join('        { "type": "TextBoxWidget", "name": "TouchCustomLangHint%s", "fields": { "rect": { "x": 99999, "y": %d, "width": 1400, "height": 60 }, "text": "@dmCustomLangHint%s", "style": "$StyleSettingsText", "style/fontFace": "BlizzardGlobal" } },\n'
-                            % (n, _CUSTOM_Y[0] + 112, n) for n in ('Zh', 'En'))   # 两句各一个控件，宿主按选中的语言摆其中一句 | One control per sentence; the host places one of them according to the chosen language
-# 语言那一行是并排的两个选项「中文 / English」（单选：宿主 dm_custom.c 让两个勾选框互斥，存的仍是 lang_en 一个键）。
-# 这一行的字两种界面都要写汉字：英文界面缺省的 Formal 字体没有汉字（缺字画不出），所以这几个文字控件指定原版的全球字体 BlizzardGlobal
-# （原版标题页、队伍名等同样按控件指定它）。English 的勾选框留在各行勾选框那一列，「中文」的在它左边
-# The language row is two options side by side, 「中文 / English」 (single choice: the host dm_custom.c makes the two checkboxes mutually exclusive, and what is stored is still the one key lang_en).
-# The text of this row has to show Chinese characters in both UIs: the default Formal font of the English UI has no Chinese characters (missing glyphs cannot be drawn), so these text controls specify the original global font BlizzardGlobal
-# (the original title page, party names and so on specify it per control in the same way). The checkbox of English stays in the column where every row has its checkbox; the one of 「中文」 is to its left
-_LANG_ZH_X, _LANG_EN_X = (770, 905), (1100, 1315)   # （文字 x，勾选框 x） | (text x, checkbox x)
-def _custom_lang_row():
-    y, h = _CUSTOM_Y[0], 112; cy = y + (h - 70) // 2   # 标签、两个选项排在这一行的上 112，下面 68 留给提示那一句 | The label and the two options go in the top 112 of this row; the bottom 68 is left for the hint sentence
-    def text(name, x, w, key): return ('        { "type": "TextBoxWidget", "name": "%s", "fields": { "rect": { "x": %d, "y": %d, "width": %d, "height": %d }, "text": "@%s", "style": "$StyleSettingsText", "style/fontFace": "BlizzardGlobal" } },\n' % (name, x, y, w, h, key))
-    def box(name, x): return ('        { "type": "ToggleButtonWidget", "name": "%s", "fields": {\n'
-            '            "rect": { "x": %d, "y": %d, "width": 70, "height": 70 }, "sound": "cursor_menu_select_hd",\n'
-            '            "focusIndicatorPadding": "$OptionsToggleFocusIndicatorPadding", "focusIndicatorFilename": "$OptionsToggleFocusIndicatorFilename", "focusIndicatorOffset": { "x": 0, "y": -4 },\n'
-            '            "filename": "Lobby\\\\CreateGame\\\\CreateGame_AdvancedCheckbox",\n'
-            '            "untoggledFrame": 0, "untoggledPressedFrame": 1, "untoggledHoveredFrame": 3, "untoggledDisabledFrame": 2,\n'
-            '            "toggledFrame": 4, "toggledPressedFrame": 5, "toggledHoveredFrame": 6,\n'
-            '            "onClickMessage": "PanelManager:ClosePanel:%s" } },\n') % (name, x, cy, name)
-    return (text('TouchCustom_lang_en_Text', 0, 700, 'dmCustomLang')
-            + text('TouchCustomLangZh_Text', _LANG_ZH_X[0], _LANG_ZH_X[1] - _LANG_ZH_X[0] - 10, 'dmCustomLangZh') + box('TouchCustom_lang_zh', _LANG_ZH_X[1])
-            + text('TouchCustomLangEn_Text', _LANG_EN_X[0], _LANG_EN_X[1] - _LANG_EN_X[0] - 10, 'dmCustomLangEnOpt') + box('TouchCustom_lang_en', _LANG_EN_X[1]))
-def _custom_page(text):
-    if '"name": "VideoOptionsPanel"' not in text or '"name": "OptionsTable"' not in text: raise SystemExit('touch_layout：主机版视频页不是原样（原版布局变了？），自定义页没换')
-    title = ('{ "type": "TableRowWidget", "name": "Row TouchCustomTitle", "children": [\n'
-             '    { "type": "TextBoxWidget", "name": "TouchCustomTitle", "fields": { "text": "@KeyBindingTypeCustom", "style": "$StyleSettingsTitle" }, "children": [\n'
-             '        { "type": "ImageWidget", "name": "Divider", "fields": { "rect": "$OptionsDividerRect", "filename": "PauseMenu\\\\Divider" } },\n'
-             '    ] },\n'
-             '] },\n')
-    out = ('{\n    "basedOn": "VideoOptionsPanelHD.json",\n    "type": "VideoOptionsPanel", "name": "VideoOptionsPanel",\n    "children": [\n'
-           '        { "type": "ImageWidget", "name": "ScrollBarBackground", "children": [ { "type": "ScrollControllerWidget", "name": "ScrollController" }, ] },\n'
-           '        { "type": "ScrollViewWidget", "name": "ScrollView", "children": [\n'
-           '            { "type": "TableWidget", "name": "OptionsTable", "fields": { "columns": [ "$OptionsTableColumn1", "$OptionsTableColumn2" ], "rowHeight": %d }, "children": [\n' % _CUSTOM_TITLE_H
-           + title + '            ] },\n'
-           + '            { "type": "Widget", "name": "TouchCustomRows", "fields": { "rect": { "x": 0, "y": 0, "width": 1500, "height": %d } }, "children": [\n' % _CUSTOM_H
-           + _custom_lang_row() + ''.join(_custom_toggle_row(i, k, l) for i, (k, l) in enumerate(_CUSTOM_ALL) if i) + _CUSTOM_LANG_HINT
-           + ''.join('        { "type": "TextBoxWidget", "name": "TouchCustomTest%d_Text", "fields": { "rect": { "x": 0, "y": %d, "width": 1000, "height": %d }, "text": "@KeyBindingTypeCustom", "style": "$StyleSettingsText" } },\n'
-                     % (n, _CUSTOM_Y[len(_CUSTOM_ALL) + n], _CUSTOM_LINE_H) for n in range(_CUSTOM_TEST_ROWS)) +
-           # 手柄模式的选中框（同符文之语清单 TouchRwSel）：框住十字键选中的那一行，宿主摆（dm_custom.c）；触屏模式一直在屏外（只把 x 挪出去、y 留在内容范围内：滚动区按子控件的范围算内容高度，y 放到 99999 会把可滚范围撑到十万）。和各行在同一个容器里，跟着滚
-           # Selection frame in controller mode (same as TouchRwSel of the runeword list): frames the row selected with the D-pad, positioned by the host (dm_custom.c); always off-screen in touch mode (only x is moved out while y stays within the content range: the scroll area computes the content height from the extent of its child widgets, and a y of 99999 would stretch the scrollable range to a hundred thousand). It is in the same container as the rows and scrolls with them
-           '        { "type": "NineTileImageWidget", "name": "TouchCustomSel", "fields": { "rect": { "x": 99999, "y": 0, "width": 1000, "height": 100 }, "backgroundColor": [ 0, 0, 0, 0 ], '
-           '"filename": "Controller/PANEL/ControllerSelector/ControllerSelectorBorder", "tileScale": 0.5 } },\n'
-           '            ] },\n        ] },\n'
-           '    ]\n}\n')
-    return out, len(_CUSTOM_ALL) + 2
-PRESENT['controller/console/videooptionspanelhd.json'] = _custom_page
-# 手柄版选项页：原版页签条不动，只把第一项「视频」换成「自定义」——它打开的视频页就是上面那份自定义页（两种模式同一份内容）
-# Controller options page: the original tab bar is untouched, only the first item "Video" is replaced by "Custom"; the video page it opens is the Custom
-# page above (same content in both modes)
-def pad_settings(s): return _sub1(s, '"@OptionsMenuVideo"', '"@KeyBindingTypeCustom"')   # 原版串：自定义 / Custom（跟游戏语言走） | original string: "Custom" in Chinese / English (follows the game language)
-def pad_custom_page(s): return _custom_page(s)[0]
-# 挂进 PRESENT：build_ingame 对同一份文件（往选项页插「应用 / 默认 / 放弃」）会先套这里的变换再插按钮，不会出两份覆盖互相盖掉
-# Hooked into PRESENT: for the same file (inserting 「应用 / 默认 / 放弃」(Apply / Default / Discard) into the options page) build_ingame applies the transform here first and then inserts the buttons, so two overlays that overwrite each other are not produced
+# 选项页只保留原版可用的三个页签（视频与控制页已去掉）；手柄版与触屏版共用同一份页签清理。
+# Keep only the three usable original tabs on the options page (Video and Controls are removed); controller and touch modes share this tab cleanup.
+def pad_settings(s): return _settings_tabs(s)
 PRESENT['controller/console/settingspanelhd.json'] = _settings_tabs
 # 选项页底部的手柄提示条（「默认」「返回」两段说明字；键图标已透明）：局内被外框底带挡着看不出，前端选项页没有外框、字露在三个按钮下面——挪走
 # The controller button legend at the bottom of the options page (the two caption texts 「默认」(Default) and 「返回」(Back); the key icons are already transparent): in-game it is hidden by the bottom band of the outer frame, but the front-end options page has no outer frame and the text shows below the three buttons -- moved away

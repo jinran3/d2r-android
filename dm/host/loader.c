@@ -161,12 +161,37 @@ static void *force_lookup(const char *name) {
         }
     return NULL;
 }
+// 该名字是否被任一模块导入（未定义符号）：用来区分「共享表的超集」与「导入了却没接管」。
+// Whether any module imports this name (an undefined symbol) -- tells a shared-superset entry
+// apart from a real "imported but not taken over" bug.
+static int guest_imports_name(const char *name) {
+    for (int i = 0; i < g_nmod; i++) {
+        module_t *m = &g_mod[i];
+        for (unsigned k = 1; k < m->nsym; k++) {
+            const Elf64_Sym *s = &m->symtab[k];
+            if (s->st_shndx) continue;                       // 有定义，不是导入 | defined, not an import
+            if (!strcmp(m->strtab + s->st_name, name)) return 1;
+        }
+    }
+    return 0;
+}
+
 static void force_check(void) {
-    int bad = 0;
-    for (unsigned i = 0; i < g_nforce; i++)
-        if (!g_force_hits[i]) { LOG("强制接管条目无任何引用：%s", g_force[i].name); bad = 1; }
+    int bad = 0; unsigned unused = 0;
+    for (unsigned i = 0; i < g_nforce; i++) {
+        if (g_force_hits[i]) continue;
+        // 强制接管表是两个游戏共用的超集：本作没导入的条目是正常的多余项（真机首跑 2026-10-22 因此误判：
+        // TotK 不导入 nnssl/nnsocket/oe/time 等一串 D2R 才用的服务）。真正要报错的是
+        // 「本作导入了、却没被接管」——那说明表或解析链有缺陷。
+        // The force table is a shared superset for both games: an entry this game never imports is a legitimate
+        // unused item (the first device boot on 2026-10-22 died here: TotK imports none of nnssl/nnsocket/oe/time).
+        // The failure that matters is "imported but not taken over", which means the table or resolver is wrong.
+        if (guest_imports_name(g_force[i].name)) { LOG("强制接管条目被导入却没接管：%s", g_force[i].name); bad = 1; }
+        else { unused++; if (g_flag.imports) LOG("force 未用：%s（本作没有这个导入）", g_force[i].name); }
+    }
     if (bad) die("强制接管清单有误");
-    LOG("force: %u 条全部命中", g_nforce);
+    if (unused) LOG("force: %u 条命中，%u 条本作未导入（共享表的超集，非故障）", g_nforce - unused, unused);
+    else LOG("force: %u 条全部命中", g_nforce);
 }
 
 // 读改写器表头（段边界、槽号）；表头以外有任何行即旧版产物（装载期改代码），拒绝
@@ -227,7 +252,74 @@ static void register_gates(module_t *m, const char *dir) {
     LOG("%s: gates %d patch_off %#llx keys %lu/%lu/%lu/%lu", m->name, ng, m->patch_off, g_key18, g_keytls, g_keytlr, g_keygate);
 }
 
+// 压缩包式相对重定位（DT_RELR）：偶数项给出一个新游标槽，奇数项是一张位图，覆盖随后 63 个八字节槽。
+// 语义与 R_AARCH64_RELATIVE 完全相同（*槽 = 基址 + 槽原值），只是把逐个地址压成位图，节省九成以上的空间：
+// TotK 三个模块的相对重定位全部走这张表（main 9,357 个编码字 → 499,074 个槽），显式 RELA 里反而一条 RELATIVE 都没有。
+// Packed relative relocations (DT_RELR): an even entry gives a new cursor slot, an odd entry is a bitmap
+// covering the following 63 eight-byte slots. The semantics are exactly those of R_AARCH64_RELATIVE
+// (*slot = base + original slot value), only the addresses are packed into bitmaps to save >90% of the space:
+// all three TotK modules carry their relative relocations in this table (main: 9,357 encoded words -> 499,074
+// slots), while the explicit RELA table contains no RELATIVE entry at all.
+typedef void (*relr_slot_fn)(module_t *m, uint64_t off, void *ctx);
+static void dynamic_relr(const module_t *m, uint64_t *off, uint64_t *size, uint64_t *ent) {
+    *off = *size = *ent = 0;
+    for (const Elf64_Dyn *d = m->dyn; d->d_tag; d++) switch (d->d_tag) {
+        case DT_RELR: *off = d->d_un.d_ptr; break;
+        case DT_RELRSZ: *size = d->d_un.d_val; break;
+        case DT_RELRENT: *ent = d->d_un.d_val; break;
+    }
+}
+// 没有 DT_RELR 的模块（relative=0 且本就没有相对指针）这里直接返回 0，行为与旧版一致。
+// A module without DT_RELR (relative=0 and no relative pointers to begin with) simply yields 0 here, i.e. the old behaviour.
+static uint64_t walk_relr(module_t *m, relr_slot_fn visit, void *ctx) {
+    uint64_t off, size, ent;
+    dynamic_relr(m, &off, &size, &ent);
+    if (!off && !size) return 0;
+    if (!size || ent != sizeof(Elf64_Relr) || size % sizeof(Elf64_Relr) || size > m->size || off > m->size - size)
+        die("%s: DT_RELR 元数据越界或格式不对（表 %#llx 大小 %#llu 每项 %llu）", m->name,
+            (unsigned long long)off, (unsigned long long)size, (unsigned long long)ent);
+    const Elf64_Relr *tab = (const Elf64_Relr *)(m->base + off);
+    uint64_t count = 0, cursor = 0;
+    int anchored = 0;
+    for (uint64_t i = 0; i < size / sizeof *tab; i++) {
+        Elf64_Relr e = tab[i];
+        if (!(e & 1)) {
+            if (e & 7) die("%s: DT_RELR 地址项 %#llx 未按 8 字节对齐", m->name, (unsigned long long)e);
+            cursor = e;
+            anchored = 1;
+        } else {
+            if (!anchored) die("%s: DT_RELR 位图缺少前导地址", m->name);
+            for (unsigned bit = 1; bit < 64; bit++)
+                if (e >> bit & 1) {
+                    uint64_t target = cursor + (uint64_t)(bit - 1) * 8;
+                    if (target > m->size || sizeof(uint64_t) > m->size - target)
+                        die("%s: DT_RELR 槽 %#llx 越出镜像（大小 %#zx）", m->name,
+                            (unsigned long long)target, m->size);
+                    visit(m, target, ctx);
+                    count++;
+                }
+            // 位图之后游标推进 63 个槽（不含本槽) | After a bitmap the cursor advances by 63 slots (excluding this one)
+            cursor += 63 * 8;
+            continue;
+        }
+        if (cursor > m->size || sizeof(uint64_t) > m->size - cursor)
+            die("%s: DT_RELR 槽 %#llx 越出镜像（大小 %#zx）", m->name, (unsigned long long)cursor, m->size);
+        visit(m, cursor, ctx);
+        count++;
+        cursor += 8;
+    }
+    return count;
+}
+static void apply_relr_slot(module_t *m, uint64_t off, void *unused) {
+    (void)unused;
+    // 加数就是槽里的原值，直接加基址；值为 0 的槽表示「指向模块基址」，不能当作空哨兵跳过。
+    // The addend is the slot's original value: just add the base. A slot holding 0 means "points at the module
+    // base" and must not be skipped as if it were a null sentinel.
+    *(uint64_t *)(m->base + off) += (uint64_t)m->base;
+}
+
 static void relocate(module_t *m) {
+    uint64_t relr = walk_relr(m, apply_relr_slot, NULL);   // 先压箱的相对表，再显式表（两张表在本机已核实零重叠） | Packed table first, then the explicit ones (verified disjoint on this build)
     uint64_t rela = 0, relasz = 0, jmprel = 0, pltsz = 0;
     for (const Elf64_Dyn *d = m->dyn; d->d_tag; d++) switch (d->d_tag) {
         case DT_RELA: rela = d->d_un.d_ptr; break;
@@ -250,7 +342,56 @@ static void relocate(module_t *m) {
             if (type == R_AARCH64_JUMP_SLOT) { *where = v; cnt[2]++; }
             else { *where = v + r->r_addend; cnt[1]++; }       // ABS64 / GLOB_DAT
         }
-    LOG("%s: reloc relative=%d abs/glob=%d jump=%d", m->name, cnt[0], cnt[1], cnt[2]);
+    LOG("%s: reloc relative=%d relr=%llu abs/glob=%d jump=%d", m->name, cnt[0], (unsigned long long)relr, cnt[1], cnt[2]);
+}
+
+// 装载期槽位对拍（只读诊断，不改任何槽）：导入槽的值必须等于「定义该符号的模块基址 + st_value」（ABS64/GLOB_DAT 再加加数）。
+// 对不上就说明槽被别的东西改过（同一 r_offset 有第二条重定位、RELR 又把它当相对槽加了一遍基址、或宿主写坏了它），
+// 真机上的表现正是「blr 到别的函数中间」：pc 落在某个无关函数体内、寄存器与该函数的本地初始化完全不相干。
+// Load-time slot audit (read-only, never writes a slot): an import slot must equal "defining module base + st_value"
+// (plus the addend for ABS64/GLOB_DAT). A mismatch means something else overwrote the slot (a second relocation for the
+// same r_offset, RELR adding the base to it again, or a bad host write), which on the device looks exactly like
+// "blr into the middle of an unrelated function": pc inside that function's body while the registers do not match
+// what its own local setup would have produced.
+static void audit_import_slots(module_t *m) {
+    uint64_t rela = 0, relasz = 0, jmprel = 0, pltsz = 0;
+    for (const Elf64_Dyn *d = m->dyn; d->d_tag; d++) switch (d->d_tag) {
+        case DT_RELA: rela = d->d_un.d_ptr; break;
+        case DT_RELASZ: relasz = d->d_un.d_val; break;
+        case DT_JMPREL: jmprel = d->d_un.d_ptr; break;
+        case DT_PLTRELSZ: pltsz = d->d_un.d_val; break;
+    }
+    const Elf64_Rela *tabs[2] = {(const Elf64_Rela *)(m->base + rela), (const Elf64_Rela *)(m->base + jmprel)};
+    uint64_t sizes[2] = {relasz, pltsz};
+    unsigned nslot = 0, nbad = 0;
+    for (int t = 0; t < 2; t++)
+        for (uint64_t i = 0; i < sizes[t] / sizeof(Elf64_Rela); i++) {
+            const Elf64_Rela *r = &tabs[t][i];
+            if (ELF64_R_TYPE(r->r_info) == R_AARCH64_RELATIVE) continue;
+            const Elf64_Sym *rs = &m->symtab[ELF64_R_SYM(r->r_info)];
+            const char *name = m->strtab + rs->st_name;
+            if (rs->st_shndx) continue;                  // 本模块自己有定义：relocate() 用本模块的偏移（拷贝重定位），不跨模块解析 | Defined in this very module: relocate() uses this module's own offset (copy relocation), no cross-module lookup
+            if (force_lookup(name)) continue;            // 宿主强制接管：槽指向宿主函数，不在本检查范围 | Forced host take-over: the slot points at a host function, out of scope here
+            uint64_t want = 0; const char *wm = NULL;
+            for (int j = 0; j < g_nmod; j++) { void *p = module_sym(&g_mod[j], name); if (p) { want = (uint64_t)p; wm = g_mod[j].name; break; } }
+            if (!want) continue;                          // 三个模块都没有定义：走的是桩/HLE，不在本检查范围 | Not defined by any module: stub/HLE path, out of scope
+            if (ELF64_R_TYPE(r->r_info) != R_AARCH64_JUMP_SLOT) want += (uint64_t)r->r_addend;
+            nslot++;
+            uint64_t got = *(const uint64_t *)(m->base + r->r_offset);
+            if (got == want) continue;
+            nbad++;
+            if (nbad <= 20) {
+                module_t *gmod = module_of((void *)got);
+                if (gmod) LOG("【红】槽位对拍：%s+%#llx %s 应为 %s+%#llx，实际 %s+%#llx",
+                              m->name, (unsigned long long)r->r_offset, name, wm,
+                              (unsigned long long)(want - (uint64_t)module_of((void *)want)->base),
+                              gmod->name, (unsigned long long)(got - (uint64_t)gmod->base));
+                else LOG("【红】槽位对拍：%s+%#llx %s 应为 %s+%#llx，实际 %p（不在任何模块内）",
+                         m->name, (unsigned long long)r->r_offset, name, wm,
+                         (unsigned long long)(want - (uint64_t)module_of((void *)want)->base), (void *)got);
+            }
+        }
+    LOG("%s: 槽位对拍 %u 个模块内导入槽，不一致 %u 条", m->name, nslot, nbad);
 }
 
 // DM_LOADHASH=1（诊断）：装载完逐模块出地址无关 sha256，证「提前起跑 / 不提前」装载结果逐字节相同。
@@ -260,6 +401,18 @@ static void relocate(module_t *m) {
 // Module base addresses and host ASLR differ every run, and only the values of the relocation slots change with them: copy the image and, using the same relocation table, replace every slot with an address-independent token --
 // RELATIVE → (0, addend); symbol target falls in some module → (1 + module number, offset within the module); otherwise (host forced take-over / host symbol) → (name FNV, addend); all other bytes as is.
 #include <CommonCrypto/CommonDigest.h>
+// RELR 槽的归一化：记号头写 0（与 RELATIVE 同一记号），记号尾 = 槽值减模块基址（即加数）。
+// Normalisation of a RELR slot: the token head is written as 0 (same token as RELATIVE), and the token tail is the slot value minus the module base (i.e. the addend).
+typedef struct { uint8_t *cp; CC_SHA256_CTX *c; unsigned *nslot; } relr_hash_ctx;
+static void hash_relr_head(module_t *m, uint64_t off, void *p) {
+    relr_hash_ctx *h = p; uint64_t tok = 0;
+    memcpy(h->cp + off, &tok, 8); (*h->nslot)++; (void)m;
+}
+static void hash_relr_tail(module_t *m, uint64_t off, void *p) {
+    relr_hash_ctx *h = p;
+    uint64_t tail = *(const uint64_t *)(m->base + off) - (uint64_t)m->base;
+    CC_SHA256_Update(h->c, &tail, 8);
+}
 void loader_hash_log(void) {
     if (!getenv("DM_LOADHASH")) return;
     for (int k = 0; k < g_nmod; k++) {
@@ -284,7 +437,10 @@ void loader_hash_log(void) {
                 memcpy(cp + r->r_offset, &tok[0], 8);                // 槽 8 字节换成记号头；记号尾在下面按槽序追加 | The 8 slot bytes are replaced by the token head; the token tail is appended below in slot order
                 nslot++;
             }
+        relr_hash_ctx rh = { cp, NULL, &nslot };
+        rh.c = NULL; walk_relr(m, hash_relr_head, &rh);   // 记号头必须在哈希映像之前写完 | Token heads must be written before hashing the copy
         CC_SHA256_CTX c; CC_SHA256_Init(&c); CC_SHA256_Update(&c, cp, (CC_LONG)m->size);
+        rh.c = &c; walk_relr(m, hash_relr_tail, &rh);     // 记号尾按槽序追加在映像之后 | Token tails are appended in slot order, after the image
         for (int t = 0; t < 2; t++)                                // 记号尾（加数 / 偏移）按槽序追加，与槽头一起唯一确定槽值 | Token tails (addend / offset) are appended in slot order, and together with the slot head uniquely determine the slot value
             for (uint64_t i = 0; i < sizes[t] / sizeof(Elf64_Rela); i++) {
                 const Elf64_Rela *r = &tabs[t][i]; uint64_t tail = (uint64_t)r->r_addend;
@@ -425,6 +581,8 @@ void load_modules(const char *dir, const char **names, int n) {
     force_init();
     t = now_ns(); for (int i = 0; i < g_nmod; i++) relocate(&g_mod[i]); tr = now_ns() - t;
     force_check();
+    // 只读对拍放在强制接管之后：槽的最终值以这一步为准 | The read-only audit runs after forced take-over so it sees the final slot values
+    for (int i = 0; i < g_nmod; i++) audit_import_slots(&g_mod[i]);
     { void hlecount_seal(void); hlecount_seal(); }   // DM_HLECOUNT：重定位完成，计数桩页封成只读可执行 | DM_HLECOUNT: relocation done, seal the counting stub pages as read-only executable
     if (getenv("DM_SYMCHECK")) LOG("DM_SYMCHECK：装载期共核 %lu 次符号查询，哈希与线性不一致 %lu", g_symchk_n, g_symchk_bad);
     if (g_flag.bootprof) LOG("① 细分：映射（读 + 拷 + 封页）%.1f ms、解析动态段 %.1f ms、门注册 %.1f ms、重定位 + 强制接管 %.1f ms，合计 %.1f ms",
@@ -440,6 +598,20 @@ void run_module_inits(void) {
         module_t *m = &g_mod[i];
         if (!m->init) continue;
         LOG("%s: DT_INIT +%#llx（init_array %llu 项）", m->name, m->init, m->init_arraysz / 8);
+        // 跑之前的体检：数组项此时应当已是「基址 + 模块内偏移」的绝对地址（由 DT_RELR 完成）。
+        // 若「仍是镜像内相对值」的计数非零，说明该模块的相对重定位没被应用，客体一进 DT_INIT 就会跳错。
+        // Health check before running: by now each entry should hold an absolute address (base + offset in the
+        // module), applied by DT_RELR. If the "still image-relative" count is non-zero, the module's relative
+        // relocations were never applied, and the guest will branch to a wrong address on entry to DT_INIT.
+        if (m->init_array && m->init_arraysz) {
+            const uint64_t *a = (const uint64_t *)(m->base + m->init_array);
+            uint64_t n = m->init_arraysz / 8, zero = 0, rel = 0;
+            if ((size_t)(m->init_array + m->init_arraysz) > m->size) die("%s: init_array 越出镜像", m->name);
+            for (uint64_t i = 0; i < n; i++) { uint64_t v = a[i]; if (!v) zero++; else if (v < m->size) rel++; }
+            LOG("%s: init_array 体检 base %p 数组 %p 共 %llu 项：零项 %llu、仍是相对值 %llu；首三项 %#llx %#llx %#llx",
+                m->name, (void *)m->base, (const void *)a, n, zero, rel,
+                n ? a[0] : 0, n > 1 ? a[1] : 0, n > 2 ? a[2] : 0);
+        }
         ((void (*)(void))(m->base + m->init))();
     }
 }

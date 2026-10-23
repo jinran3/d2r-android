@@ -66,7 +66,7 @@ The script assumes that the character select list of this save has four characte
 | 1 | Level 76 Paladin | `i`, `me1`, `me2`, `sl1`, `rf1` |
 | 2 | Level 1 Warlock (this row is selected by default) | Most runs |
 | 3 | Another character | `e` (only selects it on the character select page), `wd1` |
-| 4 | Level 88 Sorceress, with a mercenary | `f`, `q`, `tp`, `cb`, `pg1`, `bdm`, `rf2`, `me3` |
+| 4 | Level 88 Sorceress, with a mercenary | `f`, `q`, `cb`, `bdm`, `rf2`, `me3` |
 
 Many tap positions and criteria also depend on things these characters already have (scrolls in the inventory, equipment worn, stash contents, waypoints already opened).
 
@@ -106,13 +106,12 @@ A run name is the first argument of `G("…")` in `uireg.py`; below they are gro
 | `g`, `h` | Skill binding; the `综合技能` (general skills) page of the skill tree |
 | `i`, `f`, `q`, `bdm` | Mercenary: hiring and reviving, inventory drag and drop with a mercenary, double-tapping a belt potion to feed the mercenary |
 | `j`, `k` | Socketing; making one runeword |
-| `rw1`, `rw2`, `rwp`, `rwd` | Runeword list: opening by long press, paging and details, one-tap crafting |
 | `m`, `n`, `p`, `ra` | Merchant page: dragging onto the merchant panel to sell, long press on the shelf to buy in bulk, long press on a potion to refill the belt, repair all |
 | `me1`–`me4` | Two-row / three-row / four-row dialogue menus when different characters face the same NPC |
 | `sl1`, `sl2`, `sl3` | Imbuing, adding sockets, personalizing. `sl2` and `sl3` are marked in the script comments as drafts that have not actually been run yet |
 | `cb` | With the Horadric Cube page open, double tap to send items into / out of the Horadric Cube |
 | `bd`, `ba` | Belt: double tap on an empty slot to fill up, automatic belt refill when opening the inventory |
-| `pk`, `g1`–`g4`, `ex`, `tb`, `tp`, `dz` | Tapping things in the world: the tappable range of a chest, the upper, middle and lower sections of a portal, exits, the town portal, the quest pedestal (most need dedicated saves) |
+| `pk`, `g1`–`g4`, `ex`, `tb`, `dz` | Tapping things in the world: the tappable range of a chest, the upper, middle and lower sections of a portal, exits, the quest pedestal (most need dedicated saves) |
 | `wp` | Entering the game lands next to the town waypoint |
 | `rf1`–`rf3` | One-tap restart from the pause menu, restarting three times in a row per run |
 | `pg1`, `pg2` | Paging through the personal stash |
@@ -125,7 +124,7 @@ A run name is the first argument of `G("…")` in `uireg.py`; below they are gro
 The scope when no run name is given:
 
 - `iphone`, `ipadfull`: everything in the table above (`top` only in `ipadfull`).
-- `ipad` (the bordered profile is not the default picture on iPad): runs only the part related to the screen aspect ratio, automatically skipping `d g h j k t u v m n p ra q pk g1–g4 ex tb tp`, and skipping the casting-in-the-wild part within run `a`. They can still be run when named explicitly.
+- `ipad` (the bordered profile is not the default picture on iPad): runs only the part related to the screen aspect ratio, automatically skipping `d g h j k t u v m n p ra q pk g1–g4 ex tb`, and skipping the casting-in-the-wild part within run `a`. They can still be run when named explicitly.
 - The tap positions of `g1`–`g4` have only been measured for the two sets `iphone` and `ipadfull`.
 
 ## Environment variables

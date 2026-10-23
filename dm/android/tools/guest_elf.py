@@ -79,11 +79,11 @@ def build(image, text_end, patch_off, soname):
 
 def pack(source, output, name):
     layout = {}
-    for line in (source / (name + ".fixups.tsv")).read_text().splitlines():
+    for line in (source / (name + ".fixups.tsv")).read_text(encoding="utf-8").splitlines():
         if line.startswith("# "):
             key, value = line[2:].split()
             layout[key] = int(value, 16)
-    if (source / (name + ".target")).read_text().strip() != "android-context-v1":
+    if (source / (name + ".target")).read_text(encoding="utf-8").strip() != "android-context-v1":
         raise ValueError("Module was not rewritten for Android")
     image = (source / (name + ".patched.bin")).read_bytes()
     output.mkdir(parents=True, exist_ok=True)

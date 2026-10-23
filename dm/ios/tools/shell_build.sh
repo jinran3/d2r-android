@@ -58,11 +58,11 @@ take() {   # 安装包内路径（以 / 结尾 = 目录） [nolist = 只搬走�
   mkdir -p "$O/ref/$(dirname "$p")" && mv "$A/$p" "$O/ref/$p" || die "搬不走 $p"; [ "${2:-}" = nolist ] || echo "$1" >> "$O/shell_manifest.txt"; }
 V=$(sed -n 's/^#define DMSH_CHAIN "\(.*\)"/\1/p' ../gfx/nvn/dmsh_chain.h); [ -n "$V" ] && [ -d "$A/msl/b-$V" ] || die "着色器库目录不对（链版本「${V}」）"
 take "msl/b-$V/"; rmdir "$A/msl" 2> /dev/null
-for d in romfs_overlay romfs_overlay_variants hud_v4_ui mapgoal mercslots; do take "$d/"; done
+for d in romfs_overlay romfs_overlay_variants hud_v4_ui mapgoal; do take "$d/"; done
 # 测试存档（我们自己的回归用）与老机型补充包的覆盖层（没带补充包时是空目录）：壳里不带，使用者也不用补
 # Test saves (for our own regression) and the overlay of the Legacy Device Pack (an empty directory when no Legacy Device Pack is included): not carried in the shell, and users do not need to add them either
 for d in save_ref save_ref_warlock romfs_overlay_astc romfs_overlay_astc_variants; do take "$d/" nolist; done
-for f in "$A"/dm/*.fixups.tsv "$A"/dm/*.gates.tsv "$A"/dm/bootlist.tsv "$A"/dm/main.cuts.tsv "$A"/dm/c1_full.tsv "$A"/dm_native_*.png "$A"/native_art_manifest.json; do [ -e "$f" ] && take "${f#$A/}"; done
+for f in "$A"/dm/*.fixups.tsv "$A"/dm/*.gates.tsv "$A"/dm/main.cuts.tsv "$A"/dm/c1_full.tsv "$A"/dm_native_*.png "$A"/native_art_manifest.json; do [ -e "$f" ] && take "${f#$A/}"; done
 echo "dm/derived.tsv" >> "$O/shell_manifest.txt"; echo "Frameworks/Guest.framework/" >> "$O/shell_manifest.txt"
 # 清单与版本信息随壳走（d2rm_pack.py 读它们：壳要的产物代号、着色器链版本对不上就拒绝往里做）
 # The manifest and version info travel with the shell (d2rm_pack.py reads them: if the build output codename or shader chain version the shell requires does not match, it refuses to pack into it)
@@ -90,9 +90,8 @@ app, ref, src = sys.argv[1:]
 needles = set()
 for l in open(os.path.join(ref, 'derived.tsv'), encoding='utf-8'):
     f = l.rstrip('\n').split('\t')
-    if f[0] in ('VTROW', 'VTSET'): needles.update(x.encode() for x in f[1:] if len(x) >= 8 and not x.lstrip('-').isdigit())
 g = open(os.path.join(ref, 'Guest.framework', 'Guest'), 'rb').read(); needles.add(g[0x4000:0x4040]); needles.add(g[0x200000:0x200040])
-# 仓库源码里本来就写着的字符串不算（少数物品名是我们的功能代码里点名用的，随源码公开）：副本里三份生成文件此时已是替身，搜到的都是手写源码
+# 仓库源码里本来就写着的字符串不算（少数物品名是我们的功能代码里点名用的，随源码公开）：副本里的生成文件此时已是替身，搜到的都是手写源码
 blob = b'\0'.join(open(os.path.join(d, fn), 'rb').read() for top in ('host', 'gfx', 'ios/Sources') for d, _, fs in os.walk(os.path.join(src, top)) for fn in fs if fn.endswith(('.c', '.m', '.h')))
 own = {n for n in needles if n in blob}; needles -= own
 bad = 0

@@ -178,7 +178,7 @@ static void draw_graphics_inner(const p_draw *draw,const p_draw_idx *indexed) {
     graphics_command_apply(cached->pipeline,layout,sets,dynamic_offsets,dynamic_count,&viewport,&scissor,state.blend_color.rgba,state.polygon_offset.units,state.polygon_offset.factor,state.stencil_faces);
     for(unsigned i=0;i<16;i++)if(vertex_buffers[i])graphics_command_vertices(i,vertex_buffers[i],offsets[i]);
     graphics_probe_draw(draw,indexed);
-    if(indexed){graphics_command_index(index_buffer,0,index_type);vkCmdDrawIndexed(command,indexed->count,indexed->instances,0,indexed->base_vertex,indexed->base_instance);}else vkCmdDraw(command,draw->count,1,draw->first,0);
+    if(indexed){graphics_command_index(index_buffer,0,index_type);vkCmdDrawIndexed(command,indexed->count,indexed->instances,0,indexed->base_vertex,indexed->base_instance);}else vkCmdDraw(command,draw->count,draw->instances>0?draw->instances:1,draw->first,draw->base_instance>0?draw->base_instance:0);
     gpu_snapshot_consumer_encoded();
     forward_record_outputs(output_scope,VK_PIPELINE_STAGE_VERTEX_SHADER_BIT|VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
     draw_count++;

@@ -10,6 +10,7 @@
 #include "debug_stats.h"
 #include "performance_hint.h"
 #include "pending_ranges.h"
+#include "nvn_c2_layout.h"
 #ifdef __ANDROID__
 #define VK_USE_PLATFORM_ANDROID_KHR
 #include <android/native_window.h>
@@ -851,6 +852,14 @@ static void execute(const uint8_t *p, unsigned depth) {
             case OP_STENCIL: { const p_stencil *s = (const void *)a; for (int i = 0; i < 2; ++i) if (s->face & (1 << i)) { if (s->which == 0) state.stencil_faces[i].compareMask = s->value_mask; else if (s->which == 1) state.stencil_faces[i].writeMask = s->mask; else state.stencil_faces[i].reference = s->ref; } break; }
             case OP_RESET_COUNTER: if (v[0] == NVN_COUNTER_TYPE_SAMPLES_PASSED) {graphics_pass_end();post_new(4);} break;
             case OP_DISPATCH: dispatch_compute((const p_dispatch *)a); break;
+            // GPU 侧等待：等到该栅栏值（记录时客体已经提交过的工作）。
+            // GPU-side wait: block until the GPU reaches that fence value (work submitted before the recording).
+            case OP_WAIT_SYNC: { const p_wait_sync *w = (const void *)a; if (w->fence && !mtl_wait(w->fence, UINT64_MAX)) die("Vulkan NVN wait sync failed"); break; }
+            // 间接派发：计数在客体缓冲里，回放时读出来按直接派发执行。
+            // Indirect dispatch: read the counts from the guest buffer and issue a direct dispatch.
+            case OP_DISPATCH_INDIRECT: { const p_dispatch_indirect *d = (const void *)a; uint32_t counts[3] = {0, 0, 0};
+                if (snapshot_read(d->buffer + d->offset, counts, sizeof counts)) die("Vulkan indirect dispatch counts unreadable");
+                p_dispatch direct = {counts[0], counts[1], counts[2], 0}; dispatch_compute(&direct); break; }
             case OP_DRAW: draw_graphics((const p_draw *)a, NULL); break;
             case OP_DRAW_IDX: draw_graphics(NULL, (const p_draw_idx *)a); break;
             default: die("Vulkan NVN packet not implemented: op=%u size=%u (draw=%u indexed=%u dispatch=%u)", h.op, h.size, OP_DRAW, OP_DRAW_IDX, OP_DISPATCH);
@@ -1079,7 +1088,7 @@ void mtl_create_ns(uint64_t *lib, uint64_t *pso) { *lib = resource_created_ns[0]
 uint64_t mtl_upload_bytes(void) { return 0; }
 void mtl_alloc_stats(uint64_t *wait, uint64_t *grow, int *n) { *wait = *grow = 0; *n = 1; }
 uint32_t mtl_present_qos(void) { return 0; }
-int mtl_fps_target(void) { int dm_fps_setting(void); return dm_fps_setting(); }
+int mtl_fps_target(void) { return 60; }
 void mtl_mem_stat(unsigned long long frame, unsigned long long mb, int ok, unsigned long long total, unsigned long long free_size, unsigned long long max) { (void)ok; (void)total; (void)free_size; (void)max; LOG("[vulkan] frame=%llu resident=%llu MB submits=%llu allocations=%llu reuse=%llu snapshots=%llu MB pipelines=%llu/%llu", frame, mb, (unsigned long long)atomic_load(&submitted), (unsigned long long)buffer_allocations, (unsigned long long)buffer_reuses, (unsigned long long)(snapshot_bytes >> 20), (unsigned long long)pipeline_creations, (unsigned long long)pipeline_reuses); }
 void mtl_ui_ghost(int on, float px, float py, const float grid[4], float cx, float cy) { (void)on; (void)px; (void)py; (void)grid; (void)cx; (void)cy; }
 int mtl_ui_ghost_rect(float r[4]) { (void)r; return 0; }

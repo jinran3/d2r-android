@@ -5,19 +5,19 @@ Build adrenotools and hooks from pinned open-source inputs, without device opera
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import argparse
-import fcntl
 import io
 import json
 import os
 import shlex
 import shutil
 import subprocess
+from host_env import HOST_TAG, file_lock, tool
 import tarfile
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = Path(os.environ.get("DM_ANDROID_TOOLS", str(Path.home() / "dm-work/tools/android")))
-BIN = TOOLS / "ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+BIN = TOOLS / "ndk/toolchains/llvm/prebuilt" / HOST_TAG / "bin"
 PINNED = (("eden-emulator/libadrenotools", "8ba23b42d7"),
           ("bylaws/liblinkernsbypass", "aa3975893d"))
 
@@ -57,8 +57,10 @@ def build(output):
     output.mkdir(parents=True, exist_ok=True)
     # APK和fixture可能并行构建；锁住共享依赖的完整编译/链接流程。
     # APK and fixture builds may overlap; lock the entire shared-dependency compile/link operation.
-    with (output / ".build.lock").open("a+") as lock:
-        fcntl.flock(lock,fcntl.LOCK_EX)
+    # 锁语义同上游 fcntl.flock(LOCK_EX)，但 Windows 没有 fcntl，改用跨平台 file_lock。
+    # Same semantics as upstream fcntl.flock(LOCK_EX), but Windows has no fcntl,
+    # so this uses the cross-platform file_lock.
+    with file_lock(output / ".build.lock"):
         return build_locked(output)
 
 
@@ -79,7 +81,9 @@ def build_locked(output):
         obj = output / (path.stem + ".o")
         deps, stamp = obj.with_suffix(".d"), obj.with_suffix(".cmd")
         cpp = path.suffix == ".cpp"
-        compiler = BIN / ("aarch64-linux-android29-clang++" if cpp else "aarch64-linux-android29-clang")
+        # tool() 补 Windows 后缀：无扩展名的 clang 在 NDK 里是给 bash 用的脚本，
+        # CreateProcess 执行它会报 WinError 193。
+        compiler = tool(BIN / ("aarch64-linux-android29-clang++" if cpp else "aarch64-linux-android29-clang"))
         command = [str(compiler), "-c", "-O2", "-fPIC", "-Wall", "-Wextra",
                    "-MMD", "-MF", str(deps), "-I", str(source), "-I", str(source / "include"),
                    "-I", str(linker), str(path), "-o", str(obj)]
@@ -88,15 +92,15 @@ def build_locked(output):
         if path.stem == "hook_impl":
             command.insert(2, "-fvisibility=hidden")
         recorded = json.dumps(command)
-        if obj.exists() and deps.exists() and stamp.exists() and stamp.read_text() == recorded:
-            paths = shlex.split(deps.read_text().split(":", 1)[1].replace("\\\n", " "))
+        if obj.exists() and deps.exists() and stamp.exists() and stamp.read_text(encoding="utf-8") == recorded:
+            paths = shlex.split(deps.read_text(encoding="utf-8").split(":", 1)[1].replace("\\\n", " "))
             if all(Path(p).exists() and Path(p).stat().st_mtime <= obj.stat().st_mtime for p in paths):
                 return obj
-        result = subprocess.run(command, capture_output=True, text=True)
-        (output / (path.stem + ".log")).write_text(result.stdout + result.stderr)
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        (output / (path.stem + ".log")).write_text(result.stdout + result.stderr, encoding="utf-8")
         if result.returncode:
             raise RuntimeError("GPU driver compile failed: " + str(path) + "\n" + result.stderr)
-        stamp.write_text(recorded)
+        stamp.write_text(recorded, encoding="utf-8")
         return obj
 
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -105,7 +109,7 @@ def build_locked(output):
     archive = output / "liblinkernsbypass.a"
     linker_objects=[by_name["android_linker_ns"],by_name["elf_soname_patcher"]]
     if not archive.exists() or any(p.stat().st_mtime>archive.stat().st_mtime for p in linker_objects):
-        subprocess.run([str(BIN / "llvm-ar"), "rcs", str(archive),*map(str,linker_objects)],check=True)
+        subprocess.run([str(tool(BIN / "llvm-ar")), "rcs", str(archive),*map(str,linker_objects)],check=True)
     libraries = []
     targets = {
         "adrenotools": [by_name["driver"], by_name["bcenabler"], archive],
@@ -116,7 +120,7 @@ def build_locked(output):
     }
     for name, inputs in targets.items():
         library = output / ("lib" + name + ".so")
-        command = [str(BIN / "aarch64-linux-android29-clang++"), "-shared", "-static-libstdc++",
+        command = [str(tool(BIN / "aarch64-linux-android29-clang++")), "-shared", "-static-libstdc++",
                    "-Wl,-z,defs", "-Wl,-z,max-page-size=16384", "-Wl,-soname," + library.name,
                    *map(str, inputs)]
         if name == "adrenotools":
@@ -127,13 +131,13 @@ def build_locked(output):
         recorded = json.dumps(command)
         stamp = library.with_suffix(".cmd")
         dependencies = inputs + ([output / "libhook_impl.so"] if name not in ("adrenotools", "hook_impl") else [])
-        if not (library.exists() and stamp.exists() and stamp.read_text() == recorded
+        if not (library.exists() and stamp.exists() and stamp.read_text(encoding="utf-8") == recorded
                 and all(p.stat().st_mtime <= library.stat().st_mtime for p in dependencies)):
-            result = subprocess.run(command, capture_output=True, text=True)
-            (output / (name + "-link.log")).write_text(result.stdout + result.stderr)
+            result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+            (output / (name + "-link.log")).write_text(result.stdout + result.stderr, encoding="utf-8")
             if result.returncode:
                 raise RuntimeError("GPU driver link failed: " + name + "\n" + result.stderr)
-            stamp.write_text(recorded)
+            stamp.write_text(recorded, encoding="utf-8")
         libraries.append(library)
     licenses = output / "licenses"
     licenses.mkdir(exist_ok=True)
@@ -145,7 +149,7 @@ def build_locked(output):
                 "libraries": [str(p) for p in libraries], "include": str(output / "include"),
                 "ndk": str(TOOLS / "ndk"), "abi": "arm64-v8a", "api": 29,
                 "cxx_runtime": "static", "max_page_size": 16384}
-    (output / "build.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (output / "build.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print("GPU driver libraries:", ", ".join(p.name for p in libraries), flush=True)
     return libraries
 

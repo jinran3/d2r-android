@@ -14,7 +14,7 @@ import json
 import os
 import sys
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 FORMAT_VERSION = 1
 MANIFEST_NAME = "manifest.json"
@@ -47,7 +47,7 @@ def collect_game(directory):
     return sorted(GAME_MODULES + GAME_LAYOUTS)
 
 
-def collect_romfs(directory):
+def collect_romfs(directory, layout="data"):
     """把 data/ 下的**所有**文件都打包，不按扩展名筛选。
 
     曾经只收 .data 与 .psv，漏掉了 `build_key.txt`，结果导入后的包启动时游戏报
@@ -59,13 +59,22 @@ def collect_romfs(directory):
     cannot be enumerated at packaging time, so nothing is filtered here.
     """
     require_directory(directory, "romfs")
+    if layout == "root":
+        # TotK：RomFS 本身是一棵深目录树（30 多万个文件），必须**保留相对路径**，
+        # 否则包里的路径与游戏要开的路径对不上。
+        # TotK: the RomFS is a deep tree of more than 300k files, so the relative paths must be preserved -
+        # otherwise the packaged paths do not match the ones the game opens.
+        entries = sorted(p for p in directory.rglob("*") if p.is_file())
+        if not entries:
+            raise PackageError(f"romfs directory is empty: {directory}")
+        return [(path, path.relative_to(directory).as_posix()) for path in entries]
     data = directory / "data"
     if not data.is_dir():
         raise PackageError(f"romfs directory has no data/ subdirectory: {directory}")
     entries = sorted(p for p in data.rglob("*") if p.is_file())
     if not entries:
         raise PackageError(f"romfs data/ is empty: {data}")
-    return entries
+    return [(path, "data/" + path.name) for path in entries]
 
 
 def collect_shaders(directory):
@@ -83,7 +92,7 @@ def collect_shaders(directory):
     if not profile.is_file():
         raise PackageError(f"shaders directory has no host-subgroup-size.txt: {directory}")
     try:
-        subgroup = int(profile.read_text().strip())
+        subgroup = int(profile.read_text(encoding="utf-8").strip())
     except ValueError:
         raise PackageError("host-subgroup-size.txt is not a plain integer")
     entries = sorted(p for p in directory.iterdir() if p.is_file())
@@ -110,13 +119,102 @@ def write_entry(archive, source, name, progress):
     return written
 
 
-def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False):
+OVERLAY_FORMAT = 1
+OVERLAY_STATUSES = ("added", "changed", "unchanged", "removed")
+
+
+def read_overlay_manifest(manifest_path, romfs=None, statuses=None, rows_out=None):
+    """只读校验 BKTR overlay 清单；可选地核对非 removed 条目的文件存在与大小。
+
+    清单口径：changed = 内容被补丁替换（虚拟区间与 isPatch=1 区域相交），
+    unchanged = 与本体逐字节相同。不读取虚拟偏移对应的游戏正文，也不生成 zip。
+    """
+    if not manifest_path.is_file():
+        raise PackageError(f"overlay manifest does not exist: {manifest_path}")
+    counts = None
+    observed = {name: 0 for name in OVERLAY_STATUSES}
+    rows = 0
+    checked_rows = 0
+    with manifest_path.open(encoding="utf-8", newline="") as source:
+        header = source.readline().rstrip("\r\n")
+        if header != f"# totk-overlay-manifest {OVERLAY_FORMAT}":
+            raise PackageError(f"unsupported overlay manifest header: {header!r}")
+        count_line = ""
+        while True:
+            line = source.readline()
+            if not line:
+                raise PackageError("overlay manifest has no counts line")
+            line = line.rstrip("\r\n")
+            if line.startswith("#"):
+                continue          # 语义说明行（可选） | optional semantics comment
+            count_line = line
+            break
+        if not count_line.startswith("counts\t"):
+            raise PackageError("overlay manifest has no counts line")
+        try:
+            counts = dict(item.split("=", 1) for item in count_line.split("\t")[1:])
+            counts = {key: int(value) for key, value in counts.items()}
+        except (ValueError, TypeError) as error:
+            raise PackageError(f"invalid overlay manifest counts: {error}")
+        expected_keys = {"updated_files", "base_files", "added", "removed", "changed", "unchanged"}
+        if set(counts) != expected_keys:
+            raise PackageError(f"overlay manifest count keys are {sorted(counts)}, expected {sorted(expected_keys)}")
+        title = source.readline().rstrip("\r\n")
+        if title != "status\tsize\tvirtual_offset\tpath":
+            raise PackageError("overlay manifest has no valid row header")
+        for line_number, line in enumerate(source, 4):
+            line = line.rstrip("\r\n")
+            if not line:
+                continue
+            fields = line.split("\t", 3)
+            if len(fields) != 4:
+                raise PackageError(f"overlay row {line_number} does not have four columns")
+            status, size_text, offset_text, relative = fields
+            if status not in OVERLAY_STATUSES:
+                raise PackageError(f"overlay row {line_number} has unknown status {status!r}")
+            try:
+                size = int(size_text)
+                offset = None if offset_text == "" else int(offset_text)
+            except ValueError as error:
+                raise PackageError(f"overlay row {line_number} has invalid number: {error}")
+            if size < 0 or (offset is not None and offset < 0):
+                raise PackageError(f"overlay row {line_number} has a negative size/offset")
+            if (status == "removed") != (offset is None):
+                raise PackageError(f"overlay row {line_number} has an offset for the wrong status")
+            pure = PurePosixPath(relative)
+            if not relative or pure.is_absolute() or "\\" in relative or ".." in pure.parts or "." in pure.parts:
+                raise PackageError(f"overlay row {line_number} has an unsafe path: {relative!r}")
+            observed[status] += 1
+            rows += 1
+            if rows_out is not None:
+                rows_out.append((status, size, relative))
+            if romfs is not None and status != "removed" and (statuses is None or status in statuses):
+                candidate = romfs.joinpath(*pure.parts)
+                if not candidate.is_file():
+                    raise PackageError(f"overlay file is missing: {relative}")
+                if candidate.stat().st_size != size:
+                    raise PackageError(f"overlay size mismatch for {relative}: {candidate.stat().st_size} != {size}")
+                checked_rows += 1
+    if rows == 0:
+        raise PackageError("overlay manifest has no rows")
+    for status in ("added", "removed", "changed"):
+        if observed[status] != counts[status]:
+            raise PackageError(f"overlay count mismatch for {status}: rows={observed[status]} header={counts[status]}")
+    if observed["added"] + observed["changed"] + observed["unchanged"] != counts["updated_files"]:
+        raise PackageError("overlay updated row count does not match updated_files")
+    if observed["removed"] != counts["removed"]:
+        raise PackageError("overlay removed row count does not match removed")
+    return {"format": OVERLAY_FORMAT, "rows": rows, "counts": counts, "statuses": observed,
+            "checked_against_romfs": checked_rows}
+
+
+def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False, romfs_layout="data"):
     game_files = collect_game(game)
-    romfs_files = collect_romfs(romfs)
+    romfs_files = collect_romfs(romfs, romfs_layout)
     subgroup, shader_files = collect_shaders(shaders)
-    # derived.tsv：三张游戏派生表（编年史仓库 / 经验 / 关卡亮度）的内容。壳模式的 APK 里只有空表与条数，
+    # derived.tsv：游戏派生表（现在只剩经验表与技能图标索引）的内容。壳模式的 APK 里只有空表与条数，
     # 内容全从这份文件读 —— 没有它，那三块功能会是空的（运行时打红字）。
-    # derived.tsv: the content of the three game-derived tables (chronicle vault / XP / level brightness). A shell
+    # derived.tsv: the content of the game-derived tables (only the XP table and the skill icon index are left). A shell
     # APK carries only empty tables and their counts and reads the content from this file; without it those three
     # features stay empty (a red line is printed at run time).
     if derived is not None:
@@ -126,7 +224,7 @@ def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False)
         if derived_rows == 0:
             raise PackageError(f"derived table is empty: {derived}")
 
-    total_romfs = sum(p.stat().st_size for p in romfs_files)
+    total_romfs = sum(path.stat().st_size for path, _ in romfs_files)
     total_shaders = sum(p.stat().st_size for p in shader_files)
     total_game = sum((game / n).stat().st_size for n in game_files)
 
@@ -172,8 +270,8 @@ def assemble(output, game, romfs, shaders, derived=None, note=None, quiet=False)
         written_bytes += len(manifest_bytes)
         for name in game_files:
             write_entry(archive, game / name, f"game/{name}", progress)
-        for path in romfs_files:
-            write_entry(archive, path, f"romfs/data/{path.name}", progress)
+        for path, name in romfs_files:
+            write_entry(archive, path, f"romfs/{name}", progress)
         for path in shader_files:
             write_entry(archive, path, f"shaders/{path.name}", progress)
         if derived is not None:
@@ -215,14 +313,34 @@ def main():
     assemble_parser.add_argument("--derived", type=Path, default=None,
                                  help="runtime table data (derived.tsv) produced by shell_stubs.py data")
     assemble_parser.add_argument("--note", default=None)
+    assemble_parser.add_argument("--romfs-layout", choices=("data", "root"), default="data",
+                                 help="RomFS 布局：data（D2R：包里的 romfs/data/ 下是平铺的归档）/ root（TotK：整棵树保留相对路径）"
+                                      " | RomFS layout: data (D2R) or root (TotK, the whole tree keeps its relative paths)")
 
     inspect_parser = subparsers.add_parser("inspect", help="print a package's manifest without touching it")
     inspect_parser.add_argument("archive", type=Path)
 
+    overlay_parser = subparsers.add_parser("overlay", help="validate a metadata-only BKTR overlay manifest")
+    overlay_parser.add_argument("manifest", type=Path)
+    overlay_parser.add_argument("--romfs", type=Path, default=None,
+                                help="optional extracted RomFS tree used to verify non-removed path sizes")
+    overlay_parser.add_argument("--statuses", default=None,
+                                help="only verify these statuses against --romfs, e.g. added,changed")
+
     args = parser.parse_args()
     try:
         if args.command == "assemble":
-            assemble(args.output, args.game, args.romfs, args.shaders, derived=args.derived, note=args.note)
+            assemble(args.output, args.game, args.romfs, args.shaders, derived=args.derived, note=args.note,
+                     romfs_layout=args.romfs_layout)
+        elif args.command == "overlay":
+            statuses = None
+            if args.statuses:
+                statuses = {item.strip() for item in args.statuses.split(",") if item.strip()}
+                unknown = statuses - set(OVERLAY_STATUSES)
+                if unknown:
+                    raise PackageError(f"unknown overlay statuses: {sorted(unknown)}")
+            summary = read_overlay_manifest(args.manifest, args.romfs, statuses)
+            print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
         else:
             manifest, groups = inspect(args.archive)
             print(json.dumps(manifest, indent=2, ensure_ascii=False))

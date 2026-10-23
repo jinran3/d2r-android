@@ -16,7 +16,7 @@ CJK = re.compile(r'[　-〿一-鿿＀-￯]')
 SINK = {'LOG', 'LOGV', 'plog', 'NSLog', 'fprintf', 'printf', 'die', 'HLE_FORCE', 'HLE_WEAK', 'HLE_STUB', 'dprintf', 'dm_prof_mark', 'perror', 'puts',
         'SystemExit', 'print', 'Exception', 'RuntimeError', 'ValueError', 'AssertionError', 'warn', 'log', 'dm_log', 'boot_log', 'SMOKE', '_Static_assert', 'static_assert'}
 C_FILES = ['host/*.c', 'host/*.m', 'ios/Sources/*.m', 'ios/Sources/*.c']
-PY_FILES = ['ios/tools/touch_layout.py', 'ios/tools/wide_stash.py', 'ios/tools/pouch_layout.py', 'ios/tools/gen_romfs_overlay.py', 'ios/tools/drop_light.py',
+PY_FILES = ['ios/tools/touch_layout.py', 'ios/tools/wide_stash.py', 'ios/tools/gen_romfs_overlay.py', 'ios/tools/drop_light.py',
             'ios/tools/gen_hud_v4.py', 'ios/tools/gen_map_goal_art.py', 'ios/tools/touch_strings.py', 'ios/tools/gen_close_btn.py', 'ios/tools/gen_vault_cover.py']
 
 def strip_c(s):
@@ -64,13 +64,19 @@ def caller(text, pos):
     return ''
 
 def hits():
+    # 路径分隔符归一：白名单里存的是正斜杠（host/front_mac.m），而 Windows 的 relpath 给反斜杠，
+    # 直接比较会把整表判成「匹配不到」（本机实测 443 + 112 条全部由这一个原因造成）。
+    # Linux / CI 上 os.sep 就是 /，行为与原先逐字节一致。
+    # Normalize path separators: the whitelist stores forward slashes, while Windows relpath returns
+    # backslashes, so a raw comparison fails the whole table (locally all 443+112 were this one cause).
+    # On Linux/CI os.sep is '/', so behavior is byte-identical to before.
     out = []
     for pat, kind in [(p, 'c') for p in C_FILES] + [(p, 'py') for p in PY_FILES]:
         for f in sorted(glob.glob(os.path.join(ROOT, pat))):
             s = open(f, encoding='utf-8', errors='replace').read(); text, lits = (strip_c if kind == 'c' else strip_py)(s)
             for pos, lit in lits:
                 if not CJK.search(lit) or caller(text, pos) in SINK: continue
-                out.append((os.path.relpath(f, ROOT), s.count('\n', 0, pos) + 1, lit, caller(text, pos)))
+                out.append((os.path.relpath(f, ROOT).replace(os.sep, '/'), s.count('\n', 0, pos) + 1, lit, caller(text, pos)))
     return out
 
 def main():

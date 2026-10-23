@@ -269,7 +269,9 @@ NVN(nvnTextureInitialize, NVNboolean, NVNtexture *t, const NVNtextureBuilder *b)
     o->magic = MAGIC('T', 'E', 'X', 0); o->d = s->d; o->pool = s->pool; o->off = s->off;
     o->has_layout = s->has_layout; memcpy(o->layout, s->layout, 8);
     nvn_tex_layout(&o->d, &o->L);
-    o->mem = s->pool && s->pool->mem ? s->pool->mem + s->off : NULL;
+    // 预排布数据优先：游戏给的是指针，不是池里的偏移。
+    // The packaged data wins: the game gives a pointer, not an offset into the pool.
+    o->mem = s->pkg_data ? (const void *)s->pkg_data : (s->pool && s->pool->mem ? s->pool->mem + s->off : NULL);
     o->serial = nvn_new_serial();
     OLOG("Texture %p %ux%ux%u lv%u fmt=%#x tgt=%d flags=%#x size=%#llx", (void *)t, o->d.width, o->d.height, o->d.depth,
          o->d.levels, o->d.format, o->d.target, o->d.flags, o->L.size);
@@ -635,13 +637,83 @@ NVN(nvnCommandBufferBindSeparateSamplers, void, NVNcommandBuffer *c, NVNshaderSt
 NVN(nvnCommandBufferBindSeparateSampler, void, NVNcommandBuffer *c, NVNshaderStage st, int i, NVNseparateSamplerHandle h) {
     bind_handles(c, OP_BIND_SAMP, st, i, 1, &h.value);
 }
+
+// ---------- 合并贴图绑定（TotK 用；D2R 不调用这个函数，D2R 行为不变） ----------
+// Combined texture binding (TotK; D2R never calls it, so D2R behaviour is unchanged).
+// TotK 的贴图句柄是**合并句柄**：纹理 ID 低 20 位 + 采样器 ID 第 20..31 位
+// （实测见 dm/android/native/nvn_c2_layout.h：TotK 档位下 c[2][0x20+8r] 就是这种合并句柄）。
+// 后端在合并档位下用 state.textures[] / state.samplers[] 重新打包，所以这里把合并句柄拆成两条绑定记录。
+NVN(nvnCommandBufferBindTextures, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNtextureHandle *h) {
+    uint64_t tex[32], samp[32];
+    if (n < 0 || n > 32) { LOG("【红】绑定合并贴图数 %d", n); return; }
+    for (int i = 0; i < n; i++) {
+        uint64_t v = h[i];
+        tex[i] = v & 0xfffff;            // 纹理 ID | texture id
+        samp[i] = (v >> 20) & 0xfff;     // 采样器 ID | sampler id
+    }
+    bind_handles(c, OP_BIND_TEX, st, first, n, tex);
+    bind_handles(c, OP_BIND_SAMP, st, first, n, samp);
+}
+
+// ---------- TotK 专有的新接口（仓内 nvn.h 没有这些原型 → 不做编译期签名检查） ----------
+// The interfaces only TotK uses (the in-repo nvn.h has no prototype for them → no compile-time signature check).
+
+// 延迟绑定：参数与对应的普通绑定完全一致；语义上把「延后生效」改成「即时生效」。
+// Deferred binds: exactly the arguments of the plain binds; "applied at a later point" becomes "applied now".
+NVN_NOPROTO(nvnCommandBufferBindUniformBuffersDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNbufferRange *rg) {
+    h_nvnCommandBufferBindUniformBuffers(c, st, first, n, rg);
+}
+NVN_NOPROTO(nvnCommandBufferBindStorageBuffersDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNbufferRange *rg) {
+    h_nvnCommandBufferBindStorageBuffers(c, st, first, n, rg);
+}
+NVN_NOPROTO(nvnCommandBufferBindTexturesDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNtextureHandle *h) {
+    h_nvnCommandBufferBindTextures(c, st, first, n, h);
+}
+NVN_NOPROTO(nvnCommandBufferBindImagesDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNimageHandle *h) {
+    h_nvnCommandBufferBindImages(c, st, first, n, h);
+}
+NVN_NOPROTO(nvnCommandBufferBindSeparateTexturesDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNseparateTextureHandle *h) {
+    h_nvnCommandBufferBindSeparateTextures(c, st, first, n, h);
+}
+NVN_NOPROTO(nvnCommandBufferBindSeparateSamplersDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNseparateSamplerHandle *h) {
+    h_nvnCommandBufferBindSeparateSamplers(c, st, first, n, h);
+}
+// 控制内存回调：宿主不支持着色器写控制内存的回调 → 记住开关即可（关掉是安全的一侧）。
+// Control-memory callback: the host has no such callback → remember the flag (disabled is the safe side).
+NVN_NOPROTO(nvnCommandBufferSetControlMemoryCallbackEnabled, void, NVNcommandBuffer *c, uint32_t enabled) {
+    if (enabled) OLOG("控制内存回调：宿主不支持，按不支持处理 | control-memory callback unsupported");
+}
+// 子块尺寸覆盖：宿主按 Vulkan 的分块渲染走，不接受覆盖 → 忽略。
+// Subtile size override: the host follows Vulkan's tiling → ignored.
+NVN_NOPROTO(nvnCommandBufferOverrideSubtileSize, void, NVNcommandBuffer *c, uint32_t width, uint32_t height) { }
+// Z 压缩的浮点格式：宿主不启用 → 忽略（不压缩是安全的一侧）。
+// Float Z compression: the host does not enable it → ignored (no compression is the safe side).
+NVN_NOPROTO(nvnCommandBufferSetZCullZF32CompressionEnable, void, NVNcommandBuffer *c, uint32_t enable) { }
+// provoking vertex：Vulkan 默认就是「第一个顶点」，与 NVN 的默认值一致 → 忽略。
+// Provoking vertex: Vulkan's default is the first vertex, same as NVN's → ignored.
+NVN_NOPROTO(nvnCommandBufferSetProvokingVertexMode, void, NVNcommandBuffer *c, uint32_t mode) { }
+// 自动检查点掩码：宿主不做 GPU 抓取 → 忽略。
+// Automatic checkpoint mask: the host does not capture the GPU → ignored.
+NVN_NOPROTO(nvnDeviceSetAutomaticCheckpointsMask, void, NVNdevice *d, uint32_t mask) { }
+// 视图偏移查询：宿主没有视图偏移这个概念 → 返回 0，且**不写出参**（免得写错地址）。
+// View offset query: the host has no view-offset concept → returns 0 and does not write the out parameter.
+NVN_NOPROTO(nvnTextureBuilderGetViewOffset, int, const NVNtextureBuilder *b, uint32_t *offset) { return 0; }
+// 子块尺寸查询：宿主不查询 → 返回 0（表示查不到），同样不写出参。
+// Subtile size query: the host does not answer it → returns 0 (not found), and does not write the out parameters either.
+NVN_NOPROTO(nvnProgramGetSubtileSize, int, const NVNprogram *p, uint32_t *width, uint32_t *height) { return 0; }
 NVN(nvnCommandBufferSetStencilValueMask, void, NVNcommandBuffer *c, NVNface f, int m) { *REC(c, OP_STENCIL, p_stencil) = (p_stencil){f, m, 0, 0, 0}; }
 NVN(nvnCommandBufferSetStencilMask, void, NVNcommandBuffer *c, NVNface f, int m) { *REC(c, OP_STENCIL, p_stencil) = (p_stencil){f, 0, m, 0, 1}; }
 NVN(nvnCommandBufferSetStencilRef, void, NVNcommandBuffer *c, NVNface f, int v) { *REC(c, OP_STENCIL, p_stencil) = (p_stencil){f, 0, 0, v, 2}; }
 NVN(nvnCommandBufferSetPolygonOffsetClamp, void, NVNcommandBuffer *c, float fa, float un, float cl) {
     *REC(c, OP_POLY_OFFSET, p_poly_offset) = (p_poly_offset){fa, un, cl};
 }
-NVN(nvnCommandBufferDrawArrays, void, NVNcommandBuffer *c, NVNdrawPrimitive pr, int first, int n) { *REC(c, OP_DRAW, p_draw) = (p_draw){pr, first, n}; }
+NVN(nvnCommandBufferDrawArrays, void, NVNcommandBuffer *c, NVNdrawPrimitive pr, int first, int n) { *REC(c, OP_DRAW, p_draw) = (p_draw){pr, first, n, 0, 1}; }
+// 带实例的数组绘制：实例数与首实例进载荷，后端按实例数发绘制。
+// Instanced array draw: the instance count and the first instance go into the payload.
+NVN(nvnCommandBufferDrawArraysInstanced, void, NVNcommandBuffer *c, NVNdrawPrimitive pr, int first, int n, int bi, int inst) {
+    if (inst <= 0) return;
+    *REC(c, OP_DRAW, p_draw) = (p_draw){pr, first, n, bi, inst};
+}
 NVN(nvnCommandBufferDrawElementsInstanced, void, NVNcommandBuffer *c, NVNdrawPrimitive pr, NVNindexType it, int n, NVNbufferAddress ib,
     int bv, int bi, int inst) {
     *REC(c, OP_DRAW_IDX, p_draw_idx) = (p_draw_idx){pr, it, n, bv, bi, inst, ib};
@@ -813,6 +885,326 @@ NVN(nvnQueueSubmitCommands, void, NVNqueue *q, int n, const NVNcommandHandle *h)
     gfx_leave();
 }
 
+// ---------- NA-038a：TotK 会调用、宿主此前接报红桩的其余接口 ----------
+// The remaining interfaces TotK calls that the host still routed to the red stub.
+// 语义按 NVN 文档与 TotK 二进制里的实际调用形态实现；无法从静态证据确定的，
+// 注释里写明「按不做处理」的理由（不做的那一侧是安全的一侧）。
+
+// ---------- 内存池的其余接口 ----------
+// ---------- The rest of the memory-pool interfaces ----------
+NVN(nvnMemoryPoolBuilderGetMemory, void, const NVNmemoryPoolBuilder *b) { (void)b; }
+NVN(nvnMemoryPoolBuilderGetSize, size_t, const NVNmemoryPoolBuilder *b) { return ((const pool_builder_t *)b)->size; }
+// NVNmemoryPoolFlags 在头文件里是个 96 字节结构体（按值返回会走间接返回约定），
+// 而游戏那边拿到的是普通整数标志 → 这里按 64 位整数返回，不做签名检查。
+// NVNmemoryPoolFlags is a 96-byte struct in the header (returning it by value would use the
+// indirect-return convention), but the game expects a plain integer flag → return a 64-bit value.
+NVN_NOPROTO(nvnMemoryPoolBuilderGetFlags, uint64_t, const NVNmemoryPoolBuilder *b) { return (uint64_t)((const pool_builder_t *)b)->flags; }
+NVN_NOPROTO(nvnMemoryPoolBuilderGetDevice, NVNdevice *, const NVNmemoryPoolBuilder *b) { return ((const pool_builder_t *)b)->dev; }
+NVN(nvnMemoryPoolSetDebugLabel, void, NVNmemoryPool *p, const char *label) { (void)p; OLOG("内存池标签 %s", label ? label : "(null)"); }
+// 池内存就是游戏自己的内存，映射之后 CPU 直接读写 → 直接返回池首地址。
+// The pool memory is the game's own memory and the CPU reads/writes it directly → return the pool base.
+NVN(nvnMemoryPoolMap, void *, const NVNmemoryPool *p) { return ((const pool_t *)p)->mem; }
+NVN(nvnMemoryPoolInvalidateMappedRange, void, const NVNmemoryPool *p, ptrdiff_t off, size_t n) { (void)p; (void)off; (void)n; }
+NVN(nvnMemoryPoolGetSize, size_t, const NVNmemoryPool *p) { return ((const pool_t *)p)->size; }
+NVN_NOPROTO(nvnMemoryPoolGetFlags, uint64_t, const NVNmemoryPool *p) { return (uint64_t)((const pool_t *)p)->flags; }
+NVN(nvnMemoryPoolMapVirtual, NVNboolean, NVNmemoryPool *p, int flags, const NVNmappingRequest *req) {
+    // 虚拟映射要宿主提供一段虚拟地址空间，宿主没有 → 明确失败，不猜。
+    // Virtual mapping needs host address space, which the host does not have → fail explicitly.
+    (void)p; (void)flags; (void)req;
+    LOG("【红】MemoryPoolMapVirtual：宿主不支持虚拟内存池映射 | virtual memory pool mapping unsupported");
+    return 0;
+}
+
+// ---------- 缓冲 ----------
+// ---------- Buffers ----------
+NVN(nvnBufferBuilderSetDefaults, void, NVNbufferBuilder *b) { memset(b, 0, sizeof(buffer_builder_t)); }
+NVN(nvnBufferBuilderSetDevice, void, NVNbufferBuilder *b, NVNdevice *d) { ((buffer_builder_t *)b)->dev = d; }
+NVN(nvnBufferBuilderSetStorage, void, NVNbufferBuilder *b, NVNmemoryPool *p, ptrdiff_t off, size_t n) {
+    buffer_builder_t *o = (buffer_builder_t *)b; o->pool = (const pool_t *)p; o->off = off; o->size = n;
+}
+NVN_NOPROTO(nvnBufferBuilderGetMemoryPool, uint64_t, const NVNbufferBuilder *b) { return (uint64_t)(uintptr_t)((const buffer_builder_t *)b)->pool; }
+NVN(nvnBufferBuilderGetMemoryOffset, ptrdiff_t, const NVNbufferBuilder *b) { return ((const buffer_builder_t *)b)->off; }
+NVN(nvnBufferBuilderGetSize, size_t, const NVNbufferBuilder *b) { return ((const buffer_builder_t *)b)->size; }
+NVN(nvnBufferInitialize, NVNboolean, NVNbuffer *b, const NVNbufferBuilder *bb) {
+    const buffer_builder_t *s = (const buffer_builder_t *)bb; buffer_t *o = (buffer_t *)b;
+    o->magic = MAGIC('B', 'U', 'F', 'F'); o->pool = s->pool; o->off = s->off; o->size = s->size;
+    if (!o->pool) { LOG("【红】BufferInitialize 没有内存池 | buffer without a memory pool"); return 0; }
+    OLOG("Buffer %p pool=%p off=%#llx size=%#llx", (void *)b, (void *)o->pool, (unsigned long long)o->off, (unsigned long long)o->size);
+    return 1;
+}
+NVN(nvnBufferSetDebugLabel, void, NVNbuffer *b, const char *label) { (void)b; OLOG("缓冲标签 %s", label ? label : "(null)"); }
+NVN(nvnBufferFinalize, void, NVNbuffer *b) { ((buffer_t *)b)->magic = 0; }
+NVN(nvnBufferMap, void *, const NVNbuffer *b) {
+    const buffer_t *o = (const buffer_t *)b;
+    if (!o->pool || !o->pool->mem) return NULL;
+    return o->pool->mem + o->off;
+}
+NVN(nvnBufferGetAddress, NVNbufferAddress, const NVNbuffer *b) {
+    const buffer_t *o = (const buffer_t *)b;
+    return o->pool && o->pool->mem ? (NVNbufferAddress)(o->pool->mem + o->off) : 0;
+}
+NVN(nvnBufferFlushMappedRange, void, const NVNbuffer *b, ptrdiff_t off, size_t n) { (void)b; (void)off; (void)n; }
+NVN(nvnBufferInvalidateMappedRange, void, const NVNbuffer *b, ptrdiff_t off, size_t n) { (void)b; (void)off; (void)n; }
+NVN(nvnBufferGetMemoryPool, NVNmemoryPool *, const NVNbuffer *b) { return (NVNmemoryPool *)((const buffer_t *)b)->pool; }
+NVN(nvnBufferGetMemoryOffset, ptrdiff_t, const NVNbuffer *b) { return ((const buffer_t *)b)->off; }
+NVN(nvnBufferGetSize, size_t, const NVNbuffer *b) { return ((const buffer_t *)b)->size; }
+NVN(nvnBufferGetDebugID, uint64_t, const NVNbuffer *b) { return (uint64_t)(uintptr_t)b; }
+
+// ---------- 句柄与绘制 ----------
+// ---------- Handles and draws ----------
+// 纹素抓取句柄：和贴图句柄一样是描述符编号，宿主按编号找贴图。
+// Texel fetch handle: like a texture handle it is a descriptor index; the host resolves it by index.
+NVN(nvnDeviceGetTexelFetchHandle, NVNtextureHandle, const NVNdevice *d, int id) { (void)d; return (NVNtextureHandle)id; }
+NVN(nvnCommandBufferBindImage, void, NVNcommandBuffer *c, NVNshaderStage st, int i, NVNimageHandle h) {
+    bind_handles(c, OP_BIND_IMG, st, i, 1, (const uint64_t *)&h);
+}
+NVN(nvnCommandBufferDrawElements, void, NVNcommandBuffer *c, NVNdrawPrimitive pr, NVNindexType it, int n, NVNbufferAddress ib) {
+    *REC(c, OP_DRAW_IDX, p_draw_idx) = (p_draw_idx){pr, it, n, 0, 0, 1, ib};
+}
+NVN(nvnCommandBufferDrawElementsBaseVertex, void, NVNcommandBuffer *c, NVNdrawPrimitive pr, NVNindexType it, int n, NVNbufferAddress ib, int bv) {
+    *REC(c, OP_DRAW_IDX, p_draw_idx) = (p_draw_idx){pr, it, n, bv, 0, 1, ib};
+}
+// 整数清除：宿主的后端按浮点色清除，UI 这类整数目标需要原始位 → 载荷里带原始位，由后端按目标格式取用。
+// Integer clear: the backend clears with float colours, but integer targets need the raw bits → carry them in the payload.
+NVN(nvnCommandBufferClearColori, void, NVNcommandBuffer *c, int index, const int *rgba, int mask) {
+    p_clear_color *r = REC(c, OP_CLEAR_COLOR, p_clear_color);
+    r->index = index; r->mask = mask; r->is_int = 1;
+    for (int i = 0; i < 4; i++) { r->rgba_i[i] = (uint32_t)rgba[i]; r->rgba[i] = (float)rgba[i]; }
+}
+// 条件渲染（遮挡查询）：宿主不做 GPU 侧的可见性判定 → 一律「渲染」，画面上多画一点，不会画错。
+// Conditional rendering (occlusion queries): the host does no GPU-side visibility test → always render.
+NVN(nvnCommandBufferSetRenderEnableConditional, void, NVNcommandBuffer *c, NVNconditionalRenderMode mode, NVNbufferAddress buf) {
+    (void)c; (void)buf;
+    OLOG("条件渲染：宿主不做可见性判定，一律渲染 | conditional render ignored (always render)");
+    (void)mode;
+}
+
+// ---------- 贴图构建器与贴图的查询接口 ----------
+// ---------- Texture builder and texture queries ----------
+NVN(nvnTextureBuilderSetSize3D, void, NVNtextureBuilder *b, int w, int h, int d) { TB(b)->d.width = (uint32_t)w; TB(b)->d.height = (uint32_t)h; TB(b)->d.depth = (uint32_t)d; }
+// 宿主不做通道重排（贴图按原格式上传）→ 忽略 swizzle。
+// The host does not swizzle channels (textures are uploaded as-is) → ignore the swizzle.
+NVN(nvnTextureBuilderSetSwizzle, void, NVNtextureBuilder *b, NVNtextureSwizzle r, NVNtextureSwizzle g, NVNtextureSwizzle bl, NVNtextureSwizzle a) { (void)b; (void)r; (void)g; (void)bl; (void)a; }
+// 预排布贴图数据：宿主还没接这条上传路径 → 记下来并报红（贴图会是空的）。
+// Packaged texture data: the host has no upload path for it yet → remember it and report.
+// 预排布贴图：游戏直接给一份已经排好布的数据（指针在客体内存里）。
+// Packaged texture: the game hands over a pointer to data that is already laid out (in guest memory).
+// 上传路径与「池内存里的预排布数据」同一条（读内存 → 解排布 → 上传），所以这里只要记住指针。
+// The upload path is the same as for packaged data living in pool memory (read → deswizzle → upload),
+// so it is enough to remember the pointer here.
+NVN(nvnTextureBuilderSetPackagedTextureData, void, NVNtextureBuilder *b, const void *data) {
+    TB(b)->pkg_data = data;
+}
+NVN(nvnTextureBuilderSetGLTextureName, void, NVNtextureBuilder *b, uint32_t name) { (void)b; (void)name; }
+NVN(nvnTextureBuilderGetTarget, NVNtextureTarget, const NVNtextureBuilder *b) { return (NVNtextureTarget)TB(b)->d.target; }
+NVN_NOPROTO(nvnTextureBuilderGetDevice, NVNdevice *, const NVNtextureBuilder *b) { return TB(b)->dev; }
+NVN_NOPROTO(nvnTextureBuilderGetMemoryPool, uint64_t, const NVNtextureBuilder *b) { return (uint64_t)(uintptr_t)TB(b)->pool; }
+NVN(nvnTextureBuilderGetMemoryOffset, ptrdiff_t, const NVNtextureBuilder *b) { return TB(b)->off; }
+NVN(nvnTextureBuilderGetStorageClass, NVNstorageClass, const NVNtextureBuilder *b) { (void)b; return 1; }
+NVN(nvnTextureBuilderGetFormat, NVNformat, const NVNtextureBuilder *b) { return (NVNformat)TB(b)->d.format; }
+NVN(nvnTextureBuilderGetLevels, int, const NVNtextureBuilder *b) { return (int)TB(b)->d.levels; }
+NVN(nvnTextureBuilderGetSamples, int, const NVNtextureBuilder *b) { return (int)TB(b)->d.samples; }
+NVN(nvnTextureBuilderGetSwizzle, void, const NVNtextureBuilder *b, NVNtextureSwizzle *r, NVNtextureSwizzle *g, NVNtextureSwizzle *bl, NVNtextureSwizzle *a) {
+    (void)b; if (r) *r = NVN_TEXTURE_SWIZZLE_R; if (g) *g = NVN_TEXTURE_SWIZZLE_G; if (bl) *bl = NVN_TEXTURE_SWIZZLE_B; if (a) *a = NVN_TEXTURE_SWIZZLE_A;
+}
+NVN(nvnTextureBuilderGetZCullStorageSize, size_t, const NVNtextureBuilder *b) { (void)b; return 0; }
+NVN(nvnTextureGetTarget, NVNtextureTarget, const NVNtexture *t) { return (NVNtextureTarget)((const tex_t *)t)->d.target; }
+NVN(nvnTextureGetFormat, NVNformat, const NVNtexture *t) { return (NVNformat)((const tex_t *)t)->d.format; }
+NVN(nvnTextureGetLevels, int, const NVNtexture *t) { return (int)((const tex_t *)t)->d.levels; }
+NVN(nvnTextureGetSamples, int, const NVNtexture *t) { return (int)((const tex_t *)t)->d.samples; }
+NVN(nvnTextureGetSwizzle, void, const NVNtexture *t, NVNtextureSwizzle *r, NVNtextureSwizzle *g, NVNtextureSwizzle *bl, NVNtextureSwizzle *a) {
+    (void)t; if (r) *r = NVN_TEXTURE_SWIZZLE_R; if (g) *g = NVN_TEXTURE_SWIZZLE_G; if (bl) *bl = NVN_TEXTURE_SWIZZLE_B; if (a) *a = NVN_TEXTURE_SWIZZLE_A;
+}
+NVN(nvnTextureGetStorageClass, NVNstorageClass, const NVNtexture *t) { (void)t; return 1; }
+NVN(nvnTextureGetZCullStorageSize, size_t, const NVNtexture *t) { (void)t; return 0; }
+NVN(nvnTextureGetMemoryOffset, ptrdiff_t, const NVNtexture *t) { return ((const tex_t *)t)->off; }
+NVN(nvnTextureGetTextureAddress, NVNtextureAddress, const NVNtexture *t) {
+    const tex_t *o = (const tex_t *)t;
+    return o->mem ? (NVNtextureAddress)o->mem : 0;
+}
+NVN(nvnTextureViewGetLevels, NVNboolean, const NVNtextureView *v, int *base, int *n) {
+    const view_t *o = (const view_t *)v;
+    if (base) *base = o->set_levels ? o->base_level : 0;
+    if (n) *n = o->set_levels ? o->nlevels : 1;
+    return 1;
+}
+NVN(nvnTextureViewGetFormat, NVNboolean, const NVNtextureView *v, NVNformat *f) {
+    const view_t *o = (const view_t *)v;
+    if (f) *f = (NVNformat)(o->set_format ? o->format : 0);
+    return 1;
+}
+NVN(nvnTexturePoolRegisterImage, void, const NVNtexturePool *tp, int id, const NVNtexture *t, const NVNtextureView *v) {
+    // 图像与贴图共用同一套登记（游戏不单独调 RegisterImage）。
+    // Images share the texture registration (the game does not register images separately).
+    mtl_reg_tex(id, (const tex_t *)t, (const view_t *)v);
+}
+NVN(nvnTexturePoolSetDebugLabel, void, NVNtexturePool *tp, const char *label) { (void)tp; OLOG("贴图池标签 %s", label ? label : "(null)"); }
+NVN(nvnSamplerPoolRegisterSamplerBuilder, void, const NVNsamplerPool *sp, int id, const NVNsamplerBuilder *b) {
+    mtl_reg_samp(id, &((const samp_builder_t *)b)->p);
+}
+NVN(nvnSamplerBuilderSetReductionFilter, void, NVNsamplerBuilder *b, NVNsamplerReduction r) { (void)b; (void)r; }
+NVN(nvnSamplerSetDebugLabel, void, NVNsampler *s, const char *label) { (void)s; OLOG("采样器标签 %s", label ? label : "(null)"); }
+NVN(nvnSamplerGetMinMagFilter, void, const NVNsampler *s, NVNminFilter *minf, NVNmagFilter *magf) {
+    const samp_par *p = &((const samp_t *)s)->p;
+    if (minf) *minf = (NVNminFilter)p->minf;
+    if (magf) *magf = (NVNmagFilter)p->magf;
+}
+NVN(nvnSamplerGetWrapMode, void, const NVNsampler *s, NVNwrapMode *ws, NVNwrapMode *wt, NVNwrapMode *wr) {
+    const samp_par *p = &((const samp_t *)s)->p;
+    if (ws) *ws = (NVNwrapMode)p->ws; if (wt) *wt = (NVNwrapMode)p->wt; if (wr) *wr = (NVNwrapMode)p->wr;
+}
+NVN(nvnSamplerGetCompare, void, const NVNsampler *s, NVNcompareMode *mode, NVNcompareFunc *func) {
+    const samp_par *p = &((const samp_t *)s)->p;
+    if (mode) *mode = (NVNcompareMode)p->cmp_mode; if (func) *func = (NVNcompareFunc)p->cmp_func;
+}
+NVN(nvnSamplerGetBorderColor, void, const NVNsampler *s, float *rgba) {
+    const samp_par *p = &((const samp_t *)s)->p;
+    if (rgba) memcpy(rgba, p->border, sizeof p->border);
+}
+NVN(nvnSamplerGetReductionFilter, NVNsamplerReduction, const NVNsampler *s) { (void)s; return NVN_SAMPLER_REDUCTION_AVERAGE; }
+
+// ---------- 状态对象的其余接口 ----------
+// ---------- The rest of the state-object interfaces ----------
+// Alpha 测试：函数放颜色状态里，参考值放命令缓冲（与 NVN 的分工一致）。
+// Alpha test: the function lives in the colour state, the reference value in the command buffer (as in NVN).
+NVN(nvnColorStateSetAlphaTest, void, NVNcolorState *cs, NVNalphaFunc f) { ((color_st *)cs)->alpha_func = (uint32_t)f & 0xf; }
+NVN(nvnColorStateSetLogicOp, void, NVNcolorState *cs, NVNlogicOp op) { ((color_st *)cs)->logic_op = (uint32_t)op & 0xf; }
+NVN(nvnPolygonStateGetCullFace, NVNface, const NVNpolygonState *ps) { return (NVNface)((const poly_st *)ps)->cull; }
+NVN(nvnVertexAttribStateGetFormat, void, const NVNvertexAttribState *s, NVNformat *fmt, ptrdiff_t *offset) {
+    const va_st *o = (const va_st *)s;
+    if (fmt) *fmt = (NVNformat)o->fmt;
+    if (offset) *offset = (ptrdiff_t)o->offset;
+}
+NVN(nvnVertexStreamStateGetStride, ptrdiff_t, const NVNvertexStreamState *s) { return (ptrdiff_t)((const vs_st *)s)->stride; }
+NVN(nvnBlendStateSetAdvancedMode, void, NVNblendState *bs, NVNblendAdvancedMode mode) { (void)bs; (void)mode; }
+
+// ---------- 杂项 ----------
+// ---------- Miscellaneous ----------
+NVN(nvnDeviceGetCurrentTimestampInNanoseconds, uint64_t, const NVNdevice *d) { (void)d; return mach_absolute_time(); }
+NVN_NOPROTO(nvnDeviceBuilderGetFlags, uint64_t, const NVNdeviceBuilder *b) { (void)b; return 0; }
+NVN(nvnDeviceGenerateDebugDomainId, NVNdebugDomainId, const NVNdevice *d, const char *name) {
+    (void)d; (void)name;
+    static NVNdebugDomainId next = 1; return next++;
+}
+NVN(nvnProgramSetDebugLabel, void, NVNprogram *p, const char *label) { (void)p; OLOG("程序标签 %s", label ? label : "(null)"); }
+NVN_NOPROTO(nvnProgramSetShadersExt, NVNboolean, NVNprogram *p, int n, const NVNshaderData *sd) { return h_nvnProgramSetShaders(p, n, sd); }
+NVN_NOPROTO(nvnProgramSetSampleShading, void, NVNprogram *p, NVNboolean enable) { (void)p; (void)enable; }
+NVN(nvnWindowSetDebugLabel, void, NVNwindow *w, const char *label) { (void)w; OLOG("窗口标签 %s", label ? label : "(null)"); }
+NVN(nvnWindowGetCrop, void, const NVNwindow *w, NVNrectangle *r) {
+    (void)w; if (r) memset(r, 0, sizeof *r);
+}
+NVN(nvnQueueWaitSync, NVNboolean, NVNqueue *q, const NVNsync *s) { (void)q; return h_nvnSyncWait(s, UINT64_MAX) == NVN_SYNC_WAIT_RESULT_TIMEOUT_EXPIRED ? 0 : 1; }
+NVN(nvnCommandBufferSetDebugLabel, void, NVNcommandBuffer *c, const char *label) { (void)c; OLOG("命令缓冲标签 %s", label ? label : "(null)"); }
+NVN_NOPROTO(nvnCommandBufferSetCommandMemoryCallbackEnabled, void, NVNcommandBuffer *c, uint32_t enable) { (void)c; (void)enable; }
+NVN(nvnCommandBufferGetCommandMemorySize, size_t, const NVNcommandBuffer *c) { (void)c; return 0; }
+NVN(nvnCommandBufferGetCommandMemoryFree, size_t, const NVNcommandBuffer *c) { (void)c; return 0; }
+NVN(nvnCommandBufferGetControlMemoryFree, size_t, const NVNcommandBuffer *c) { (void)c; return 0; }
+NVN(nvnCommandBufferCallCommands, void, NVNcommandBuffer *c, int n, const NVNcommandHandle *cmds) { (void)c; (void)n; (void)cmds; }
+NVN(nvnCommandBufferSetAlphaRef, void, NVNcommandBuffer *c, float ref) { (void)c; (void)ref; }
+NVN(nvnCommandBufferSetLineWidth, void, NVNcommandBuffer *c, float w) { (void)c; (void)w; }
+NVN(nvnCommandBufferSetPointSize, void, NVNcommandBuffer *c, float s) { (void)c; (void)s; }
+NVN(nvnCommandBufferSetRasterizerDiscard, void, NVNcommandBuffer *c, uint32_t enable) { (void)c; (void)enable; }
+NVN(nvnCommandBufferSetDepthClamp, void, NVNcommandBuffer *c, uint32_t enable) { (void)c; (void)enable; }
+NVN(nvnCommandBufferSetConservativeRasterEnable, void, NVNcommandBuffer *c, uint32_t enable) { (void)c; (void)enable; }
+NVN(nvnCommandBufferSetInnerTessellationLevels, void, NVNcommandBuffer *c, const float *levels) { (void)c; (void)levels; }
+NVN_NOPROTO(nvnCommandBufferSetColorReductionThresholds, void, NVNcommandBuffer *c, const float *t) { (void)c; (void)t; }
+NVN(nvnCommandBufferSetTiledCacheTileSize, void, NVNcommandBuffer *c, int w, int h) { (void)c; (void)w; (void)h; }
+NVN(nvnCommandBufferSetTiledCacheAction, void, NVNcommandBuffer *c, NVNtiledCacheAction action) { (void)c; (void)action; }
+NVN(nvnCommandBufferSetViewportSwizzles, void, NVNcommandBuffer *c, int first, int n, const NVNviewportSwizzle *swz) { (void)c; (void)first; (void)n; (void)swz; }
+NVN(nvnCommandBufferDiscardColor, void, NVNcommandBuffer *c, int index) { (void)c; (void)index; }
+NVN(nvnCommandBufferSaveZCullData, void, NVNcommandBuffer *c, NVNbufferAddress addr, size_t size) { (void)c; (void)addr; (void)size; }
+NVN(nvnCommandBufferBeginTransformFeedback, void, NVNcommandBuffer *c, NVNbufferAddress buffer) { (void)c; (void)buffer; }
+NVN(nvnCommandBufferReportValue, void, NVNcommandBuffer *c, uint32_t type, NVNbufferAddress addr) { (void)c; (void)type; (void)addr; }
+
+// ---------- NA-038c：剩下的一批 ----------
+// ---------- The last batch ----------
+NVN_NOPROTO(nvnBufferBuilderGetDevice, uint64_t, const NVNbufferBuilder *b) { return (uint64_t)(uintptr_t)((const buffer_builder_t *)b)->dev; }
+NVN_NOPROTO(nvnWindowBuilderGetDevice, uint64_t, const NVNwindowBuilder *b) { return (uint64_t)(uintptr_t)((const win_builder_t *)b)->dev; }
+NVN_NOPROTO(nvnWindowBuilderSetNumActiveTextures, void, NVNwindowBuilder *b, int n) { ((win_builder_t *)b)->ntex = n; }
+NVN(nvnWindowGetNativeWindow, NVNnativeWindow, const NVNwindow *w) { return (NVNnativeWindow)((const win_t *)w)->native; }
+NVN(nvnTextureSetDebugLabel, void, NVNtexture *t, const char *label) { (void)t; OLOG("贴图标签 %s", label ? label : "(null)"); }
+NVN(nvnTextureViewSetSwizzle, void, NVNtextureView *v, NVNtextureSwizzle r, NVNtextureSwizzle g, NVNtextureSwizzle bl, NVNtextureSwizzle a) { (void)v; (void)r; (void)g; (void)bl; (void)a; }
+// 两个视图是否等价：按视图记录的关键字段逐项比。
+// Whether two views are equivalent: compare the recorded key fields one by one.
+NVN(nvnTextureViewCompare, NVNboolean, const NVNtextureView *a, const NVNtextureView *b) {
+    const view_t *x = (const view_t *)a, *y = (const view_t *)b;
+    if (!x || !y) return 0;
+    return x->set_levels == y->set_levels && x->base_level == y->base_level && x->nlevels == y->nlevels
+        && x->set_layers == y->set_layers && x->min_layer == y->min_layer && x->nlayers == y->nlayers
+        && x->set_format == y->set_format && x->format == y->format
+        && x->set_target == y->set_target && x->target == y->target;
+}
+NVN(nvnCommandBufferBindVertexBuffer, void, NVNcommandBuffer *c, int i, NVNbufferAddress a, size_t n) {
+    if (i < 0 || i >= 16) { LOG("【红】BindVertexBuffer 槽 %d 越界", i); return; }
+    p_bind_vbuf *r = RECN(c, OP_BIND_VBUF, p_bind_vbuf, r, 1); r->first = i; r->n = 1; r->r[0] = (NVNbufferRange){a, n};
+}
+NVN(nvnCommandBufferBindSeparateTexture, void, NVNcommandBuffer *c, NVNshaderStage st, int i, NVNseparateTextureHandle h) {
+    bind_handles(c, OP_BIND_TEX, st, i, 1, &h.value);
+}
+// 整数边框色：宿主的边框色是浮点四元组，这里按比例换算（0..1）。
+// Integer border colour: the host keeps a float quadruple, so scale the 0..1 values.
+NVN(nvnSamplerBuilderSetBorderColori, void, NVNsamplerBuilder *b, const int *rgba) {
+    samp_par *p = &((samp_builder_t *)b)->p;
+    for (int i = 0; i < 4; i++) p->border[i] = (float)rgba[i] / 2147483647.0f;
+}
+// 深度范围：宿主只有一组深度范围（视口那套），多组深度范围按第一组作答。
+// Depth ranges: the host has a single depth range (the viewport one), so answer with the first.
+NVN(nvnCommandBufferSetDepthRanges, void, NVNcommandBuffer *c, int first, int n, const float *v) { (void)c; (void)first; (void)n; (void)v; }
+// CPU 写贴图：宿主还没有「CPU 内存 → 贴图」的上传路径 → 明确报红，不假装成功。
+// CPU-side texture write: the host has no CPU-to-texture upload path yet → report instead of pretending.
+NVN(nvnTextureWriteTexelsStrided, void, const NVNtexture *t, const NVNtextureView *v, const NVNcopyRegion *r, const void *data, ptrdiff_t row, ptrdiff_t img) {
+    (void)t; (void)v; (void)r; (void)data; (void)row; (void)img;
+    static int reported; if (!reported++) LOG("【红】TextureWriteTexelsStrided：宿主没有 CPU 写贴图的上传路径 | CPU texture write unsupported");
+}
+
+// ---------- NA-039：TotK 会调用、此前是空实现的那几个接口 ----------
+// ---------- The interfaces TotK calls that used to be empty implementations ----------
+// 当前游戏档位是不是 TotK（启动设置写进 DM_GAME_PROFILE；见 dm/android/native/launch_settings.c）。
+// Whether the current profile is TotK (the launch settings write DM_GAME_PROFILE).
+static int nvn_profile_is_totk(void) { const char *p = getenv("DM_GAME_PROFILE"); return p && !strcmp(p, "totk"); }
+
+// GPU 侧等待：录下栅栏值，回放时等到 GPU 走到该栅栏。
+// D2R 那边保留原来的空实现（D2R 已在真机上跑过，不改它的行为）。
+// GPU-side wait: record the fence value and wait for the GPU to reach it at replay time.
+// D2R keeps the previous empty implementation (its behaviour was verified on a real device).
+NVN(nvnCommandBufferWaitSync, void, NVNcommandBuffer *c, const NVNsync *s) {
+    if (!nvn_profile_is_totk()) return;
+    const sync_t *o = (const sync_t *)s;
+    if (!o || !o->fenced || !o->fence) return;        // 没围栏过的同步对象：真机也是立即返回
+    *(p_wait_sync *)rec(c, OP_WAIT_SYNC, sizeof(p_wait_sync)) = (p_wait_sync){o->fence};
+}
+// 间接派发：计数（x,y,z 三个 uint32）在客体缓冲里。
+// 宿主在回放时读客体内存并按读到的计数做一次直接派发 —— 同一提交内刚写好的计数读不到，
+// 这条限制写进交接的待真机确认项。
+// Indirect dispatch: the counts (x, y, z as three uint32) live in a guest buffer. The host reads
+// the guest memory at replay time and issues a direct dispatch with those counts; counts written
+// by the same submission are not visible yet (tracked as a to-verify item).
+NVN(nvnCommandBufferDispatchComputeIndirect, void, NVNcommandBuffer *c, NVNbufferAddress buffer) {
+    *(p_dispatch_indirect *)rec(c, OP_DISPATCH_INDIRECT, sizeof(p_dispatch_indirect)) = (p_dispatch_indirect){buffer, 0};
+}
+// 深度夹取：Vulkan 侧没有开 depthClamp（开了要重建管线），所以按「不夹取」执行；
+// 但要报一次红，别让它无声无息地被吞掉。
+// Depth bounds: the Vulkan side does not enable depthClamp (it would need pipeline rebuilds), so
+// the values are used unclamped; report it once instead of swallowing it silently.
+NVN(nvnCommandBufferSetDepthBounds, void, NVNcommandBuffer *c, uint32_t enable, float min, float max) {
+    (void)c; (void)min; (void)max;
+    if (enable) { static int reported; if (!reported++) LOG("【红】SetDepthBounds：宿主未启用深度夹取，按不夹取执行 | depth clamping not enabled"); }
+}
+// 着色器局部内存：宿主的后端没有对应能力 → 明确报一次红，不假装支持。
+// Shader scratch memory: the backend has no equivalent → report once instead of pretending.
+NVN(nvnCommandBufferSetShaderScratchMemory, void, NVNcommandBuffer *c, const NVNmemoryPool *p, ptrdiff_t off, size_t size) {
+    (void)c; (void)p; (void)off; (void)size;
+    static int reported; if (!reported++) LOG("【红】SetShaderScratchMemory：宿主不支持着色器局部内存 | shader scratch memory unsupported");
+}
+// 窗口收尾：交换链与计数清零，对象作废（和其它对象的 finalize 一致）。
+// Window teardown: clear the swap chain and the counters and invalidate the object (like the other finalizers).
+NVN(nvnWindowFinalize, void, NVNwindow *w) {
+    win_t *o = (win_t *)w;
+    if (!o->magic) return;
+    LOG("[nvn] 窗口收尾：出图 %llu 次", (unsigned long long)o->presents);
+    o->magic = 0; o->ntex = 0; o->native = NULL; o->presents = 0;
+}
+
 // 只影响 GPU 状态 / 只在 GPU 上执行的命令：空设备只计数（跳板已计）
 // Commands that only affect GPU state / only execute on the GPU: the null device only counts them (the thunk has already counted)
 static void nvn_nop(void) {}
@@ -820,16 +1212,11 @@ static const char *const g_nops[] = {
     "nvnCommandBufferSetPatchSize",
     "nvnCommandBufferMultiDrawArraysIndirectCount",
     "nvnCommandBufferMultiDrawElementsIndirectCount",
-    "nvnCommandBufferDispatchComputeIndirect",
-    "nvnCommandBufferSetDepthBounds",
     "nvnCommandBufferDownsampleTextureView",
-    "nvnCommandBufferWaitSync",
-    "nvnCommandBufferSetShaderScratchMemory",
     "nvnCommandBufferPushDebugGroupDynamic",
     "nvnCommandBufferPopDebugGroup",
     "nvnCommandBufferInsertDebugMarkerDynamic",
     "nvnCommandBufferWaitEvent",
-    "nvnWindowFinalize",
 };
 __attribute__((constructor)) static void nvn_nops_register(void) {
     // 空实现在槽表初始化后覆盖未实现桩；名字写错（不在 main 名字表里）启动即报红中止

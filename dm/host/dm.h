@@ -14,11 +14,11 @@
 typedef struct { uint32_t st_name; uint8_t st_info, st_other; uint16_t st_shndx; uint64_t st_value, st_size; } Elf64_Sym;
 typedef struct { int64_t d_tag; union { uint64_t d_val, d_ptr; } d_un; } Elf64_Dyn;
 typedef struct { uint64_t r_offset, r_info; int64_t r_addend; } Elf64_Rela;
-typedef struct { uint8_t *d; size_t n; } dm_blob;   // 整份读进内存的一个原版存档文件（dm_pages.c dm_save_blobs） | One save file of the original game read whole into memory (dm_pages.c dm_save_blobs)
+typedef uint64_t Elf64_Relr;   // 压缩包式相对重定位的一个编码字（DT_RELR） | One encoded word of packed relative relocations (DT_RELR)
 #define ELF64_R_SYM(i) ((i) >> 32)
 #define ELF64_R_TYPE(i) ((i) & 0xffffffff)
 enum { DT_INIT = 12, DT_RELA = 7, DT_RELASZ = 8, DT_JMPREL = 23, DT_PLTRELSZ = 2, DT_SYMTAB = 6, DT_STRTAB = 5,
-       DT_INIT_ARRAY = 25, DT_INIT_ARRAYSZ = 27 };
+       DT_INIT_ARRAY = 25, DT_INIT_ARRAYSZ = 27, DT_RELR = 36, DT_RELRSZ = 35, DT_RELRENT = 37 };
 enum { R_AARCH64_ABS64 = 257, R_AARCH64_GLOB_DAT = 1025, R_AARCH64_JUMP_SLOT = 1026, R_AARCH64_RELATIVE = 1027 };
 
 // 一个 NSO 模块的运行时状态
@@ -54,10 +54,9 @@ module_t *module_of(const void *p);
 uint64_t gate_dispatch(uint64_t ret_addr, uint64_t *regs);
 // 观测门（改写器 OBS 表；编号与 patch_nso.py 一致）：只读回调，挂上即在门命中时调用
 // Observation gates (rewriter OBS table; numbering matches patch_nso.py): read-only callbacks, called on a gate hit once attached
-enum { OBS_UIMSG = 1, OBS_TICK = 2, OBS_C2S = 3, OBS_C2S_SYS = 4, OBS_SETLANG = 5, OBS_TARGET_RANK = 7, OBS_UI_PROJECT = 8, OBS_FREEZE_WORLD = 10, OBS_FREEZE_CLIENT = 11, OBS_FREEZE_ANIM = 12, OBS_FREEZE_RENDER = 13, OBS_TEXTBOX = 14, OBS_EVENT_MSG = 15, OBS_LEVEL_WARP = 16, OBS_QUEST_KILL = 17, OBS_NOTICE_INPUT = 18, OBS_ERR_SMOOTH = 19, OBS_MODEL_YAW = 20, OBS_MAX = 21 };   // 6 = iOS 绑定读取（dm_touch_game_bridge.c） | 6 = iOS binding read (dm_touch_game_bridge.c)
+enum { OBS_UIMSG = 1, OBS_TICK = 2, OBS_C2S = 3, OBS_C2S_SYS = 4, OBS_SETLANG = 5, OBS_TARGET_RANK = 7, OBS_UI_PROJECT = 8, OBS_FREEZE_WORLD = 10, OBS_FREEZE_CLIENT = 11, OBS_FREEZE_ANIM = 12, OBS_FREEZE_RENDER = 13, OBS_NOTICE_INPUT = 18, OBS_MAX = 19 };   // 6 = iOS 绑定读取（dm_touch_game_bridge.c） | 6 = iOS binding read (dm_touch_game_bridge.c)
 void gate_obs_set(int id, void (*fn)(const uint64_t *regs));
 int gate_obs_present(int id);
-void dm_quiet_difficulty_msg(int on);   // 秘境局里拦原版「游戏难度设为 N」提示（观测门 15，diag.c） | In a rift run, block the original game's 「游戏难度设为 N」(Game difficulty set to N) message (observation gate 15, diag.c)
 int gate_svc_present(int num);   // 产物里有没有这个 svc 号的门（剪口引入的宿主调用号用）   // 产物里有没有这个观测门（gates.tsv 登记过） | Whether the build output has a gate for this svc number (for host call numbers introduced by cuts)   // whether the build output has this observation gate (registered in gates.tsv)
 uint64_t now_ns(void);
 uint64_t guest_ns(void);              // 客体时钟（hle_os.c；DM_TICK_HOLD 冻结时不走） | Guest clock (hle_os.c; does not advance while DM_TICK_HOLD is frozen)
@@ -87,7 +86,7 @@ extern struct dm_flags { int thr, svc, fs, movie, dbg, imports, bootprof; } g_fl
 // 启动时间线（DM_BOOTPROF=1，diag.c）：分段打点 + 计数器（纳秒 / 字节，全线程累加）；可用 PROF_GFX_* 埋点
 // Boot timeline (DM_BOOTPROF=1, diag.c): segment marks + counters (nanoseconds / bytes, accumulated over all threads); PROF_GFX_* can be used for instrumentation
 enum { PROF_FS_READ, PROF_WAIT_LOCK, PROF_WAIT_CV, PROF_WAIT_ADDR, PROF_WAIT_SYNC, PROF_SLEEP, PROF_MAIN_WAIT,
-       PROF_GFX_PRESENT, PROF_GFX_SHADER, PROF_TACT, PROF_N };   // PROF_TACT：TACT 块 zlib 解码（svc #0x80，宿主 libdeflate）耗时与输出字节 | PROF_TACT: time and output bytes of TACT block zlib decode (svc #0x80, host libdeflate)
+       PROF_GFX_PRESENT, PROF_GFX_SHADER, PROF_N };
 void dm_prof_add(int id, uint64_t ns, uint64_t bytes);
 void dm_prof_mark(const char *seg);
 uint64_t dm_prof_ribbon_ns(void);   // 第一次出现 OpenPanel MainMenuButtonRibbon 的 now_ns 时刻（0 = 尚未；需 DM_BOOTPROF=1） | The now_ns time at which OpenPanel MainMenuButtonRibbon first appeared (0 = not yet; needs DM_BOOTPROF=1)

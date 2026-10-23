@@ -88,11 +88,21 @@ static class SwshXlate
             Array32<AttributeType> attr = default; Array8<AttributeType> fout = default;
             if (_job["attr"] is JsonObject a) foreach (var kv in a) attr[int.Parse(kv.Key)] = Attr((string)kv.Value);
             if (_job["fout"] is JsonObject f) foreach (var kv in f) fout[int.Parse(kv.Key)] = Attr((string)kv.Value);
+            // 深度范围按作业给：暗黑2 是 0..1（缺省 false，沿用原值）；TotK 用 -1..1（作业 depth_minus_one_to_one = true）。
+            // The depth range comes from the job: Diablo II uses 0..1 (the default false, unchanged); TotK uses -1..1 (job depth_minus_one_to_one = true).
+            bool depthMinusOneToOne = _job["depth_minus_one_to_one"] is JsonNode dmz && (bool)dmz;
             return new GpuGraphicsState(false, InputTopology.Triangles, false, TessPatchType.Triangles, TessSpacing.EqualSpacing,
-                false, false, false, false /* 深度 0..1 | depth 0..1 */, false, 1f, AlphaTestOp.Always, 0f, attr, false, fout, false,
+                false, false, false, depthMinusOneToOne /* 深度范围 | depth range */, false, 1f, AlphaTestOp.Always, 0f, attr, false, fout, false,
                 false /* 不做 Y 取反 | no Y flip */, true /* 原点左上 | origin upper-left */, false);
         }
         public bool QueryHostSupportsTextureShadowLod() => true;
+        // 宿主能力按作业声明：作业给 host_no_fp64 / host_no_depth_clip = true 时说「宿主不支持」，
+        // 翻译器据此降级（TotK 的着色器用到了 fp64 与深度裁剪控制，而 Vulkan / Metal 都不支持）。
+        // The host capabilities come from the job: host_no_fp64 / host_no_depth_clip = true means the host
+        // does not support them, and the translator lowers those features (TotK's shaders use fp64 and depth
+        // clip control, which neither Vulkan nor Metal supports).
+        public bool QueryHostSupportsShaderFloat64() => !(_job["host_no_fp64"] is JsonNode a && (bool)a);
+        public bool QueryHostSupportsDepthClipControl() => !(_job["host_no_depth_clip"] is JsonNode b && (bool)b);
         // 作业 reduced = true：放宽精度——翻译器只给强制精确的运算打 NoContraction（缺省全部打：保持 Maxwell 分开舍入的逐位结果，代价是 MSL 里大量禁优化的 spvFMul 等）
         // Job reduced = true: relaxed precision - the translator marks NoContraction only on operations that must be exact (the default marks all: keeps the bit-exact results of Maxwell's separate rounding, at the cost of many optimization-disabled spvFMul etc. in the MSL)
         public bool QueryHostReducedPrecision() => _job["reduced"] is JsonNode n && (bool)n;
@@ -120,6 +130,15 @@ static class SwshXlate
                 // Job debug = false: turn off DebugMode (DebugMode skips the AST optimizer and the output is full of temporaries; semantics unchanged)
                 var flags = (job["debug"] is JsonNode dbg && !(bool)dbg ? 0 : TranslationFlags.DebugMode) | ((string)job["stage"] == "cs" ? TranslationFlags.Compute : 0);
                 var ctx = Translator.CreateContext(0, acc, new TranslationOptions(TargetLanguage.Spirv, TargetApi.Vulkan, flags));
+                // 联编：作业可带下一阶段（顶点 → 像素）。像素阶段读到的、由顶点阶段写入的属性，
+                // 翻译器需要知道顶点阶段的声明，否则未写出的输出没有来源。
+                // Linked translation: the job may carry the next stage (vertex -> pixel). The fragment stage reads
+                // attributes the vertex stage writes, so the translator needs the vertex stage's declarations.
+                if (job["next"] is JsonObject next)
+                {
+                    var nextAcc = new Accessor(File.ReadAllBytes((string)next["code"]), next);
+                    ctx.SetNextStage(Translator.CreateContext(0, nextAcc, new TranslationOptions(TargetLanguage.Spirv, TargetApi.Vulkan, flags)));
+                }
                 ShaderProgram p = ctx.Translate();
                 File.WriteAllBytes(Path.Combine(outDir, key + ".spv"), p.BinaryCode);
                 var res = new JsonObject

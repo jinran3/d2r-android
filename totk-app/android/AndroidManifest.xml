@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TotK Android 移植：R0 骨架。只为证明「新工程能编、能装、能起、能写日志」。
+     这里不引用 dm/ 下任何既有代码；配置值（minSdk 等）是抄来的数字，不是抄来的实现。 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.totk.android.port"
+    android:versionCode="1"
+    android:versionName="R0-1.0">
+
+    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="34" />
+    <uses-feature android:name="android.hardware.vulkan.version" android:version="0x400003" android:required="false" />
+
+    <application
+        android:label="totk-app"
+        android:allowBackup="false"
+        android:debuggable="true"
+        android:hasCode="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -88,9 +88,6 @@ targets:
         com.apple.developer.kernel.extended-virtual-addressing: true
         com.apple.developer.sustained-execution: true   # 持续执行模式：系统从启动起就按稳态功率给性能，凉机与热机表现一致（启动日志「持续执行档」核对是否生效） | Sustained execution mode: from launch the system grants performance at steady-state power, so a cold device and a hot device behave the same (check the startup log line 「持续执行档」(sustained execution tier) to see whether it took effect)
         com.apple.security.application-groups: ["group.${DM_BUNDLE_ID}"]
-        com.apple.developer.icloud-container-identifiers: ["iCloud.${DM_BUNDLE_ID}"]   # iCloud 同步存档（cloud_ios.m）：App 私有的 iCloud Drive 容器，不在「文件」App 里露出 | iCloud save sync (cloud_ios.m): the App's private iCloud Drive container, not exposed in the Files app
-        com.apple.developer.icloud-services: [CloudDocuments]
-        com.apple.developer.ubiquity-container-identifiers: ["iCloud.${DM_BUNDLE_ID}"]
     dependencies:
       - target: RomfsDownloader      # 苹果托管资源包要求的下载扩展（系统缺省实现） | Download extension required by Apple-hosted asset packs (system default implementation)
       - sdk: BackgroundAssets.framework

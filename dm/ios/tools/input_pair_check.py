@@ -8,7 +8,7 @@ from pathlib import Path
 
 STATE = ("buttons", "lx", "ly", "rx", "ry")
 PHASES = {"began", "moved", "ended", "cancelled"}
-SOURCES = {"uitouch", "layout", "navigation", "focus_cancel", "screenshot", "bindings", "portal_sequence"}
+SOURCES = {"uitouch", "layout", "navigation", "focus_cancel", "screenshot", "bindings"}
 UI_INTS = {"eventseq", "receiptseq", "event_first_seq", "event_last_seq",
            "mono_ns", "publish_end_ns", "slot", *STATE}
 HID_INTS = {"read_start_ns", "time_ns", "sampling", "id", "style",
@@ -57,90 +57,14 @@ def validate_state(row):
         raise TraceError("int32_range")
 
 
-PORTAL_FIELDS = {"portal_request", "portal_binding", "portal_scene", "portal_phase",
-                 "portal_pending", "modifier_publish_end_ns", "feedback_group_start_ns",
-                 "feedback_captured_ns", "feedback_secondary", "feedback_seen",
-                 "feedback_identity_scope"}
-PORTAL_UNSIGNED = PORTAL_FIELDS - {"portal_phase", "portal_pending", "feedback_secondary",
-                                   "feedback_seen", "feedback_identity_scope"}
-
-
-def validate_portal(row, active, request):
-    if row["source"] == "portal_sequence" or PORTAL_FIELDS & row.keys():
-        require(row, PORTAL_FIELDS)
-    else:
-        if request:
-            raise TraceError("portal_fields_missing_during_request")
-        return None
-    if any(not 0 <= row[k] < 2**64 for k in PORTAL_UNSIGNED):
-        raise TraceError("portal_unsigned_range")
-    if (row["portal_phase"] not in {0, 1, 2} or row["portal_pending"] not in {0, 1} or
-            row["feedback_secondary"] not in {0, 1} or not 0 <= row["feedback_seen"] <= 63 or
-            row["feedback_identity_scope"] not in {0, 1, 2}):
-        raise TraceError("portal_field_range")
-    if row["source"] == "portal_sequence":
-        if (not request or request["acked"] or not active or row["mode"] != "game" or
-                row["portal_phase"] != 2 or row["portal_pending"] != 0):
-            raise TraceError("portal_request_not_pending")
-        modifier = request["modifier"]
-        if not any(t in active and active[t] >= 0 for t in request["touches"]):
-            raise TraceError("portal_touch_not_active")
-        if any(row[k] != modifier[k] for k in ("portal_request", "portal_binding", "portal_scene",
-                                               "modifier_publish_end_ns")):
-            raise TraceError("portal_request_identity")
-        if row["feedback_secondary"] != 1 or row["feedback_seen"] != 63 or row["feedback_identity_scope"] not in {1, 2}:
-            raise TraceError("portal_feedback_identity")
-        if not (modifier["publish_end_ns"] < row["feedback_group_start_ns"] <=
-                row["feedback_captured_ns"] < row["mono_ns"] and
-                row["mono_ns"] - row["feedback_captured_ns"] <= 250_000_000):
-            raise TraceError("portal_feedback_time")
-        # 最小两阶段原SDK位序；仅承认原facet A/B/X/Y/R/ZR的一个新增边沿。
-        # Minimal two-phase original SDK bit order; only one newly added edge of the original facets A/B/X/Y/R/ZR is accepted.
-        edge = row["buttons"] & ~modifier["buttons"]
-        if not row["buttons"] & 256 or edge not in {1, 2, 4, 8, 128, 512}:
-            raise TraceError("portal_action_edge")
-        row["_portal_modifier_receipt"] = modifier["receiptseq"]
-        request["acked"] = True
-        return request
-    if row["portal_phase"] == 1:
-        if (row["portal_pending"] != 1 or row["mode"] != "game" or not active or
-                not row["buttons"] & 256 or not all(row[k] for k in ("portal_request", "portal_binding", "portal_scene"))):
-            raise TraceError("portal_modifier_publication")
-        same = request and all(row[k] == request["modifier"][k] for k in
-                               ("portal_request", "portal_binding", "portal_scene"))
-        if same:
-            if request["acked"] or row["modifier_publish_end_ns"] != request["modifier"]["publish_end_ns"]:
-                raise TraceError("portal_modifier_publication")
-            return request
-        if (row["source"] != "uitouch" or row["phase"] != "began" or
-                row["modifier_publish_end_ns"] != row["publish_end_ns"]):
-            raise TraceError("portal_modifier_publication")
-        return {"modifier": row, "acked": False,
-                "touches": {e["touch"] for e in row["_touch_group"] if e["phase"] == "began" and e["slot"] >= 0}}
-    if row["portal_pending"]:
-        raise TraceError("portal_request_not_pending")
-    if row["portal_phase"] == 0:
-        return None
-    # normal Portal无需ZL/ACK；已ACK请求的普通持有发布保留其关联。
-    # normal Portal needs no ZL/ACK; the ordinary hold publish of an already ACKed request keeps its association.
-    if request and all(row[k] == request["modifier"][k] for k in
-                       ("portal_request", "portal_binding", "portal_scene")):
-        if not request["acked"]:
-            raise TraceError("portal_action_without_ack")
-        return request
-    return None
-
-
 def validate_ui(records):
-    records = normalize(records, UI_INTS | PORTAL_FIELDS)
+    records = normalize(records, UI_INTS)
     events = []
     outputs = []
     active = {}
     pending = []
     event_no = receipt_no = published = last_time = end_time = 0
     lifecycle_reasons = set()
-    portal_request = None
-    portal_epoch = 0
     for row in records:
         require(row, ("stage", "eventseq", "mono_ns", "source", "phase", "mode", *STATE))
         validate_state(row)
@@ -196,11 +120,6 @@ def validate_ui(records):
             row["_touch_group"] = list(pending)
             row["_release"] = bool(pending) and not active and row["phase"] in {"ended", "cancelled"}
             row["_blank_claim"] = any(e.get("blank") is True for e in pending)
-            portal_request = validate_portal(row, active, portal_request)
-            if "portal_request" in row:
-                if row["portal_request"] < portal_epoch:
-                    raise TraceError("portal_request_regression")
-                portal_epoch = row["portal_request"]
             outputs.append(row)
             if row["source"] in {"layout", "focus_cancel"}:
                 # 控件取消/清槽不代表物理触点已结束；后续无归属点slot=-1仍按touch身份闭合。
@@ -266,12 +185,10 @@ def connected(row):
 def analyze(ui, hid, domain="synthetic"):
     result = {"domain": domain, "physical_pass_claimed": False,
               "release_received": False, "blank_activity_received": False,
-              "combo_received": False, "portal_combo_pairs": 0}
+              }
     try:
         events, outputs, reasons = validate_ui(ui)
         result.update(ui_events=len(events), ui_outputs=len(outputs))
-        if domain == "device" and any(o["source"] == "portal_sequence" and o["feedback_identity_scope"] != 1 for o in outputs):
-            raise TraceError("synthetic_identity_on_device")
         if hid is None:
             result.update(status="pair_not_executed", reasons=sorted(reasons | {"missing_hid_stream"}),
                           ui_lifecycle_closed=not reasons, pairs=[])
@@ -298,9 +215,8 @@ def analyze(ui, hid, domain="synthetic"):
                     "event_group": [output["event_first_seq"], output["event_last_seq"]],
                     "matched_sampling": [r["sampling"] for r in matched],
                     "status": "matched" if matched else "not_sampled"}
-            is_combo = output["source"] == "portal_sequence"
-            if (is_touch or is_combo) and not matched:
-                reasons.add("missing_combo_receipt" if is_combo else "missing_receipt")
+            if is_touch and not matched:
+                reasons.add("missing_receipt")
                 if overlaps:
                     reasons.add("concurrent_undetermined")
                     pair["status"] = "concurrent_undetermined"
@@ -314,19 +230,6 @@ def analyze(ui, hid, domain="synthetic"):
                     reasons.add("returned_state_mismatch")
                     pair["status"] = "state_mismatch"
             matched_reads[output["receiptseq"]] = matched
-            if is_combo:
-                modifier_reads = matched_reads.get(output["_portal_modifier_receipt"], [])
-                before_feedback = [r for r in modifier_reads
-                                   if r["time_ns"] < output["feedback_group_start_ns"]]
-                modifier_received = bool(before_feedback)
-                pair["modifier_before_feedback_sampling"] = [r["sampling"] for r in before_feedback]
-                pair["modifier_receiptseq"] = output["_portal_modifier_receipt"]
-                pair["combo_received"] = bool(matched) and modifier_received
-                if not modifier_received:
-                    reasons.add("modifier_not_before_feedback" if modifier_reads else "missing_modifier_receipt")
-                if pair["combo_received"]:
-                    result["combo_received"] = True
-                    result["portal_combo_pairs"] += 1
             neutral = all(output[k] == 0 for k in STATE)
             if output["_release"] and not neutral:
                 reasons.add("release_not_neutral")

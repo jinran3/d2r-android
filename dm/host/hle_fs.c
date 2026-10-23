@@ -61,7 +61,7 @@ static _Atomic uint64_t g_txn_first_ns;     // 本事务第一次存档写的时
 // and the front end is notified (front_save_failed); the next transaction (the game's next full save rewrite) is attempted as usual and committed if it succeeds. g_save_poison = errno of the first failure in this transaction (0 = none).
 static _Atomic int g_save_poison;
 static void save_poison(int e) { int z = 0; atomic_compare_exchange_strong(&g_save_poison, &z, e ? e : EIO); }
-void dm_fs_save_poison(int e) { save_poison(e); }   // 提交前钩子用：旁路文件（编年史 / 百宝囊）没写成也算本事务写失败——照常提交的话，物品已不在角色档里、旁路文件里又没有 | for the pre-commit hook: a side file (Chronicle / pouch) that failed to write also counts as a write failure of this transaction -- if the commit went ahead as usual, the items would no longer be in the character save and would not be in the side file either
+void dm_fs_save_poison(int e) { save_poison(e); }   // 提交前钩子用：旁路文件（秘境进度）没写成也算本事务写失败——照常提交的话，进度已不在角色档里、旁路文件里又没有 | for the pre-commit hook: a side file (the rift progress) that failed to write also counts as a write failure of this transaction -- if the commit went ahead as usual, the progress would no longer be in the character save and would not be in the side file either
 // 缺省弱实现只记日志（Mac）；iOS 前端写同名强实现弹原生提示。在游戏线程调，前端自己切主线程
 // The default weak implementation only logs (Mac); the iOS front end provides a strong implementation of the same name that shows a native alert. Called on the game thread, the front end switches to the main thread itself
 __attribute__((weak)) void front_save_failed(int err) { LOG("front_save_failed(errno=%d)：前端未接（缺省弱实现）", err); }
@@ -328,8 +328,8 @@ static void settings_seed(const char *save_dir) {
     char *brace = strchr(buf, '{'); int had = brace != NULL; size_t o = 0; int added = 0;
     o += (size_t)snprintf(out + o, sizeof out - o, "{");
     for (size_t i = 0; i < sizeof kv / sizeof kv[0]; i++) if (!strstr(buf, kv[i][0])) { o += (size_t)snprintf(out + o, sizeof out - o, "\n    %s: %s,", kv[i][0], kv[i][1]); added++; }
-    // 首次安装按系统语言定原版的文字语言和语音语言（dm_sys_lang()，见 dm_i18n.c；只在没有设置文件时）。已有设置文件不补这两个键（老玩家照旧）；之后由自定义页的语言开关改（settings_lang_apply）
-    // On first install the original game's text and voice languages are set from the system language (dm_sys_lang(), see dm_i18n.c; only when there is no settings file). An existing settings file does not get these two keys added (existing players stay as they are); afterwards they are changed by the language switch on the Custom page (settings_lang_apply)
+    // 首次安装按 dm_sys_lang()（现恒为简中）定原版的文字语言和语音语言（见 dm_i18n.c；只在没有设置文件时）。已有设置文件不补这两个键（老玩家照旧）。
+    // On first install the original game's text and voice languages are set from dm_sys_lang() (now always Simplified Chinese; see dm_i18n.c; only when there is no settings file). An existing settings file does not get these two keys added (existing players stay as they are).
     if (first) { int dm_sys_lang(void); o += (size_t)snprintf(out + o, sizeof out - o, "\n    \"Language\": %d,\n    \"VoiceLanguage\": %d,", dm_sys_lang(), dm_sys_lang()); added += 2; }
     if (!added) return;
     if (had) { const char *rest = brace + 1; const char *q = rest; while (*q == ' ' || *q == '\n' || *q == '\r' || *q == '\t') q++;
@@ -339,33 +339,7 @@ static void settings_seed(const char *save_dir) {
     mkdir(dir, 0755); char tmp[1300]; snprintf(tmp, sizeof tmp, "%s.seed", path);
     f = fopen(tmp, "wb"); if (!f || fwrite(out, 1, o, f) != o) { if (f) fclose(f); LOG("【红】设置缺省：写 %s 失败", tmp); return; }
     fclose(f); if (rename(tmp, path)) { LOG("【红】设置缺省：改名到 %s 失败", path); return; }
-    LOG("设置缺省：%s 补了 %d 个键（显示物品 = 开关式 / 说明条热键 = 关 / 小地图放右、进局自动开%s；已有的键不动）", path, added, first ? " / 首次安装按系统语言写 Language" : "");
-}
-// 语言开关（自定义页标题行那一格，dm_custom.c 的 lang_en）：玩家点过「应用」后设置文件里有明确的值，每次挂存档（游戏读设置之前）按它把原版设置文件的
-// Language（文字）和 VoiceLanguage（语音，语音跟着切）改成 0 英文 / 8 简中。只在「与开关不符」时改：开关 = 英文而文字不是 0；开关 = 中文而文字是 0。
-// 所以开关关着时玩家若在原版里选了繁中等别的语言，不会被改回简中。两个键缺哪个补哪个。没点过应用（-1）= 一个字不动
-// Language switch (the cell in the title row of the Custom page, lang_en in dm_custom.c): once the player has tapped 「应用」(Apply) the settings file holds an explicit value, and on every save mount (before the game reads its settings) the original game's settings file has its
-// Language (text) and VoiceLanguage (voice; the voice switches along with it) changed to 0 English / 8 Simplified Chinese accordingly. It is changed only when it "does not match the switch": switch = English but text is not 0; switch = Chinese but text is 0.
-// So with the switch off, if the player has chosen another language such as Traditional Chinese in the original game, it is not changed back to Simplified Chinese. Whichever of the two keys is missing is added. Apply never tapped (-1) = nothing is touched
-static int json_int_set(char *buf, size_t cap, const char *key, int val) {   // 把 "key": N 的 N 换成 val（没有这个键就插在第一个 { 之后）；返回 1 = 改了 | Replace the N of "key": N with val (if the key is absent, insert it after the first {); returns 1 = changed
-    char *k = strstr(buf, key); char num[16]; snprintf(num, sizeof num, "%d", val);
-    if (!k) { char *b = strchr(buf, '{'); char ins[96]; int m = snprintf(ins, sizeof ins, "\n    %s: %s,", key, num); if (!b || strlen(buf) + (size_t)m + 1 >= cap) return 0;
-        memmove(b + 1 + m, b + 1, strlen(b + 1) + 1); memcpy(b + 1, ins, (size_t)m); return 1; }
-    char *v = strchr(k + strlen(key), ':'); if (!v) return 0; v++; while (*v == ' ' || *v == '\t') v++; char *e = v; if (*e == '-') e++; while (*e >= '0' && *e <= '9') e++;
-    if (e == v || atoi(v) == val) return 0; size_t nl = strlen(num); if (strlen(buf) + nl + 1 >= cap) return 0;
-    memmove(v + nl, e, strlen(e) + 1); memcpy(v, num, nl); return 1; }
-static void settings_lang_apply(const char *save_dir) {
-    int dm_custom_lang_explicit(void); int en = dm_custom_lang_explicit(); if (en < 0) return;
-    char path[1200]; snprintf(path, sizeof path, "%s/Settings/Settings.json", save_dir); static char buf[66000]; FILE *f = fopen(path, "rb"); if (!f) return;
-    size_t n = fread(buf, 1, 65535, f); fclose(f); if (n == 65535) return; buf[n] = 0;
-    const char *k = strstr(buf, "\"Language\""), *c = k ? strchr(k + 10, ':') : NULL; int cur = c ? atoi(c + 1) : 8;   // 没写 = 游戏缺省（宿主报简中） | Not written = game default (the host reports Simplified Chinese)
-    if ((en && cur == 0) || (!en && cur != 0)) { const char *vk = strstr(buf, "\"VoiceLanguage\""), *vc = vk ? strchr(vk + 15, ':') : NULL; int vcur = vc ? atoi(vc + 1) : cur;
-        if ((en && vcur == 0) || (!en && vcur != 0)) return; }   // 文字、语音都已与开关相符 | Text and voice already match the switch
-    int want = en ? 0 : 8, ch = json_int_set(buf, sizeof buf, "\"Language\"", want) | json_int_set(buf, sizeof buf, "\"VoiceLanguage\"", want); if (!ch) return;
-    char tmp[1300]; snprintf(tmp, sizeof tmp, "%s.lang", path); f = fopen(tmp, "wb"); size_t m = strlen(buf);
-    if (!f || fwrite(buf, 1, m, f) != m) { if (f) fclose(f); LOG("【红】语言开关：写 %s 失败", tmp); return; }
-    fclose(f); if (rename(tmp, path)) { LOG("【红】语言开关：改名到 %s 失败", path); return; }
-    LOG("语言开关：设置文件的 Language / VoiceLanguage 改成 %d（%s；原文字语言 %d）", want, en ? "英文" : "简中", cur);
+    LOG("设置缺省：%s 补了 %d 个键（显示物品 = 开关式 / 说明条热键 = 关 / 小地图放右、进局自动开%s；已有的键不动）", path, added, first ? " / 首次安装写简中 Language" : "");
 }
 // 事务式存档当前的工作目录（游戏读写的那份；宿主自己的旁路文件写在这里才会随 Commit 进已提交版）。没挂载存档时返回 NULL
 // The current working directory of the transactional save (the copy the game reads and writes; the host's own side files must be written here to enter the committed version with Commit). Returns NULL when no save is mounted
@@ -373,7 +347,6 @@ const char *dm_save_workdir(void) { for (int i = 0; i < g_nmnt; i++) if (g_mnt[i
 // 事务式存档的已提交目录（盘上那份，上次 Commit 的版本）。没挂载存档时返回 NULL
 // The committed directory of the transactional save (the copy on disk, the version from the last Commit). Returns NULL when no save is mounted
 const char *dm_save_commitdir(void) { for (int i = 0; i < g_nmnt; i++) if (g_mnt[i].commit[0]) return g_mnt[i].commit; return NULL; }
-void (*g_dm_mount_seed_hook)(const char *save_dir);   // 挂存档前调（存档目录）：往存档里补宿主要的文件 | called before mounting the save (save dir): adds the files the host needs to the save
 HLE_FORCE("_ZN2nn2fs13MountSaveDataEPKcRKNS_7account3UidE", "fsp-srv；存档 → 宿主目录（单用户）", Result, h_fs_MountSave, const char *name, const void *uid) {
     (void)uid;
     // 不给缺省目录：静默落到一个没有角色的目录上会让「选角」测量失真（曾因此误判过）。跑局一律用 save_ref 的新副本
@@ -383,16 +356,9 @@ HLE_FORCE("_ZN2nn2fs13MountSaveDataEPKcRKNS_7account3UidE", "fsp-srv；存档 �
     char dd[1024]; strlcpy(dd, d, sizeof dd); size_t L = strlen(dd); while (L > 1 && dd[L - 1] == '/') dd[--L] = 0;   // 去掉结尾斜杠（.work / .new 拼在同级） | strip trailing slashes (.work / .new are appended at the same level)
     stash_seed(dd);
     low_vision_off(dd);
-    settings_seed(dd); settings_lang_apply(dd);
-    // 掉落过滤的规则文件（原版启动时载入，dm_lootfilter.c 用构造函数登记这个钩子；只链 hle_fs.c 的单测里它是空的）。与 settings_seed 同一个开关：
-    // iOS 上缺省写；Mac 宿主的对拍闸门（存档要和真机真值逐文件相同）不写
-    // Rule files for the loot filter (the game loads them at startup; dm_lootfilter.c registers this hook from a constructor; it is null in unit tests that link only hle_fs.c). Same switch as settings_seed:
-    // written by default on iOS; not written under the Mac host's parity gate (saves must match the device ground truth file by file)
-    { const char *e = getenv("DM_TOUCH_DEFAULTS"); if (g_dm_mount_seed_hook && (e ? strcmp(e, "0") != 0 : TARGET_OS_IPHONE)) g_dm_mount_seed_hook(dd); }
+    settings_seed(dd);
     return mount_ex(name, dd, 0, 1);
 }
-void (*g_dm_pre_commit_hook[4])(const char *workdir);   // 提交前调（工作目录）：宿主旁路文件按工作目录里的存档内容核对后再写（[0] 个人仓库多页 dm_pages.c、[2] 百宝囊 dm_pouch.c、[1] 编年史仓库 dm_vault.c、[3] 秘境进度 dm_rift.c） | called before commit (working directory): host side files are checked against the save contents in the working directory before being written ([0] personal stash pages dm_pages.c, [2] pouch dm_pouch.c, [1] chronicle vault dm_vault.c, [3] rift progress dm_rift.c)
-void (*g_dm_save_commit_hook)(const char *commit_dir);   // 存档提交成功后调（已提交目录）；iOS 的 iCloud 同步设它，宿主为空 | called after a save commit succeeds (committed directory); the iOS iCloud sync sets it, NULL on the host
 static _Atomic uint64_t g_save_commits;   // 成功提交过几次（前端进后台时等「游戏这次存盘已提交」用） | number of successful commits (used by the front end when going to background to wait for "the game's current save has been committed")
 uint64_t dm_fs_commit_count(void) { return atomic_load(&g_save_commits); }
 HLE_FORCE("_ZN2nn2fs6CommitEPKc", "fsp-srv；事务式存档：工作目录整树 clone 后与已提交目录原子互换（renamex_np RENAME_SWAP）", Result, h_fs_Commit, const char *name) {
@@ -400,7 +366,7 @@ HLE_FORCE("_ZN2nn2fs6CommitEPKc", "fsp-srv；事务式存档：工作目录整�
     int i = 0; while (i < g_nmnt && strcmp(g_mnt[i].name, name)) i++;
     if (i == g_nmnt || !g_mnt[i].commit[0]) { pthread_mutex_unlock(&g_lock); return RES_OK; }   // 非事务挂载：无可提交 | non-transactional mount: nothing to commit
     uint64_t tc0 = clock_gettime_nsec_np(CLOCK_MONOTONIC), tw0 = atomic_exchange(&g_txn_first_ns, 0);
-    for (int k = 0; k < 4; k++) if (g_dm_pre_commit_hook[k]) g_dm_pre_commit_hook[k](g_mnt[i].dir);
+
     uint64_t tc1 = clock_gettime_nsec_np(CLOCK_MONOTONIC);   // 写进工作目录的旁路文件随这次提交一起原子换入 | side files written into the working directory are swapped in atomically together with this commit
     int perr = atomic_exchange(&g_save_poison, 0);
     if (perr) {                                                         // 本事务有写失败：拒绝提交、丢弃工作目录 | a write failed in this transaction: refuse the commit, discard the working directory
@@ -432,7 +398,7 @@ HLE_FORCE("_ZN2nn2fs6CommitEPKc", "fsp-srv；事务式存档：工作目录整�
     static int n; if (r == RES_OK) { uint64_t tc2 = clock_gettime_nsec_np(CLOCK_MONOTONIC);
         LOG("存档提交 #%d：%s 原子换入 %s（此前存档写 %d 次）（钩子 %llu 微秒、克隆换入 %llu 微秒、自本事务首次写起 %llu 微秒）", ++n, g_mnt[i].dir, g_mnt[i].commit, atomic_load(&g_save_writes),
             (unsigned long long)((tc1 - tc0) / 1000), (unsigned long long)((tc2 - tc1) / 1000), (unsigned long long)(tw0 ? (tc2 - tw0) / 1000 : 0)); atomic_fetch_add(&g_save_commits, 1);
-        if (g_dm_save_commit_hook) g_dm_save_commit_hook(g_mnt[i].commit); }   // iCloud 同步（cloud_ios.m）：持着锁调，那边只做 clonefile 快照 | iCloud sync (cloud_ios.m): called with the lock held, that side only takes a clonefile snapshot
+        }
     pthread_mutex_unlock(&g_lock);
     return r;
 }
@@ -442,12 +408,12 @@ HLE_FORCE("_ZN2nn2fs7UnmountEPKc", "fsp-srv；挂载表常驻，卸载为空操�
 // 剔零档案：资源包里被填零的大段（过场视频、旧版音乐）不随包分发——档案文件里把这些零段剔掉，旁边放一张区段表
 // 「<档案名>.holes」（文本：首行 `size <原始字节数>`，其后每行 `<零段起点> <零段长度>`，按起点升序、互不重叠）。
 // 宿主读这类档案时按表换算偏移：落在零段的字节返回 0，文件大小报原始值；游戏与启动预取看到的仍是原始布局，索引一个字不用改。
-// 读入口只有两处：本文件的 ReadFile 与 hle_tact.c 的启动预取，都走 dm_data_pread。没有 .holes 的文件走原路径，零额外开销。
+// 读入口：本文件的 ReadFile 走 dm_data_pread。没有 .holes 的文件走原路径，零额外开销。
 // ---------- Files ----------
 // Zero-stripped archives: large zero-filled ranges in the resource pack (cutscene videos, old-version music) are not distributed with the package -- these zero-filled ranges are stripped from the archive file, and an extent table is placed beside it,
 // "<archive name>.holes" (text: first line `size <original byte count>`, then one line `<zero-filled range start> <zero-filled range length>` each, ascending by start, non-overlapping).
 // When reading such archives the host translates offsets through the table: bytes falling in a zero-filled range return 0 and the file size is reported as the original value; the game and the startup prefetch still see the original layout, and not a single word of the index needs changing.
-// There are only two read entry points: ReadFile in this file and the startup prefetch in hle_tact.c, both going through dm_data_pread. Files without .holes take the original path with zero extra overhead.
+// Read entry point: ReadFile in this file goes through dm_data_pread. Files without .holes take the original path with zero extra overhead.
 typedef struct { int64_t size; int n; int64_t *log, *len, *phys; char name[40]; } holemap;   // 保留段：原始起点 / 长度 / 在剔零文件里的起点 | Kept segment: original start / length / start in the zero-stripped file
 static _Atomic uint64_t g_hole_reads;   // 读到零段的次数：正常应为 0（零段是砍掉的过场视频 / 旧版音乐，游戏不该来读）；非 0 = 砍错了 | Number of reads that hit a zero-filled range: should normally be 0 (zero-filled ranges are stripped cutscene videos / old-version music the game should not come to read); non-zero = stripped wrongly
 static holemap *g_hm[4096];
@@ -550,6 +516,23 @@ HLE_FORCE("_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvm", "fsp-srv → pread(2)", 
         pthread_mutex_unlock(&m);
     }
     return RES_OK;
+}
+// TotK（SDK 21）把 `nn::fs::ReadFile` 拆成了三个重载：D2R 只有 5 参那个（下面已接管），本作还导入
+// 6 参带 `const ReadOption&` 的和 4 参不带 out 的。名字不同就匹配不上强制接管表，于是客体走 sdk 自己的实现，
+// 而 sdk 那条路把**宿主发的句柄**当 `nn::fs::detail::FileAccessor*` 解引用
+// （真机 CRASH sig=11 addr=0xc0 pc=sdk+0xa5940，指令 `ldr w8,[x0,#0x24]`，x0 = 句柄 0x9c）。
+// 两个重载都接进来共用同一个 pread 实现；ReadOption 只影响缓存/优先级，宿主直读用不上。
+// TotK (SDK 21) splits `nn::fs::ReadFile` into three overloads: D2R only has the 5-parameter one taken over below, while this
+// game also imports the 6-parameter one carrying `const ReadOption&` and the 4-parameter one without an out size. Different
+// mangled names never match the force table, so the guest runs the SDK's own implementation, which dereferences the
+// host-issued handle as an `nn::fs::detail::FileAccessor*` (device CRASH sig=11 addr=0xc0 pc=sdk+0xa5940, `ldr w8,[x0,#0x24]`
+// with x0 = the handle 0x9c). Take both overloads over and share the same pread path; ReadOption only affects caching and
+// priority, which a host-side direct read does not need.
+HLE_FORCE("_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvmRKNS0_10ReadOptionE", "fsp-srv → pread(2)（本作 6 参重载）", Result, h_fs_ReadFileOpt, size_t *out, uint64_t h, int64_t off, void *buf, size_t sz, const void *opt) {
+    (void)opt; return h_fs_ReadFile(out, h, off, buf, sz);
+}
+HLE_FORCE("_ZN2nn2fs8ReadFileENS0_10FileHandleElPvm", "fsp-srv → pread(2)（本作 4 参重载，不回收读取量）", Result, h_fs_ReadFileBare, uint64_t h, int64_t off, void *buf, size_t sz) {
+    size_t got = 0; return h_fs_ReadFile(&got, h, off, buf, sz);
 }
 HLE_FORCE("_ZN2nn2fs9WriteFileENS0_10FileHandleElPKvmRKNS0_11WriteOptionE", "fsp-srv → pwrite(2)", Result, h_fs_WriteFile, uint64_t h, int64_t off, const void *buf, size_t sz, const void *opt) {
     (void)opt; size_t put = 0;

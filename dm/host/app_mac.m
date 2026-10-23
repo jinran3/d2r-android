@@ -94,7 +94,6 @@ int dm_app_bootstrap(int *argc, char ***argv) {
             if (!rom) { LOG("App：没有选资源文件夹，退出"); exit(0); }
             [ud setObject:rom forKey:kRomfsKey];
         }
-        { void dm_custom_init(const char *dir); dm_custom_init(sup.fileSystemRepresentation); }   // 自定义设置文件的目录现在就给（同 iOS 壳）：不给的话要等存档挂上才知道在哪，而语言开关正是在挂存档那一刻读它改游戏语言的——晚了开关就不生效 | the directory of the custom settings file is given right now (same as the iOS shell): otherwise it is only known once the save is mounted, and the language switch is read to change the game language at exactly that moment - too late and the switch has no effect
         setenv("DM_WINDOW", "1", 1); setenv("DM_APP", "1", 1);
         setenv("DM_SAVE", save.fileSystemRepresentation, 1); setenv("DM_TEMP", temp.fileSystemRepresentation, 1);
         setenv("DM_ROMFS", rom.fileSystemRepresentation, 1); setenv("DM_ROOT", sup.fileSystemRepresentation, 1);
@@ -111,8 +110,3 @@ int dm_app_bootstrap(int *argc, char ***argv) {
     }
 }
 
-// 手柄代码（ios/Sources/dm_gamepad.m，两边共用）问「现在是不是面板 / 读取画面开着」：只用来决定空着的 ZR 格要不要当免费回城。
-// 宿主没有 iOS 壳那套面板栈；一律答「是」= ZR 整颗交给原版（面板里它是翻页签键），手柄上的免费回城这一版没有（记在已知不足里）
-// The gamepad code (ios/Sources/dm_gamepad.m, shared by both sides) asks "is a panel / loading screen open right now": used only to decide whether the empty ZR slot should act as the free town portal.
-// The host has no panel stack like the iOS shell; it always answers "yes" = ZR is handed entirely to the original game (in panels it is the tab-switch key), so the free town portal on the gamepad is absent in this version (listed under known gaps)
-int dm_front_navigation(void) { return 1; }

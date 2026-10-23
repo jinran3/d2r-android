@@ -67,7 +67,6 @@ dm/verify/accept.sh [--fast|--full] [产物目录]
 
 | 项 | 内容 | 判据 | 前提 |
 |---|---|---|---|
-| ⓪ | `bootchk.sh`：启动块清单（启动时预读的资源块列表） | 产物目录的 `bootlist.tsv` 存在、构建号与 `main.cuts.tsv` 一致、与 `dm/data/bootlist_<构建号>.tsv` 逐字节相同、校验和自洽、逐块与资源包一致。公开仓库不带这份清单：缺了只是不预取、启动时少一步提前解码，但这一项会报红；要用的话拿 `dm/tools/tact_bootlist.py` 自己录一份，放到 `dm/data/bootlist_<构建号>.tsv` 再重出产物 | 游戏文件、启动块清单 |
 | ① | `regress.sh` 验被测产物；再对 `touch` 产物（编进 App 的那一种）跑 `--struct-only` | 两行 `REGRESS OK` | 游戏文件 |
 | ② | `dm/tools/host_savecmp.sh`：宿主回放一局真值的输入，存盘退出，存档与真值的存档逐字节比（`savecmp.py`） | 逐拍 6 格状态一致；存档一致；负对照（真值存档对起始存档）必须不一致；宿主日志无红线 | 真值局 |
 | ②B/C | `rulegate.sh 400` 与 `logicself.sh <touch 产物> 230` | 见下节 | 真值局 |
@@ -143,7 +142,6 @@ dm/verify/touchchain.sh <用例名>
 | `savesha.sh` | 算一份存档目录的内容指纹 |
 | `uicmp.py`、`c2scmp.py` | UI 消息流、命令包序列的对比，规则见各自的格式页 |
 | `oracle/swgdb.py`、`oracle/swtick.py` | 模拟器 GDB 接口的最小客户端；经它读逐拍状态 |
-| `bootlist_static.py` | 启动块清单的静态核对，`bootchk.sh` 调用 |
 | `gfxq/` | 画质度量与视觉等价尺子，见 [gfxq/image_quality.zh-CN.md](gfxq/image_quality.zh-CN.md) |
 | `overlay_contract.json` | iOS 触摸覆盖层控件验收的约定草稿；目前没有脚本读取它 |
 

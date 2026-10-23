@@ -10,9 +10,19 @@ static uint32_t shader_handle_word(unsigned stage,unsigned bank,unsigned offset)
     // All current 6,931 game shaders fetch handles from c2; other banks must not silently bind incorrect resources.
     if(bank!=2)die("Vulkan texture-handle bank %u is unsupported",bank);
     if(offset&7)return 0;
-    if(offset>=0x168&&offset<0x568)return state.textures[stage][(offset-0x168)/8];
-    if(offset>=0x568&&offset<0x968)return state.samplers[stage][(offset-0x568)/8];
-    if(offset>=0x120&&offset<0x168)return state.images[stage][(offset-0x120)/8];
+    // 槽表布局按游戏档位选（D2R 分离贴图 / TotK 合并句柄），见 nvn_c2_layout.h。
+    // The handle table layout follows the game profile (D2R separate textures, TotK combined handles).
+    const dm_nvn_c2_layout *layout=dm_nvn_c2_layout_current();
+    if(layout->combined){
+        // 合并句柄：纹理 ID 低 20 位 + 采样器 ID 第 20..31 位，与 NVIDIA 的合并句柄一致。
+        // A combined handle packs the texture id into the low 20 bits and the sampler id into bits 20..31.
+        if(offset>=layout->tex_base&&offset<layout->tex_end)
+            return dm_nvn_combined_handle(state.textures[stage][(offset-layout->tex_base)/8],state.samplers[stage][(offset-layout->tex_base)/8]);
+    }else{
+        if(offset>=layout->tex_base&&offset<layout->tex_end)return state.textures[stage][(offset-layout->tex_base)/8];
+        if(offset>=layout->samp_base&&offset<layout->samp_end)return state.samplers[stage][(offset-layout->samp_base)/8];
+    }
+    if(offset>=layout->img_base&&offset<layout->img_end)return state.images[stage][(offset-layout->img_base)/8];
     return 0;
 }
 static uint32_t shader_handle(const shader_binding *binding,unsigned stage,unsigned element) {
@@ -28,9 +38,11 @@ static uint32_t shader_handle(const shader_binding *binding,unsigned stage,unsig
 }
 static int shader_texture_slot(const shader_binding *binding,unsigned element) {
     unsigned offsets[2]={(binding->handle&0x3fff)*4,((binding->handle>>14)&0x3fff)*4},count=(binding->handle>>28)==1||((binding->handle>>28)==2)?2:1;
-    for(unsigned i=0;i<count;i++){unsigned offset=offsets[i]+8*element;if(shader_handle_bank(binding,i)==2&&offset>=0x168&&offset<0x568&&!(offset&7))return (offset-0x168)/8;}
+    const dm_nvn_c2_layout *layout=dm_nvn_c2_layout_current();
+    for(unsigned i=0;i<count;i++){unsigned offset=offsets[i]+8*element;if(shader_handle_bank(binding,i)==2&&offset>=layout->tex_base&&offset<layout->tex_end&&!(offset&7))return (int)((offset-layout->tex_base)/8);}
     return -1;
 }
 static int shader_image_slot(const shader_binding *binding,unsigned element) {
-    unsigned offset=(binding->handle&0x3fff)*4+8*element;return shader_handle_bank(binding,0)==2&&offset>=0x120&&offset<0x168&&!(offset&7)?(int)((offset-0x120)/8):-1;
+    unsigned offset=(binding->handle&0x3fff)*4+8*element;const dm_nvn_c2_layout *layout=dm_nvn_c2_layout_current();
+    return shader_handle_bank(binding,0)==2&&offset>=layout->img_base&&offset<layout->img_end&&!(offset&7)?(int)((offset-layout->img_base)/8):-1;
 }

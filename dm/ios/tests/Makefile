@@ -3,7 +3,7 @@ CC ?= cc
 CFLAGS ?= -std=c11 -Wall -Wextra -Werror -pedantic -O2
 TARGET = t_touch_controls
 METAL_CACHE_TARGET = t_metal_cache_guard
-BINDING_TARGETS = t_native_binding t_game_bridge t_binding_freshness t_portal_sequence t_binding_group t_native_hud_identity t_native_hud_bridge
+BINDING_TARGETS = t_native_binding t_game_bridge t_binding_freshness t_binding_group t_native_hud_identity t_native_hud_bridge
 BINDING_FIXTURES = fixtures/native_binding/mapping.bin fixtures/native_binding/bindings.bin
 # 这两份夹具是从运行中的游戏内存抓下来的两张表，公开仓库不带（见 fixtures/native_binding/README）。不在就跳过要读它们的三个测试并说明，别的照跑
 # These two fixtures are tables captured from the memory of the running game, and the public repository does not ship them (see fixtures/native_binding/README). When they are absent, the three tests that read them are skipped with an explanation, and everything else still runs
@@ -21,8 +21,6 @@ t_game_bridge: t_game_bridge.c ../Sources/dm_touch_game_bridge.c ../Sources/dm_t
 	$(CC) $(CFLAGS) -DDM_TG_TEST_SYNTHETIC_IDENTITY -I../Sources t_game_bridge.c ../Sources/dm_touch_game_bridge.c ../Sources/dm_touch_game_identity.c ../Sources/dm_touch_game_state.c -lpthread -o $@
 t_binding_freshness: t_binding_freshness.c ../Sources/dm_touch_game_state.c ../Sources/dm_touch_game_state.h ../Sources/dm_touch_controls.c ../Sources/dm_touch_controls.h
 	$(CC) $(CFLAGS) -I../Sources t_binding_freshness.c ../Sources/dm_touch_game_state.c ../Sources/dm_touch_controls.c -lm -o $@
-t_portal_sequence: t_portal_sequence.c ../Sources/dm_touch_controls.c ../Sources/dm_touch_controls.h
-	$(CC) $(CFLAGS) -I../Sources t_portal_sequence.c ../Sources/dm_touch_controls.c -lm -o $@
 t_binding_group: t_binding_group.c ../Sources/dm_touch_game_state.c ../Sources/dm_touch_game_state.h
 	$(CC) $(CFLAGS) -I../Sources t_binding_group.c ../Sources/dm_touch_game_state.c -o $@
 t_native_hud_identity: t_native_hud_identity.c ../Sources/dm_touch_game_identity.c ../Sources/dm_touch_game_identity.h ../Sources/dm_touch_game_state.h
@@ -52,11 +50,9 @@ test: $(TARGET) $(BINDING_TARGETS) t_native_art t_skill_aim t_joy_travel $(METAL
 	$(call fixture_test,t_native_binding)
 	$(call fixture_test,t_game_bridge)
 	./t_binding_freshness
-	./t_portal_sequence
 	./t_binding_group
 	./t_native_hud_identity
 	$(call fixture_test,t_native_hud_bridge)
-	python3 test_portal_receipt.py
 	python3 test_native_binding_seam.py
 	python3 test_skill_aim_front.py
 	python3 test_touch_receipt.py --source ../Sources/front_ios.m

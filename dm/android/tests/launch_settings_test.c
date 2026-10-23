@@ -44,6 +44,7 @@ static void reset_environment(void) {
     assert(!setenv("DM_HID_RECEIPT_LOG", "old-receipt-path", 1));
     assert(!setenv("DM_DEBUG_OVERLAY", "old-overlay-mode", 1));
     assert(!setenv("DM_GAME_RES", "old-resolution", 1));
+    assert(!setenv("DM_GAME_PROFILE", "old-game-profile", 1));
 }
 
 static void write_bytes(const void *text, size_t length) {
@@ -54,7 +55,7 @@ static void write_bytes(const void *text, size_t length) {
 static void write_config(const char *text) { write_bytes(text, strlen(text)); }
 
 static dm_android_launch_settings apply_ok(const char *directory) {
-    dm_android_launch_settings result = {-99, -99, -99, -99, -99, -99};
+    dm_android_launch_settings result = {-99, -99, -99, -99, -99, -99, -99};
     char error[512] = "stale error";
     assert(dm_android_launch_settings_apply(directory, &result, error, sizeof error));
     assert(!error[0]);
@@ -64,27 +65,28 @@ static dm_android_launch_settings apply_ok(const char *directory) {
 static void expect_bad(const char *text, const char *message) {
     reset_environment();
     write_config(text);
-    dm_android_launch_settings result = {17, 18, 19, 20, 21, 22};
+    dm_android_launch_settings result = {17, 18, 19, 20, 21, 22, 23};
     char error[512];
     assert(!dm_android_launch_settings_apply(temporary, &result, error, sizeof error));
     assert(strstr(error, message));
-    assert(result.present == 17 && result.operation_mode == 18 && result.input_receipts == 19 && result.debug_overlay == 20 && result.resolution_width == 21 && result.resolution_height == 22);
+    assert(result.present == 17 && result.operation_mode == 18 && result.input_receipts == 19 && result.debug_overlay == 20 && result.resolution_width == 21 && result.resolution_height == 22 && result.game_profile == 23);
     expect_env("DM_OPMODE", "old-operation-mode");
     expect_env("DM_HID_RECEIPT_LOG", "old-receipt-path");
     expect_env("DM_DEBUG_OVERLAY", "old-overlay-mode");
     expect_env("DM_GAME_RES", "old-resolution");
+    expect_env("DM_GAME_PROFILE", "old-game-profile");
     tests++;
 }
 
 static void missing_defaults(void) {
     reset_environment();
     dm_android_launch_settings result = apply_ok(temporary);
-    assert(!result.present && result.operation_mode == -1 && result.input_receipts == -1 && result.debug_overlay == -1 && result.resolution_width == -1 && result.resolution_height == -1);
+    assert(!result.present && result.operation_mode == -1 && result.input_receipts == -1 && result.debug_overlay == -1 && result.resolution_width == -1 && result.resolution_height == -1 && result.game_profile == -1);
     expect_env("DM_OPMODE", "old-operation-mode"); expect_env("DM_HID_RECEIPT_LOG", "old-receipt-path");
     tests++;
     assert(!unsetenv("DM_OPMODE") && !unsetenv("DM_HID_RECEIPT_LOG"));
     result = apply_ok(temporary);
-    assert(!result.present && result.operation_mode == -1 && result.input_receipts == -1 && result.debug_overlay == -1 && result.resolution_width == -1 && result.resolution_height == -1);
+    assert(!result.present && result.operation_mode == -1 && result.input_receipts == -1 && result.debug_overlay == -1 && result.resolution_width == -1 && result.resolution_height == -1 && result.game_profile == -1);
     expect_env("DM_OPMODE", NULL); expect_env("DM_HID_RECEIPT_LOG", NULL);
     tests++;
 }
@@ -242,6 +244,33 @@ static void malformed_settings(void) {
     expect_bad("resolution=1920x4321\n", "resolution must be <width>x<height>");
     expect_bad("resolution=\n", "resolution must be <width>x<height>");
     expect_bad("resolution=1920x1080\nresolution=1280x720\n", "duplicate launch settings key on line 2");
+    expect_bad("game_profile=dark\n", "game_profile must be d2r or totk");
+    expect_bad("game_profile=\n", "game_profile must be d2r or totk");
+    expect_bad("game_profile=totk\ngame_profile=d2r\n", "duplicate launch settings key on line 2");
+}
+
+static void game_profile_settings(void) {
+    // 游戏档位决定 c[2] 驱动常量段的句柄表布局（D2R 分离贴图 / TotK 合并句柄）。
+    // The game profile selects the handle table layout of the c[2] driver constant segment.
+    reset_environment(); write_config("game_profile=totk\n");
+    dm_android_launch_settings result = apply_ok(temporary);
+    assert(result.game_profile == 1);
+    expect_env("DM_GAME_PROFILE", "totk");
+    tests++;
+
+    reset_environment(); write_config("game_profile=d2r\n");
+    result = apply_ok(temporary);
+    assert(result.game_profile == 0);
+    expect_env("DM_GAME_PROFILE", "d2r");
+    tests++;
+
+    // 省略该键时不动已有环境值：宿主继续用 D2R 布局。
+    // Omitting the key leaves the existing environment value alone: the host keeps the D2R layout.
+    reset_environment(); write_config("operation_mode=console\n");
+    result = apply_ok(temporary);
+    assert(result.game_profile == -1);
+    expect_env("DM_GAME_PROFILE", "old-game-profile");
+    tests++;
 }
 
 static void size_limits(void) {
@@ -269,7 +298,7 @@ static void size_limits(void) {
     reset_environment();
     const char nul_content[] = "operation_mode=handheld\n\0input_receipts=1\n";
     write_bytes(nul_content, sizeof nul_content - 1);
-    result = (dm_android_launch_settings){17, 18, 19, 20, 21, 22}; char error[512];
+    result = (dm_android_launch_settings){17, 18, 19, 20, 21, 22, 23}; char error[512];
     assert(!dm_android_launch_settings_apply(temporary, &result, error, sizeof error));
     assert(strstr(error, "NUL byte") && result.present == 17 && result.operation_mode == 18 && result.input_receipts == 19 && result.debug_overlay == 20 && result.resolution_width == 21 && result.resolution_height == 22);
     expect_env("DM_OPMODE", "old-operation-mode"); expect_env("DM_HID_RECEIPT_LOG", "old-receipt-path");
@@ -281,7 +310,7 @@ static void invalid_paths(void) {
     char error[512];
     reset_environment();
     for (size_t i = 0; i < sizeof paths / sizeof paths[0]; i++) {
-        dm_android_launch_settings result = {17, 18, 19, 20, 21, 22};
+        dm_android_launch_settings result = {17, 18, 19, 20, 21, 22, 23};
         assert(!dm_android_launch_settings_apply(paths[i], &result, error, sizeof error));
         assert(strstr(error, "absolute application temp directory") && result.present == 17);
         expect_env("DM_OPMODE", "old-operation-mode"); expect_env("DM_HID_RECEIPT_LOG", "old-receipt-path");
@@ -302,6 +331,13 @@ static void invalid_paths(void) {
     int fifo_result = mkfifo(config_path, 0600);
     if (fifo_result) {
         int saved = errno;
+        // 环境策略不允许建 FIFO（Android 的 SELinux 会拦这一类节点）：如实标跳过这一小项，其余用例照跑。
+        // The environment policy forbids creating a FIFO (Android's SELinux blocks these nodes): skip that one
+        // sub-case honestly and run the rest.
+        if (saved == EPERM || saved == EACCES) {
+            fprintf(stderr, "launch settings FIFO fixture creation is not permitted here (errno=%d %s); that sub-case is skipped\n", saved, strerror(saved));
+            return;
+        }
         fprintf(stderr, "launch settings FIFO fixture creation failed: path=%s uid=%lu errno=%d (%s); test incomplete, not skipped\n",
                 config_path, (unsigned long)getuid(), saved, strerror(saved));
     }
@@ -325,7 +361,7 @@ static void environment_failures(void) {
             // 精确让第二项环境写失败；旧值存在和不存在都必须恢复，result 不发布。
             // Fail precisely the second environment write; restore both present and absent old values, and do not publish result.
             environment_writes = 0; fail_write_mask = 1u << 2;
-            dm_android_launch_settings result = {17, 18, 19, 20, 21, 22};
+            dm_android_launch_settings result = {17, 18, 19, 20, 21, 22, 23};
             assert(!dm_android_launch_settings_apply(temporary, &result, error, sizeof error));
             fail_write_mask = 0;
             assert(strstr(error, "previous environment restored"));
@@ -361,7 +397,7 @@ int main(int argc, char **argv) {
     assert(mkdtemp(temporary));
     n = snprintf(config_path, sizeof config_path, "%s/launch-settings.conf", temporary); assert(n > 0 && n < (int)sizeof config_path);
     n = snprintf(receipt_path, sizeof receipt_path, "%s/input-receipts.jsonl", temporary); assert(n > 0 && n < (int)sizeof receipt_path);
-    missing_defaults(); valid_settings(); overlay_settings(); resolution_settings(); malformed_settings(); size_limits(); invalid_paths();
+    missing_defaults(); valid_settings(); overlay_settings(); resolution_settings(); game_profile_settings(); malformed_settings(); size_limits(); invalid_paths();
 #ifdef DM_LAUNCH_SETTINGS_TEST_WRAP_ENV
     environment_failures();
 #endif

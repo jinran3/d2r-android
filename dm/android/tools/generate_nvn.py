@@ -8,7 +8,7 @@ root = Path(__file__).resolve().parents[2]
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
 for name in ("nvn_thunks", "nvn_entry"):
-    text = (root / "gfx/nvn" / (name + ".S")).read_text()
+    text = (root / "gfx/nvn" / (name + ".S")).read_text(encoding="utf-8")
     text = re.sub(r"\b_(nvn\w*|mach_absolute_time)\b", r"\1", text)
     text = re.sub(r"(\w+)@PAGEOFF", r":lo12:\1", text)
     text = text.replace("@PAGE", "")
@@ -20,4 +20,4 @@ for name in ("nvn_thunks", "nvn_entry"):
     text = text.replace("    .data", '    .section .data.rel.ro,"aw",%progbits')
     text = text.replace("    .cstring", '    .section .rodata,"a",%progbits')
     text += '\n.section .note.GNU-stack,"",%progbits\n'
-    (out / (name + "_elf.S")).write_text(text)
+    (out / (name + "_elf.S")).write_text(text, encoding="utf-8")

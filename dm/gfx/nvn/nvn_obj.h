@@ -23,12 +23,18 @@ typedef struct { uint32_t magic; NVNdevice *dev; uint64_t submits; } queue_t;   
 typedef struct { NVNdevice *dev; void *mem; uint64_t size; uint32_t flags; } pool_builder_t;  FITS(pool_builder_t, NVNmemoryPoolBuilder);
 typedef struct { uint32_t magic, flags; uint8_t *mem; uint64_t size; } pool_t;                FITS(pool_t, NVNmemoryPool);
 
-typedef struct { const pool_t *pool; int64_t off; int32_t n; } dpool_t;                       // 贴图 / 采样器描述符池 | Texture / sampler descriptor pool
+typedef struct { const pool_t *pool; int64_t off; int32_t n; } dpool_t;
+// 缓冲（TotK 用）：缓冲就是「内存池里的一段」，宿主直接用游戏给的真实内存。
+// Buffers (used by TotK): a buffer is a range inside a memory pool; the host uses the game's real memory.
+typedef struct { NVNdevice *dev; const pool_t *pool; int64_t off; uint64_t size; } buffer_builder_t;  FITS(buffer_builder_t, NVNbufferBuilder);
+typedef struct { uint32_t magic; const pool_t *pool; int64_t off; uint64_t size; } buffer_t;              FITS(buffer_t, NVNbuffer);
+                       // 贴图 / 采样器描述符池 | Texture / sampler descriptor pool
 FITS(dpool_t, NVNtexturePool); FITS(dpool_t, NVNsamplerPool);
 
 typedef struct {
     NVNdevice *dev; nvn_texdesc d; pool_t *pool; int64_t off;
     uint8_t has_layout, layout[8];
+    const void *pkg_data;   // 预排布贴图数据（游戏直接给的指针）| packaged texture data (a pointer the game passes directly)
 } tex_builder_t;                                                                             FITS(tex_builder_t, NVNtextureBuilder);
 typedef struct {
     uint32_t magic; nvn_texdesc d; nvn_texlayout L; uint8_t *mem; pool_t *pool; int64_t off; uint8_t has_layout, layout[8];
@@ -92,12 +98,13 @@ enum {
     OP_BIND_PROGRAM, OP_BIND_STATE, OP_BIND_VATTR, OP_BIND_VSTREAM, OP_BIND_VBUF,
     OP_BIND_UBO, OP_BIND_SSBO, OP_BIND_TEX, OP_BIND_SAMP,
     OP_STENCIL, OP_POLY_OFFSET, OP_DRAW, OP_DRAW_IDX, OP_DISPATCH, OP_BARRIER,
-    OP_SET_TEX_POOL, OP_SET_SAMP_POOL, OP_COPY_B2T, OP_COPY_STRIDE, OP_BLEND_COLOR, OP_COPY_T2B, OP_BIND_IMG, OP_COPY_T2T, OP_RESET_COUNTER, OP_CLEAR_TEX, OP_COUNT_
+    OP_SET_TEX_POOL, OP_SET_SAMP_POOL, OP_COPY_B2T, OP_COPY_STRIDE, OP_BLEND_COLOR, OP_COPY_T2B, OP_BIND_IMG, OP_COPY_T2T, OP_RESET_COUNTER, OP_CLEAR_TEX,
+    OP_WAIT_SYNC, OP_DISPATCH_INDIRECT, OP_COUNT_
 };
 // 载荷（紧跟 op_hdr）
 // Payload (immediately follows op_hdr)
 typedef struct { int32_t n; const tex_t *color[8]; view_t cview[8]; uint8_t has_cview[8]; const tex_t *depth; view_t dview; uint8_t has_dview; } p_set_rt;
-typedef struct { int32_t index, mask; float rgba[4]; } p_clear_color;
+typedef struct { int32_t index, mask; float rgba[4]; int32_t is_int; uint32_t rgba_i[4]; } p_clear_color;  // is_int：整数清除的原始位 | is_int: raw bits of an integer clear
 typedef struct { float depth; int32_t depth_mask, stencil, stencil_mask; } p_clear_ds;
 typedef struct { int32_t first, n; float v[16][6]; } p_viewports;          // x, y, w, h, 近, 远（近远由 DEPTH_RANGE 覆盖） | x, y, w, h, near, far (near and far are overridden by DEPTH_RANGE)
 typedef struct { int32_t x, y, w, h; } p_scissor;
@@ -111,9 +118,11 @@ typedef struct { int32_t stage, index; uint64_t addr, size; } p_bind_buf;  // UB
 typedef struct { int32_t stage, first, n; uint64_t h[32]; } p_bind_handles; // 分离贴图 / 采样器句柄 | Separate texture / sampler handles
 typedef struct { int32_t face, value_mask, mask, ref, which; } p_stencil;  // which：0 值掩码 1 写掩码 2 参考值 | which: 0 value mask 1 write mask 2 reference value
 typedef struct { float factor, units, clamp; } p_poly_offset;
-typedef struct { int32_t prim, first, count; } p_draw;
+typedef struct { int32_t prim, first, count, base_instance, instances; } p_draw;   // instances：0/1 = 单实例（与旧行为一致）| instances: 0/1 means a single instance (same as before)
 typedef struct { int32_t prim, itype, count, base_vertex, base_instance, instances; uint64_t ibuf; } p_draw_idx;
-typedef struct { int32_t x, y, z; uint64_t caller; } p_dispatch;   // caller：游戏调用点返回地址（定位派发者） | caller: return address of the game call site (to locate the dispatcher)
+typedef struct { int32_t x, y, z; uint64_t caller; } p_dispatch;
+typedef struct { uint64_t fence; } p_wait_sync;   // 等到该栅栏值（GPU 侧等待）| wait until that fence value (a GPU-side wait)
+typedef struct { uint64_t buffer, offset; } p_dispatch_indirect;   // 间接派发：计数在客体缓冲里 | indirect dispatch: the counts live in a guest buffer   // caller：游戏调用点返回地址（定位派发者） | caller: return address of the game call site (to locate the dispatcher)
 typedef struct { const dpool_t *pool; } p_set_pool;
 typedef struct { uint64_t src; const tex_t *tex; view_t view; uint8_t has_view; NVNcopyRegion r; int32_t flags; } p_copy_b2t;
 typedef struct { const tex_t *src, *dst; view_t sv, dv; uint8_t has_sv, has_dv; NVNcopyRegion sr, dr; int32_t flags; } p_copy_t2t;   // T2B 复用：src 存目标缓冲地址 | Reused for T2B: src stores the destination buffer address

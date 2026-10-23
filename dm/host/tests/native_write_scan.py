@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-# 我们自己的功能不许写原版储藏箱控件（编年史仓库是独立页面；丢装备事故：编年史页把原版 grid 设成不可见、游戏从不重设，个人 / 共享页看起来全空）。
-# 静态扫：编年史页（dm_vault_ui.c 全文）与个人仓库页码（dm_cursor.c 的 ui_pages_pump）里不许出现原版储藏箱控件名——这两处只该碰 TouchVault / TouchPgPage 底下的控件。
-# 运行时另有一道：dm_vault_ui.c vu_guard（写之前沿父链核是不是我们的控件，不是就报红不写）。
-# 第二道（不写原版控件）：整个宿主（dm/host/*.c）不许直接写控件的可见位 +0x50 / +0x51，只许在带守卫的函数里写——
-# dm_cursor.c ui_show_ours、dm_vault_ui.c vu_show、dm_kills.c kb_show（名字不是 Touch 开头就报红不写）。别处要改可见，调它们
+# 我们自己的功能不许写原版储藏箱控件（丢装备事故：编年史页把原版 grid 设成不可见、游戏从不重设，个人 / 共享页看起来全空）。
+# 编年史仓库与个人仓库多页随裁剪批 7k 摘掉后，原先那道「静态扫编年史页 / 个人仓库页码」的检查已经没有对象，
+# 剩下的是覆盖整个宿主的第二道（不写原版控件）：不许直接写控件的可见位 +0x50 / +0x51，只许在带守卫的函数里写——
+# dm_cursor.c ui_show_ours（名字不是 Touch 开头就报红不写）。别处要改可见，调它
 # 用法：native_write_scan.py <dm/host 目录>；--selftest 先拿一段故意违规的文本验这个扫描本身会报红
-# Our own features must not write the original game's stash widgets (the chronicle vault is a separate page; lost-equipment incident: the chronicle page set the original grid invisible and the game never resets it, so the personal / shared pages looked completely empty).
-# Static scan: the chronicle page (all of dm_vault_ui.c) and the personal stash page numbers (ui_pages_pump in dm_cursor.c) must not contain original stash widget names -- these two places should only touch widgets under TouchVault / TouchPgPage.
-# There is another check at run time: dm_vault_ui.c vu_guard (before writing, walk the parent chain to check whether it is our widget; if not, report a failure and do not write).
-# Second check (do not write original-game widgets): the whole host (dm/host/*.c) must not write a widget's visible flag +0x50 / +0x51 directly, only inside guarded functions --
-# dm_cursor.c ui_show_ours, dm_vault_ui.c vu_show, dm_kills.c kb_show (a name not starting with Touch is reported as a failure and not written). To change visibility elsewhere, call them
+# Our own features must not write the original game's stash widgets (lost-equipment incident: the chronicle page set the original grid invisible and the game never resets it, so the personal / shared pages looked completely empty).
+# After the chronicle vault and the multi-page personal stash were removed in trim batch 7k, the static scan of "the chronicle page / the personal stash page numbers" has no target left;
+# what remains is the second check covering the whole host (do not write original-game widgets): a widget's visible flag +0x50 / +0x51 must not be written directly, only inside guarded functions --
+# dm_cursor.c ui_show_ours (a name not starting with Touch is reported as a failure and not written). To change visibility elsewhere, call it
 # Usage: native_write_scan.py <dm/host directory>; --selftest first verifies with a deliberately violating piece of text that the scan itself reports a failure
 import os, re, sys
 
@@ -25,7 +23,7 @@ def scan(text, where):
     return bad
 
 VIS = re.compile(r'\+\s*0x5[01]\)\s*=(?!=)')
-GUARDED = ('ui_show_ours', 'vu_show', 'kb_show')
+GUARDED = ('ui_show_ours',)
 def vis_scan(text, where):   # 直接写可见位的行；在带守卫的函数里（定义那一行或其函数体内）的不算 | lines that write the visible flag directly; those inside a guarded function (its definition line or its body) do not count
     bad, inside = [], None
     for no, line in enumerate(text.split('\n'), 1):
@@ -55,29 +53,21 @@ def rect_scan(text, where):
         if hit and fn not in RECT_OK: bad.append('%s:%d 在 %s 里直接写了控件矩形（原版控件走 mv_offset、我们的走 ui_move_ours）：%s' % (where, no, fn, line.strip()[:120]))
     return bad
 
-def pages_pump(src):
-    i = src.find('static void ui_pages_pump(')
-    if i < 0: raise SystemExit('native_write_scan：dm_cursor.c 里找不到 ui_pages_pump（改名了要同步这里）')
-    j = src.find('\n}\n', i)
-    return src[i:j]
-
 def main():
     if '--selftest' in sys.argv:
-        if not scan('    vu_show(vu_find(bk, "grid", 2), 0);', 'selftest') or scan('    vu_show(vu_find(vt, "TouchV_Back", 0), 1);   // "grid" 只在注释里', 'selftest') \
+        if not scan('    vu_show(vu_find(bk, "grid", 2), 0);', 'selftest') or scan('    vu_show(vu_find(vt, "TouchOurs", 0), 1);   // "grid" 只在注释里', 'selftest') \
            or not vis_scan('static void f(uint64_t w) {\n    *(uint8_t *)(w + 0x50) = 0;\n}', 'selftest') or vis_scan('static void ui_show_ours(uint64_t w, int on) {\n    *(uint8_t *)(w + 0x50) = 1;\n}\n    if (*(uint8_t *)(w + 0x50) == 1) x();', 'selftest') \
            or not rect_scan('static void f(uint64_t w) {\n    int32_t *r = (int32_t *)(w + 0x70); r[0] = 5;\n}', 'selftest') or not rect_scan('static void g(uint64_t w) {\n    *(int32_t *)(w + 0x74) = 3;\n}', 'selftest') \
            or rect_scan('static void k(uint64_t w) {\n    int32_t *rx = (int32_t *)(w + 0x70), ww = *(int32_t *)(w + 0x78); if (*rx) x();\n}\nstatic void mv_offset(uint64_t w) {\n    int32_t *v = (int32_t *)(w + 0x70); *v = 1;\n}\nstatic int h(float *r) {\n    r[0] = 1.0f; int x = *(int32_t *)(w + 0x70); return x;\n}', 'selftest'):
             print('✗ native_write_scan 自检失败：该报的没报或不该报的报了'); return 1
         print('✓ native_write_scan 自检：违规行会报红、注释里的名字不算')
     host = next(a for a in sys.argv[1:] if not a.startswith('--'))
-    bad = scan(open(os.path.join(host, 'dm_vault_ui.c'), encoding='utf-8').read(), 'dm_vault_ui.c')
-    bad += scan(pages_pump(open(os.path.join(host, 'dm_cursor.c'), encoding='utf-8').read()), 'dm_cursor.c ui_pages_pump')
     srcs = sorted(f for f in os.listdir(host) if f.endswith('.c'))
     for f in srcs: bad += vis_scan(open(os.path.join(host, f), encoding='utf-8', errors='replace').read(), f)
     bad += rect_scan(open(os.path.join(host, 'dm_cursor.c'), encoding='utf-8').read(), 'dm_cursor.c')
     if bad:
-        print('✗ 我们的功能碰了原版控件（编年史页 / 个人仓库页码只许写 TouchVault / TouchPgPage 底下的；可见位只许走带守卫的函数）：'); [print('   ' + b) for b in bad]; return 1
-    print('✓ 编年史页与个人仓库页码不碰原版储藏箱控件（扫 %d 个名字）；宿主 %d 个源文件没有绕过守卫直接写可见位；dm_cursor.c 写控件矩形只在 mv_offset / ui_move_ours 里' % (len(NATIVE), len(srcs))); return 0
+        print('✗ 我们的功能碰了原版控件（可见位只许走带守卫的函数）：'); [print('   ' + b) for b in bad]; return 1
+    print('✓ 宿主 %d 个源文件没有绕过守卫直接写可见位；dm_cursor.c 写控件矩形只在 mv_offset / ui_move_ours 里' % len(srcs)); return 0
 
 if __name__ == '__main__':
     sys.exit(main())

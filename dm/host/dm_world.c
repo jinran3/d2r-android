@@ -415,10 +415,10 @@ _Atomic int g_dm_dur_sync_n; uint32_t g_dm_dur_sync[16][2];   // DM_TEST_DUR：�
 // Towns (1 / 40 / 75 / 103 / 109) are revealed whole by the original game on entry, so nothing is done. Done once per level entered (after waiting 30 frames to let the map's own loading finish first).
 _Atomic int g_dm_game_ver = -1;
 static void w_map_mark_step(void) {
-    // 开关：环境变量 DM_MAP_MARK（测试强制，0 关 / 其余开）优先，否则读自定义页 map_mark（运行中即时生效；关掉只是不再标新进的图，已标的迷雾不收回）
-    // Switch: the environment variable DM_MAP_MARK (forced for tests, 0 off / anything else on) takes priority, otherwise read map_mark from the custom page (takes effect immediately at run time; turning it off only stops marking newly entered maps, fog already marked is not taken back)
+    // 环境变量 DM_MAP_MARK 只用于测试（0 关 / 其余开）；未设置时小地图标注常开（自定义页开关已摘除；关闭只是不再标新进的图，已标的迷雾不收回）。
+    // DM_MAP_MARK is a test-only environment variable (0 off / anything else on); when unset, minimap marking is always on (the Custom page switch has been removed; turning it off only stops marking newly entered maps, fog already marked is not taken back).
     static int env = -2; static uint64_t lv_seen, lv_done, at; if (env == -2) { const char *e = getenv("DM_MAP_MARK"); env = e ? e[0] != '0' : -1; }
-    int dm_custom_get(const char *key); if (!(env >= 0 ? env : dm_custom_get("map_mark"))) return;
+    if (!(env >= 0 ? env : 1)) return;
     uint8_t *b = wb(); uint64_t pl = b ? w_player() : 0, lv = pl ? w_level(pl) : 0; int ver = atomic_load(&g_dm_game_ver); if (!lv || ver < 0) return;
     if (lv != lv_seen) { lv_seen = lv; at = dm_guest_frame() + 30; return; } if (lv == lv_done || dm_guest_frame() < at) return; lv_done = lv;
     uint32_t lvno = *(uint32_t *)(lv + 0x1f8); if (lvno == 1 || lvno == 40 || lvno == 75 || lvno == 103 || lvno == 109) return;
@@ -507,7 +507,7 @@ static void mg_scan_room(uint64_t lv, uint64_t r) {
 }
 static void w_map_goal_step(void) {
     static int env = -2; if (env == -2) { const char *e = getenv("DM_MAP_MARK"); env = e ? e[0] != '0' : -1; }
-    int dm_custom_get(const char *key); int on = env >= 0 ? env : dm_custom_get("map_mark");
+    int on = env >= 0 ? env : 1;
     uint8_t *b = wb(); uint64_t pl = on && b ? w_player() : 0, lv = pl ? w_level(pl) : 0; int ver = atomic_load(&g_dm_game_ver);
     if (lv != g_mg.lv) { memset(&g_mg, 0, sizeof g_mg); g_mg.lv = lv; if (lv) { g_mg.lvno = *(uint32_t *)(lv + 0x1f8); g_mg.room = mg_wanted(g_mg.lvno) ? *(uint64_t *)(lv + 0x10) : 0; } }
     if (g_mg.room && ver >= 0) {
@@ -528,16 +528,12 @@ int dm_map_goals(dm_map_goal_view *v) {
     v->n = 0; return 0;
 }
 void dm_world_pump(void) {   // 取手柄处每帧调 | Called every frame at the controller poll
-    { void dm_rift_client_pump(uint8_t *); dm_rift_client_pump(wb()); }   // 秘境爬塔：认击杀（dm_rift.c） | rift tower climb: recognize kills (dm_rift.c)
     { int nd = atomic_load(&g_dm_dur_sync_n); uint8_t *b0 = nd ? wb() : NULL; if (b0) { atomic_store(&g_dm_dur_sync_n, 0); for (int i = 0; i < nd && i < 16; i++) { uint64_t c = w_find(4, g_dm_dur_sync[i][0]); if (c) ((void (*)(uint64_t, int, int, int))(b0 + 0x5bc1f0))(c, 72, (int)g_dm_dur_sync[i][1], 0); } } }   // DM_TEST_DUR 的客户端一半（diag.c） | client half of DM_TEST_DUR (diag.c)
     w_test_seek_step();
     w_test_xy_step();
     uint8_t *b = wb(); if (!b) return;
     w_watch_step(b);
-    { void dm_potpick_step(uint8_t *); dm_potpick_step(b); }   // 药水自动拾取（dm_potpick.c） | automatic potion pickup (dm_potpick.c)
     { void dm_padmode_step(uint8_t *, uint64_t); dm_padmode_step(b, dm_guest_frame()); }   // 手柄 / 触屏布局切换（dm_padmode.c） | Controller / touch layout switching (dm_padmode.c)
-    { void dm_beltauto_step(uint8_t *); dm_beltauto_step(b); }   // 开背包自动补腰带（dm_beltauto.c） | Auto-refill the belt when the inventory opens (dm_beltauto.c)
-    { void dm_pouch_step(uint8_t *); dm_pouch_step(b); }   // 百宝囊 / 存放（dm_pouch.c） | pouch / deposit (dm_pouch.c)
     if (g_release_at && dm_guest_frame() >= g_release_at) { g_release_at = 0; uint64_t pl = w_player(); if (pl) { atomic_store(&g_dm_move_allow_until_ns, w_now_ns() + 500000000ull); ((int (*)(uint64_t, int, int, int, uint64_t))(b + 0x4ace20))(pl, 2, g_rel_x, g_rel_y, 0); } }
     w_go_step();
     w_tile_retry_step();

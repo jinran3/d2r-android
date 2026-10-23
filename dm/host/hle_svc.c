@@ -159,8 +159,22 @@ int dm_guest_heap_stat(unsigned long long *total_mb, unsigned long long *free_mb
 // 上次读到的主堆读数（总量 MB、余量 MB、最大可分配块 KB；没读过全 0）。任何线程可调——不进分配器（iOS 壳在主线程上记内存告警那一行用）
 // The last main-heap readout (total MB, free MB, largest allocatable block KB; all 0 if never read). Callable from any thread - does not enter the allocator (the iOS shell uses it on the main thread for the memory-warning log line)
 void dm_guest_heap_last(unsigned long long v[3]) { for (int i = 0; i < 3; i++) v[i] = atomic_load(&g_gheap_last[i]); }
+// 原版入口按**符号**取，不写死模块偏移：D2R 的 sdk 里 `StandardAllocator::Allocate` 在 0x2f9974，但 TotK 的 sdk 里同一个符号在
+// 0x1375f0，0x2f9974 落在 `nn::codec::pcmDmx_ApplyFrame` 中间、而且那条指令正好是一条 `b`（跳回一段字节写循环）——
+// 转调进去就用残余寄存器往 main 的代码段写字（真机 CRASH sig=11 addr=main+0x408 pc=sdk+0x2f98e8，栈上 0x8c 处正是 0x2f9974）。
+// Resolve the original entry point by symbol rather than a hard-coded module offset: in D2R's sdk
+// `StandardAllocator::Allocate` sits at 0x2f9974, but in TotK's sdk the same symbol sits at 0x1375f0 and 0x2f9974 lands in the
+// middle of `nn::codec::pcmDmx_ApplyFrame`, on a `b` that jumps back into a byte-store loop -- calling through it writes into
+// main's code segment with leftover registers (device CRASH sig=11 addr=main+0x408 pc=sdk+0x2f98e8, with 0x2f9974 on the stack).
 HLE_FORCE("_ZN2nn3mem17StandardAllocator8AllocateEmm", "照原版分配，只在返回空时报红（原版调用方多处不判空）", void *, hle_stdalloc_allocate, void *self, size_t size, size_t align) {
-    static void *(*orig)(void *, size_t, size_t); if (!orig) { module_t *ms = mod_named("sdk"); orig = (void *(*)(void *, size_t, size_t))(ms->base + 0x2f9974); }
+    static void *(*orig)(void *, size_t, size_t);
+    if (!orig) {
+        module_t *ms = mod_named("sdk");
+        void *sym = ms ? module_sym(ms, "_ZN2nn3mem17StandardAllocator8AllocateEmm") : NULL;
+        orig = sym ? (void *(*)(void *, size_t, size_t))sym          // 本作按符号解析（TotK 走这条） | resolved by symbol (TotK takes this path)
+                   : (void *(*)(void *, size_t, size_t))(ms->base + 0x2f9974);   // 符号缺失才退回 D2R 的写死偏移 | only fall back to D2R's hard-coded offset when the symbol is missing
+        LOG("分配器原版入口 %p（%s，sdk 基址 %p）", (void *)orig, sym ? "按符号" : "按 D2R 写死偏移", (void *)ms->base);
+    }
     void *p = orig(self, size, align);
     if (!p && size) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) LOG("【红】游戏堆分配返回空：申请 %zu 字节（对齐 %zu），分配器 %p；上次读数 主堆 %llu MB、余量 %llu MB、最大可分配块 %llu KB", size, align, self,
         (unsigned long long)g_gheap_last[0], (unsigned long long)g_gheap_last[1], (unsigned long long)g_gheap_last[2]); }
@@ -209,7 +223,7 @@ uint64_t svc_dispatch(int num, uint64_t *regs, uint64_t orig_addr) {
     { void hlecount_svc(int); hlecount_svc(num); }   // DM_HLECOUNT：svc 按号计数 | DM_HLECOUNT: svc counts by number
     mem_init();
     if (svc_thread(num, regs)) return regs[0];
-    { uint64_t svc_host_call(int, uint64_t *); if (num >= 0x80 && svc_host_call(num, regs)) return regs[0]; }   // 0x80 起：剪口约定的宿主调用（hle_tact.c） | from 0x80: host calls by cut convention (hle_tact.c)
+    { uint64_t svc_host_call(int, uint64_t *); if (num >= 0x80 && svc_host_call(num, regs)) return regs[0]; }   // 0x80 起：剪口约定的宿主调用（hle_hostcall.c） | from 0x80: host calls by cut convention (hle_hostcall.c)
     switch (num) {
     case 0x01: {  // SetHeapSize(out_addr*, size)  → x1 = heap base
 #ifdef __ANDROID__

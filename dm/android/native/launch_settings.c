@@ -94,6 +94,7 @@ static int parse_settings(char *content, dm_android_launch_settings *settings,
             else if (!strcmp(key, "input_receipts")) bit = 2;
             else if (!strcmp(key, "debug_overlay")) bit = 4;
             else if (!strcmp(key, "resolution")) bit = 8;
+            else if (!strcmp(key, "game_profile")) bit = 16;
             else return fail(error, capacity, "unknown launch settings key on line %u: %s", line_number, key);
             if (seen & bit) return fail(error, capacity, "duplicate launch settings key on line %u: %s", line_number, key);
             if (bit == 1) {
@@ -109,6 +110,12 @@ static int parse_settings(char *content, dm_android_launch_settings *settings,
                     width < 320 || width > 7680 || height < 240 || height > 4320)
                     return fail(error, capacity, "launch settings line %u: resolution must be <width>x<height> with width 320-7680 and height 240-4320", line_number);
                 settings->resolution_width = (int)width; settings->resolution_height = (int)height;
+            } else if (bit == 16) {
+                // 游戏档位：决定 c[2] 驱动常量段的句柄表布局（D2R 分离贴图 / TotK 合并句柄）。
+                // The game profile selects the handle table layout of the c[2] driver constant segment.
+                if (!strcmp(value, "d2r")) settings->game_profile = 0;
+                else if (!strcmp(value, "totk")) settings->game_profile = 1;
+                else return fail(error, capacity, "launch settings line %u: game_profile must be d2r or totk", line_number);
             } else if (bit == 4) {
                 if (!strcmp(value, "0")) settings->debug_overlay = 0;
                 else if (!strcmp(value, "1")) settings->debug_overlay = 1;
@@ -169,7 +176,7 @@ int dm_android_launch_settings_apply(const char *temporary_directory,
                                      char *error, size_t error_capacity) {
     if (error && error_capacity) error[0] = 0;
     char path[SETTINGS_PATH_BYTES], content[SETTINGS_BYTES + 1];
-    dm_android_launch_settings settings = {0, -1, -1, -1, -1, -1};
+    dm_android_launch_settings settings = {0, -1, -1, -1, -1, -1, -1};
     if (!make_path(temporary_directory, "launch-settings.conf", path, error, error_capacity)) return 0;
     if (!read_settings(path, content, &settings.present, error, error_capacity)) return 0;
     if (!settings.present) { if (result) *result = settings; return 1; }
@@ -177,7 +184,7 @@ int dm_android_launch_settings_apply(const char *temporary_directory,
     // 所有内容与需要的固定路径都验证完才进入环境写入；省略的键不清空其他来源设置。
     // Validate all content and required fixed paths before writing the environment; omitted keys do not clear settings supplied elsewhere.
     if (settings.input_receipts == 1 && !make_path(temporary_directory, "input-receipts.jsonl", path, error, error_capacity)) return 0;
-    environment_change changes[4] = {{0}};
+    environment_change changes[5] = {{0}};
     size_t count = 0;
     if (settings.operation_mode != -1) changes[count++] = (environment_change){.name = "DM_OPMODE", .value = settings.operation_mode ? "1" : "0"};
     if (settings.input_receipts != -1) changes[count++] = (environment_change){.name = "DM_HID_RECEIPT_LOG", .value = settings.input_receipts ? path : NULL};
@@ -191,6 +198,9 @@ int dm_android_launch_settings_apply(const char *temporary_directory,
         int n = snprintf(resolution, sizeof resolution, "%dx%d", settings.resolution_width, settings.resolution_height);
         if (n > 0 && (size_t)n < sizeof resolution) changes[count++] = (environment_change){.name = "DM_GAME_RES", .value = resolution};
     }
+    // 游戏档位写成 DM_GAME_PROFILE：宿主按它选 c[2] 的句柄表布局（见 nvn_c2_layout.h）。
+    // The game profile is written as DM_GAME_PROFILE: the host selects the c[2] handle table layout from it.
+    if (settings.game_profile != -1) changes[count++] = (environment_change){.name = "DM_GAME_PROFILE", .value = settings.game_profile ? "totk" : "d2r"};
     if (!apply_environment(changes, count, error, error_capacity)) return 0;
     if (result) *result = settings;
     return 1;

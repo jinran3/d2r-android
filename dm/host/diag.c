@@ -4,8 +4,6 @@
 #include "dm_hud.h"
 #include "dm_cursor.h"
 #include "dm_hud_exp.h"
-#include "dm_elysium.h"
-#include "dm_bossrush.h"
 #include <TargetConditionals.h>
 #include <fcntl.h>
 #include <dirent.h>
@@ -259,7 +257,7 @@ static void json_str(FILE *f, const char *s) {
 // Segments: ① host loading ② SDK initialization ③ init_array (marked in main.c); ④ nnMain→ToFrontEnd ⑤ loading panel open→close ⑥ →MainMenuButtonRibbon (marked by UI messages).
 // Each segment records wall clock and the delta of each counter; wait-type counters are summed over all threads (thread-seconds), with 「主线程等」(main thread wait) listed separately. A table is printed on reaching MainMenuButtonRibbon.
 static _Atomic uint64_t g_pns[PROF_N], g_pby[PROF_N];
-static const char *const g_pname[PROF_N] = {"RomFS读", "锁等", "条件变量等", "地址等", "同步对象等", "Sleep", "主线程等", "出图等(图形)", "着色器/管线(图形)", "TACT解码"};
+static const char *const g_pname[PROF_N] = {"RomFS读", "锁等", "条件变量等", "地址等", "同步对象等", "Sleep", "主线程等", "出图等(图形)", "着色器/管线(图形)"};
 #define MAX_SEG 12
 static struct { const char *name; uint64_t t, ns[PROF_N], by[PROF_N]; } g_seg[MAX_SEG];
 static int g_nseg, g_prof_done;
@@ -273,12 +271,12 @@ static void prof_table(void) {
     fprintf(stderr, "[dm] ===== 启动时间线（DM_BOOTPROF；等待类为全线程累加的线程·秒）=====\n");
     fprintf(stderr, "[dm] %-40s %8s %8s", "分段", "墙钟s", "累计s");
     for (int k = 0; k < PROF_N; k++) fprintf(stderr, " %10s", g_pname[k]);
-    fprintf(stderr, " %9s %9s\n", "读MiB", "解码MiB");
+    fprintf(stderr, " %9s\n", "读MiB");
     uint64_t prev_t = g_t0_ns, prev_ns[PROF_N] = {0}, prev_by[PROF_N] = {0};
     for (int j = 0; j < g_nseg; j++) {
         fprintf(stderr, "[dm] %-40s %8.3f %8.3f", g_seg[j].name, (g_seg[j].t - prev_t) / 1e9, (g_seg[j].t - g_t0_ns) / 1e9);
         for (int k = 0; k < PROF_N; k++) fprintf(stderr, " %10.3f", (g_seg[j].ns[k] - prev_ns[k]) / 1e9);
-        fprintf(stderr, " %9.1f %9.1f\n", (g_seg[j].by[PROF_FS_READ] - prev_by[PROF_FS_READ]) / 1048576.0, (g_seg[j].by[PROF_TACT] - prev_by[PROF_TACT]) / 1048576.0);
+        fprintf(stderr, " %9.1f\n", (g_seg[j].by[PROF_FS_READ] - prev_by[PROF_FS_READ]) / 1048576.0);
         prev_t = g_seg[j].t; memcpy(prev_ns, g_seg[j].ns, sizeof prev_ns); memcpy(prev_by, g_seg[j].by, sizeof prev_by);
     }
 }
@@ -314,7 +312,14 @@ void uimsg_emit(const char *cat, const char *act, const char *arg) {
     for (int k = 0, n = atomic_load(&g_nui_sub); k < n; k++) g_ui_sub[k](cat, act, arg);
 }
 void uimsg_subscribe(void (*fn)(const char *cat, const char *act, const char *arg)) {
-    if (!gate_obs_present(OBS_UIMSG)) die("产物没有 UI 观测门 OBS_UIMSG（需 r6 起的产物）：UI 消息订阅无法工作");
+    if (!gate_obs_present(OBS_UIMSG)) {
+        // 这个门是 D2R main 里的固定点（0xb1dc60）。别的游戏（TotK）的 main 没有这个门，
+        // 消息驱动的诊断（DM_UIMSG / 启动分段 ④–⑥ / 面板状态自愈）整体不工作——但不该阻止启动。
+        // The gate is a fixed point in D2R's main module. Other games (TotK) have none, so the message-driven
+        // diagnostics are simply unavailable; that must not abort the boot.
+        static int once; if (!once++) LOG("【提示】产物没有 UI 观测门 OBS_UIMSG：界面消息类诊断不工作（本作没有这个门，非故障）");
+        return;
+    }
     int k = atomic_load(&g_nui_sub); if (k == 8) die("UI 消息订阅者超过 8 个");
     g_ui_sub[k] = fn; atomic_store(&g_nui_sub, k + 1); gate_obs_set(OBS_UIMSG, uimsg_print);
 }
@@ -336,7 +341,7 @@ void uimsg_subscribe(void (*fn)(const char *cat, const char *act, const char *ar
 #define UIH_MONSTERHEALTH 0xd3a07a5ecad1a9a3ull
 #define UIH_SETINFO       0x40ffba2d98a3ff97ull
 static void monres_on_setinfo(const uint64_t *regs, uint64_t payload) {
-    int dm_custom_get(const char *key); if (!dm_custom_get("item_notes") || dm_lang_index() != 8) return;   // 物品注释一系只有简中版（英文版：别的语言不显示；注释只写进 zhCN 一列） | the item-notes family exists only in Simplified Chinese (English version: not shown in other languages; notes are written only into the zhCN column)
+    if (dm_lang_index() != 8) return;   // 物品注释一系只有简中版（英文版：别的语言不显示；注释只写进 zhCN 一列） | the item-notes family exists only in Simplified Chinese (English version: not shown in other languages; notes are written only into the zhCN column)
     module_t *mm = NULL; for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) mm = &g_mod[i];
     uint64_t unit = regs[19], name = 0; uint32_t type = 0; vm_size_t got = 0;
     if (!mm || !unit || vm_read_overwrite(mach_task_self(), unit, 4, (vm_address_t)&type, &got) || type != 1) return;   // 只认怪物（单位类型 1） | Monsters only (unit type 1)
@@ -411,22 +416,8 @@ static void uimsg_print(const uint64_t *regs) {   // 观测门回调：只读寄
 void crash_set_trap_hook(int (*fn)(ucontext_t *uc));
 // SetLanguage 记录（观测门 5，常开）：原版切语言（声音页「文字语言」或读设置时）走 0x317298 清空 + 重装字符串表，r34 起不再剪（英文版）。
 // 每次换语言记一行（号 → 名表 main+0x20ae478：0 enUS … 8 zhCN）；当前语言号的全局量是 main+0x20ae4e0（SetLanguage 写）
-// 客户端事件包（观测门 15，r35 起）：入口 main+0x442bc0，x0 = 包，第 2 字节 = 事件子类型（跳转表 0x1da6752，0–0x19）。
-// 子类型 0x17 = 离线难度（/players）变了 → 0x442d5c 按串号 0x6a47 取「游戏难度设为 N…」，写聊天栏一行 + 系统提示框（宿主 A/B 实测：开关关时 0x17 到后约 10 秒出这条提示，开着拦掉后不出；
-// patch_nso.py 观测门 15 的说明里写的 0x19 是读跳转表时认错了，下次换代改）。秘境局里（dm_quiet_difficulty_msg 开着）把这一字节改成表外值，
-// 原版自己走默认分支（不显示）；人数本身在服务端照常生效。开关不开时门块进出一次即返回，什么都不改
 // SetLanguage log (observation gate 5, always on): the original game's language switch (「文字语言」(Text Language) on the audio page, or when settings are read) goes through 0x317298 to clear + reload the string table; no longer cut since r34 (English version).
 // Log a line on every language change (number → name table main+0x20ae478: 0 enUS ... 8 zhCN); the global holding the current language number is main+0x20ae4e0 (written by SetLanguage)
-// Client event packet (observation gate 15, since r35): entry main+0x442bc0, x0 = packet, byte 2 = event subtype (jump table 0x1da6752, 0–0x19).
-// Subtype 0x17 = offline difficulty (/players) changed → 0x442d5c fetches 「游戏难度设为 N…」(Game difficulty set to N...) by string number 0x6a47 and writes a chat line + a system prompt box (host A/B measured: with the switch off this prompt appears about 10 seconds after 0x17 arrives; with it on and blocked it does not appear;
-// the 0x19 written in the observation gate 15 description in patch_nso.py was a misreading of the jump table, to be fixed at the next build output generation). In a rift run (dm_quiet_difficulty_msg on) this byte is changed to an out-of-table value,
-// and the original game takes its default branch by itself (shows nothing); the player count itself still takes effect on the server as usual. When the switch is off the gate block returns after one pass in and out, changing nothing
-static _Atomic int g_quiet_diff;
-void dm_quiet_difficulty_msg(int on) { atomic_store(&g_quiet_diff, on); }
-static void event_msg_obs(const uint64_t *regs) {
-    uint8_t *pkt = (uint8_t *)(uintptr_t)regs[0]; if (!atomic_load(&g_quiet_diff) || !pkt || pkt[1] != 0x17) return;
-    static int n; if (n++ < 8) LOG("秘境：拦下原版「游戏难度设为 N」提示（事件子类型 0x17）"); pkt[1] = 0xff;
-}
 static void setlang_obs(const uint64_t *regs) {
     { void dm_padmode_lang_reset(void); dm_padmode_lang_reset(); }   // 串表清空之前：我们换进串表的指针先写回原文、记的节点清空（dm_padmode.c） | Before the string table is cleared: write the original text back over the pointers we swapped into the string table and clear the recorded nodes (dm_padmode.c)
     module_t *m = NULL; for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) m = &g_mod[i];
@@ -438,7 +429,6 @@ static void setlang_obs(const uint64_t *regs) {
 }
 void probe_install(void) {
     if (gate_obs_present(OBS_SETLANG)) gate_obs_set(OBS_SETLANG, setlang_obs);
-    if (gate_obs_present(OBS_EVENT_MSG)) gate_obs_set(OBS_EVENT_MSG, event_msg_obs);
     const char *ui = getenv("DM_UIMSG");
     if (ui && strcmp(ui, "1") && !(g_uifp = fopen(ui, "w"))) die("DM_UIMSG 打不开 %s", ui);
     g_ui_print = ui != NULL;
@@ -788,7 +778,7 @@ static void hud_tick(uint64_t G) {        // 每拍：受控玩家等级 / 本�
     // 认出了单位号就只认它：它正在死的那几拍这一拍没有受控玩家（和没有尸体时第一次死一样），绝不退到别的玩家类单位。读不到单位号（还没进局）才照旧扫
     // Controlled player = the unit whose unit id is the local player unit id the client itself records (main+0x2d20e4c local player slot number → main+0x2d60380[slot number] unit id, same convention as the original game's 0x45f9d0),
     // with mode ≠ 0 and coordinates ≠ (0,0). Previously it was taken only as "the first unit in the player table with mode ≠ 0 and with coordinates": after the character has died once a corpse stays on the ground (also a player-class unit, mode 17, with coordinates),
-    // and during the few ticks of dying again the real player's mode is 0 (dying), so what got taken was the corpse -- boss rush / rift / free town portal / personal stash / Chronicle / pouch all treated the corpse as "the player changed" and re-initialized once,
+    // and during the few ticks of dying again the real player's mode is 0 (dying), so what got taken was the corpse -- boss rush / rift / free town portal all treated the corpse as "the player changed" and re-initialized once,
     // and when the real player became mode 17 it switched back and they initialized once more (measured on the host: at the moment of the second death in a boss rush the log showed two rounds in a row of every module's run-entry lines, and the boss rush progress was reset to zero).
     // Once the unit id is known, only that unit is accepted: during the few ticks it is dying there is no controlled player this tick (the same as a first death with no corpse), and it never falls back to another player-class unit. Only when the unit id cannot be read (not in a run yet) does it scan as before
     uint32_t lid = local_player_id();
@@ -934,14 +924,13 @@ static void hud_tick(uint64_t G) {        // 每拍：受控玩家等级 / 本�
     // Test switch DM_TEST_POS_LOG=1: log a line when the cell the player is in changes (at most one line per 25 ticks; used as the criterion for "can the player still move after this step")
     { static int on = -1, lx, ly; static uint32_t lt; uint32_t tq = 0; if (on < 0) on = getenv("DM_TEST_POS_LOG") != NULL;
       if (on && main && player && tk_rd(G + 0x170, &tq, 4) && tq - lt >= 25) { uint64_t pp = 0; tk_rd(player + 0x38, &pp, 8); if (pp) { int x = *(uint16_t *)(pp + 2), y = *(uint16_t *)(pp + 6); if (x != lx || y != ly) { LOG("DM_TEST_POS_LOG：拍 %u 位置 %d,%d", tq, x, y); lx = x; ly = y; lt = tq; } } } }
-    { void dm_freetp_server_step(uint8_t *, uint64_t, uint64_t); if (main) dm_freetp_server_step((uint8_t *)main->base, G, player); }   // 免费回城（dm_freetp.c） | Free town portal (dm_freetp.c)
     // 测试开关 DM_TEST_STAT_LOG=<属性号>[,…]：这些玩家属性（14 身上金币、15 箱内金币、12 等级…）有变化时记一行（买卖 / 雇佣 / 修理这类成交的判据用）
     // Test switch DM_TEST_STAT_LOG=<stat number>[,...]: log a line when these player stats (14 gold on person, 15 gold in stash, 12 level...) change (used as the criterion for completed deals such as buying and selling / hiring / repairing)
     { static int ids[8], n = -1; static int last[8]; if (n < 0) { n = 0; const char *e = getenv("DM_TEST_STAT_LOG"); char buf[64]; if (e) { strlcpy(buf, e, sizeof buf); for (char *sv, *t = strtok_r(buf, ",", &sv); t && n < 8; t = strtok_r(NULL, ",", &sv)) { ids[n] = atoi(t); last[n++] = -1; } } }
       uint32_t tq = 0; if (n > 0 && main && player && tk_rd(G + 0x170, &tq, 4)) { int v[8], ch = 0; for (int i = 0; i < n; i++) { v[i] = ((int (*)(uint64_t, int, int))(main->base + 0x5b9290))(player, ids[i], 0); ch |= v[i] != last[i]; }
           if (ch) { char b[200]; int k = 0; for (int i = 0; i < n; i++) { k += snprintf(b + k, sizeof b - k, " %d=%d", ids[i], v[i]); if (k >= (int)sizeof b) k = (int)sizeof b - 1; last[i] = v[i]; } LOG("DM_TEST_STAT_LOG：拍 %u%s", tq, b); } } }
-    // 测试开关 DM_TEST_SAVE_AT=<拍>[,<拍>…]：到这些拍请游戏走一次它自己的定时自动存盘（dm_request_save），造「局内有存档提交」的现场（iCloud 局内攒着、出局 / 切后台才传的验证用）
-    // Test switch DM_TEST_SAVE_AT=<tick>[,<tick>...]: at these ticks ask the game to run its own timed autosave once (dm_request_save), setting up the "a save was committed during the run" test case (for verifying that iCloud accumulates during a run and only uploads on leaving the run / going to background)
+    // 测试开关 DM_TEST_SAVE_AT=<拍>[,<拍>…]：到这些拍请游戏走一次它自己的定时自动存盘（dm_request_save），造「局内有存档提交」的现场
+    // Test switch DM_TEST_SAVE_AT=<tick>[,<tick>...]: at these ticks ask the game to run its own timed autosave once (dm_request_save), setting up the "a save was committed during the run" test case
     { static int at[8], n = -1, done; uint32_t tq = 0; if (n < 0) { n = 0; const char *e = getenv("DM_TEST_SAVE_AT"); char buf[96]; if (e) { strlcpy(buf, e, sizeof buf); for (char *sv, *t = strtok_r(buf, ",", &sv); t && n < 8; t = strtok_r(NULL, ",", &sv)) at[n++] = atoi(t); } }
       if (n > 0 && done < n && tk_rd(G + 0x170, &tq, 4) && tq >= (uint32_t)at[done]) { int dm_request_save(void); LOG("DM_TEST_SAVE_AT：拍 %u 请游戏存一次盘 → %d", tq, dm_request_save()); done++; } }
     // 副手组技能（dm_actions.c）：发布服务端记的当前武器组 [[玩家+0x10]+0xf0]+0x5a0（换武器包尾要带它，服务端 0x6de790 比对）
@@ -975,17 +964,6 @@ static void hud_tick(uint64_t G) {        // 每拍：受控玩家等级 / 本�
                               uint64_t ip = 0; uint8_t pk[17] = { 0x16 }; uint32_t one = 1; tk_rd(u + 0x38, &ip, 8); memcpy(pk + 1, (void *)(u + 8), 4); if (ip) { memcpy(pk + 5, (void *)(ip + 0x10), 4); memcpy(pk + 9, (void *)(ip + 0x14), 4); } memcpy(pk + 13, &one, 4);
                               *(uint32_t *)(G + 0x19050) = 1; ((void (*)(uint64_t, uint64_t, uint8_t *, uint32_t))(main->base + 0x6e5b40))(G, player, pk, 17); *(uint32_t *)(G + 0x19050) = 0; inv += *(uint32_t *)(u + 0xc) != 3; } } }
                   LOG("DM_TEST_GIVE：拍 %u 在玩家旁生成「%s」品质 %d：%d / %d 件成功（物品类号 %u，第一件单位 id %u）%s", tq, code, q, ok, n, cls, id0, !getenv("DM_TEST_GIVE_INV") ? "" : inv == ok ? "，已全部捡进背包" : "，【注意】有没捡进背包的（留在地上）"); } } } }
-    if (main && player) dm_elysium_stash_step(G, player, (uint8_t *)main->base);   // 新建极乐世界角色后补齐共享仓库（dm_elysium.c） | Fill in the shared stash after a new Elysium character is created (dm_elysium.c)
-    { void dm_townwp_tick(uint64_t, uint64_t, uint8_t *); if (main && player) dm_townwp_tick(G, player, (uint8_t *)main->base); }   // 进局落在城镇小站旁（dm_townwp.c） | Land next to the town waypoint on joining a run (dm_townwp.c)
-    { int dm_cloud_conflict_take(void); static int shown;   // iCloud 同步拦下了共享仓库的覆盖（dm_cloudsync.c）：进局后弹一次原版系统提示（每次启动一次） | iCloud sync blocked an overwrite of the shared stash (dm_cloudsync.c): show the original game's system prompt once after joining a run (once per launch)
-      if (main && player && !shown && dm_cloud_conflict_take()) { shown = 1; dm_game_notice((uint8_t *)main->base, dm_str((uint8_t *)main->base, "dmCloudConflict")); LOG("iCloud 同步：弹了共享仓库不一致的提示"); } }
-    if (main && player) dm_bossrush_tick(G, player, (uint8_t *)main->base);   // 首领连战（dm_bossrush.c） | Boss rush (dm_bossrush.c)
-    if (main && player) { void dm_rift_tick(uint64_t, uint64_t, uint8_t *); dm_rift_tick(G, player, (uint8_t *)main->base); }   // 秘境爬塔（dm_rift.c） | Rift tower climb (dm_rift.c)
-    { void dm_pages_tick(uint64_t, uint64_t, uint8_t *); if (main) dm_pages_tick(G, player, (uint8_t *)main->base); }   // 个人仓库 2–5 页（dm_pages.c）；不在局内 player 为 0，模块自己清状态 | Personal stash pages 2–5 (dm_pages.c); player is 0 when not in a run, and the module clears its own state
-    { void dm_vault_tick(uint64_t, uint64_t, uint8_t *); if (main) dm_vault_tick(G, player, (uint8_t *)main->base); }
-    { void dm_autobuff_srv_tick(uint8_t *, uint64_t, uint64_t); if (main && player) dm_autobuff_srv_tick((uint8_t *)main->base, G, player); }   // 增益技能自动补：放主线程点名的技能 | Buff auto-recast: cast the skill named by the main thread
-    { void dm_pouch_srv_tick(uint8_t *, uint64_t, uint64_t); if (main) dm_pouch_srv_tick((uint8_t *)main->base, G, player); }   // 百宝囊收 / 放、存放的系统提示（dm_pouch.c）；不在局内 player 为 0   // 编年史仓库存取（dm_vault.c）；同上 | System prompts for pouch take / put and deposit (dm_pouch.c); player is 0 when not in a run   // Chronicle vault deposit / withdraw (dm_vault.c); same as above
-    if (main && player) dm_kills_tick(G, player, (uint8_t *)main->base);   // 刷怪积分牌（dm_kills.c）：在首领连战之后，连战本关的首领它已记好 id | Kill board (dm_kills.c): runs after boss rush, which has already recorded the id of the boss of the current boss rush stage
     cube_diag_tick(G, player);   // 合成读数 | Transmute readout
     if (main && player) seek_tp_step(G, player, main);
     if (main && h.valid) h.quest_unread = *(volatile uint8_t *)(main->base + 0x2d5ff58) != 0;   // 任务提示：收到任务更新包时游戏置 1（0x306cfc），原版只在点 HUD 任务提示按钮时清（0xbbe6ec） | Quest hint: the game sets it to 1 when a quest update packet arrives (0x306cfc); the original game only clears it when the HUD quest hint button is tapped (0xbbe6ec)
@@ -1153,10 +1131,6 @@ static void c2s_obs(const uint64_t *regs) {
     if (regs[1] && tk_rd(regs[1] + 8, &uid, 4)) hu = 1;
     uint8_t b[512]; uint32_t n = len < 512 ? len : 512; if (!tk_rd(regs[2], b, n)) n = 0;
     if (n >= 1 && b[0] == 0x20) cube_diag_req(regs[0], regs[1], b, n);   // 合成读数 | Transmute readout
-    dm_bossrush_c2s(regs[0], regs[1], b, n);
-    { void dm_rift_c2s(uint64_t, const uint8_t *, uint32_t); dm_rift_c2s(regs[0], b, n); }
-    { void dm_pouch_c2s(uint64_t *); dm_pouch_c2s((uint64_t *)(uintptr_t)regs); }   // 珍宝匣：符文 / 宝石 / 材料拖进共享页时改道进高级仓库（dm_pouch.c；会换掉 x2 / x3 指向的包） | Trove: runes / gems / materials dragged into the shared tab are rerouted into the advanced stash tabs (dm_pouch.c; replaces the packet x2 / x3 point to)
-    { void dm_shoprefresh_c2s(uint64_t, uint64_t, const uint8_t *, uint32_t); dm_shoprefresh_c2s(regs[0], regs[1], b, n); }   // 商人交易页「刷新货架」（dm_shoprefresh.c）   // 首领连战：玩家点了连战的门（门只是外观，换关由 dm_bossrush.c 做） | Vendor trade page 「刷新货架」(Refresh Stock) (dm_shoprefresh.c)   // Boss rush: the player tapped the boss rush door (the door is appearance only; the level change is done by dm_bossrush.c)
     if (!g_c2sfp) return;                       // 门在产品里常挂（首领连战要看），没开 DM_C2S_LOG 时不记 | The gate is usually installed in the product (boss rush needs it); nothing is logged when DM_C2S_LOG is not on
     // 诊断开关 DM_TEST_WARP_DIAG=1（只读）：收到「与出口砖交互」包（0x40 [砖 id]）这一刻，把服务端处理函数 main+0x6dbea0 的判定逐项读出来记一行——点了出口不进时看是哪一项拒的（全部拒绝都不回包）。
     // 判定顺序：当前动作能否被打断 main+0x6c5730(游戏, 玩家, 2, 0, 0)（0 = 放行）→ 砖对应的出口可用 main+0x5592f0(砖)（非 0 = 放行）→ 距离 main+0x5c7050(玩家, 砖)（查表距离，≤4 才当场换，>4 什么都不做）。
@@ -1195,9 +1169,9 @@ int dm_request_save(void) {
     *(volatile uint64_t *)(uintptr_t)(g_lastG + 0x5800) = 1;
     return 1;
 }
-// 退出前存盘用（Mac App）：单机暂停着（暂停菜单 / 大秘境面板开着，原版界面状态字节 [main+0x2d5ff51] | [main+0x2d5ff67] 非 0，见 dm_rift_ui.c）时游戏不跑拍，
+// 退出前存盘用（Mac App）：单机暂停着（暂停菜单开着，原版界面状态字节 [main+0x2d5ff51] | [main+0x2d5ff67] 非 0）时游戏不跑拍，
 // 上面拨的那次存盘等不到。把这两个字节清掉让拍接着走；只在进程马上要退出时调（不写回）。返回清之前是否暂停着
-// For saving before exit (Mac App): while single-player is paused (pause menu / rift panel open, original UI state bytes [main+0x2d5ff51] | [main+0x2d5ff67] non-zero, see dm_rift_ui.c) the game does not tick,
+// For saving before exit (Mac App): while single-player is paused (pause menu / rift panel open, original UI state bytes [main+0x2d5ff51] | [main+0x2d5ff67] non-zero) the game does not tick,
 // so the save requested above would never happen. Clear these two bytes so the ticks continue; called only when the process is about to exit (not written back). Returns whether it was paused before clearing
 int dm_unpause_for_exit(void) {
     uint8_t *b = NULL; for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) b = (uint8_t *)g_mod[i].base;
@@ -1293,25 +1267,8 @@ static int cube_pickup_rewrite(const uint64_t *regs, uint8_t out[4 + 25]) {
     if (!tk_rd(cube + 8, &cid, 4) || !tk_rd(cube + 0x38, &pp, 8) || !pp || !tk_rd(pp + 0x10, &cx, 4) || !tk_rd(pp + 0x14, &cy, 4)) return 0;
     uint32_t cxy = (cx & 0xffff) | cy << 16, txy = (tx & 0xffff) | ty << 16;
     memcpy(out, in, 4); out[4] = 0x5f; memcpy(out + 5, &id, 4); memcpy(out + 9, &cid, 4); memcpy(out + 13, in + 9, 8); memcpy(out + 21, &cxy, 4); memcpy(out + 25, &txy, 4);
-    static int logged; if (logged++ < 40) { uint32_t code = ((uint32_t (*)(uint64_t))(m->base + 0x570260))(u); int dm_potpick_auto(uint32_t);
-        LOG("规则：背包放不下，拾取物品 %u（%.4s，%s）改进方块 %u（方块格 %u,%u）", id, (const char *)&code, dm_potpick_auto(id) ? "药水自动拾取发的" : "玩家点的", cid, tx & 0xffff, ty); }
-    return 1;
-}
-// 药水自动拾取的服务端一道（说明见 dm_potpick.c 文件头）：自动拾取发出的 0x16 在处理这一刻用原版腰带找位 main+0x561de0(物品栏, 物品, &槽, 1)
-// 对服务端状态再核一次，放不进腰带就丢包（返回 1），药留在地上——不进背包、不进魔盒。玩家自己点的 0x16 不在自动拾取的表里，不经过这里。
-// Server-side pass of potion auto-pickup (see the dm_potpick.c file header): at the moment a 0x16 sent by auto-pickup is handled, check server state once more with the original game's belt slot search main+0x561de0(inventory object, item, &slot, 1);
-// if it does not fit in the belt, drop the packet (return 1) and the potion stays on the ground -- not into the inventory, not into the cube. A 0x16 the player tapped themselves is not in the auto-pickup table and does not pass through here.
-static int potpick_gate(const uint64_t *regs) {
-    int dm_potpick_auto(uint32_t); uint8_t in[4 + 17]; uint32_t id;
-    if (regs[1] != 17 || !tk_rd(regs[0], in, sizeof in) || in[4] != 0x16) return 0;
-    memcpy(&id, in + 5, 4); if (!dm_potpick_auto(id)) return 0;
-    module_t *m = main_mod(); uint64_t G = g_lastG, p = g_player_unit, u = 0, inv = 0;
-    if (!m || !in_game() || !p || !tk_rd(G + 0x2e30 + 8 * (id & 0x7f), &u, 8)) return 0;
-    for (int k = 0; u && k < 4096; k++) { uint32_t t = 0, i = 0; if (!tk_rd(u, &t, 4) || !tk_rd(u + 8, &i, 4)) return 0; if (t == 4 && i == id) break; if (!tk_rd(u + 0x158, &u, 8)) return 0; }
-    uint32_t mode = 0, slot = 0; if (!u || !tk_rd(u + 0xC, &mode, 4) || mode != 3 || !tk_rd(p + 0x90, &inv, 8) || !inv) return 0;
-    uint32_t code = ((uint32_t (*)(uint64_t))(m->base + 0x570260))(u);
-    if (((int (*)(uint64_t, uint64_t, uint32_t *, int))(m->base + 0x561de0))(inv, u, &slot, 1)) { static int ok; if (ok++ < 40) LOG("药水自动拾取：物品 %u（%.4s）到服务端时腰带放得进（槽 %u），放行", id, (const char *)&code, slot); return 0; }
-    static int dr; if (dr++ < 40) LOG("药水自动拾取：物品 %u（%.4s）到服务端时腰带已放不下 → 不捡，留在地上（丢包第 %d 次）", id, (const char *)&code, dr);
+    static int logged; if (logged++ < 40) { uint32_t code = ((uint32_t (*)(uint64_t))(m->base + 0x570260))(u);
+        LOG("规则：背包放不下，拾取物品 %u（%.4s，玩家点的）改进方块 %u（方块格 %u,%u）", id, (const char *)&code, cid, tx & 0xffff, ty); }
     return 1;
 }
 static int dm_move_allowed(void) { extern _Atomic uint64_t g_dm_move_allow_until_ns; struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint64_t)t.tv_sec * 1000000000ull + (uint64_t)t.tv_nsec < atomic_load(&g_dm_move_allow_until_ns); }   // 由目标触发的走近（dm_world.c） | Approach triggered by a target (dm_world.c)
@@ -1337,7 +1294,6 @@ void c2s_deliver(uint64_t *regs) {   // svc #0x81：收包泵 → 0x632510(包, 
     static void (*recv)(uint64_t, uint64_t, uint64_t, uint64_t);
     if (!recv) { module_t *m = NULL; for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) m = &g_mod[i];
                  recv = (void (*)(uint64_t, uint64_t, uint64_t, uint64_t))(m->base + 0x632510); }
-    if (potpick_gate(regs)) return;
     uint8_t cube[4 + 25]; if (cube_pickup_rewrite(regs, cube)) { recv((uint64_t)(uintptr_t)cube, 25, regs[2], regs[3]); return; }
     // 捡物品包（0x16）记一行去向（腰带案：玩家手动点地上的药捡起来原先不打日志，线上日志缺这一环）：物品码、谁发的、处理完落在哪个容器 / 页 / 格。
     // 处理是同步的（收包泵里直接分发），所以投递前记下 id 与码、投递后读这件在服务端的位置。封顶：每 25 拍最多 4 行，超出的只计数、下一行带出，刷怪掉落高峰冲不爆日志。
@@ -1347,10 +1303,10 @@ void c2s_deliver(uint64_t *regs) {   // svc #0x81：收包泵 → 0x632510(包, 
     // Handling is synchronous (dispatched directly in the packet receive pump), so record the id and code before delivery and read the item's server-side
     // position after delivery. Cap: at most 4 lines per 25 ticks; the excess is only counted and reported on the next line, so monster-drop peaks cannot
     // flood the log.
-    uint32_t pk_id = 0, pk_code = 0; int pk_auto = 0;
-    { uint8_t in[4 + 17]; int dm_potpick_auto(uint32_t); module_t *m = main_mod();
+    uint32_t pk_id = 0, pk_code = 0;
+    { uint8_t in[4 + 17]; module_t *m = main_mod();
       if (m && in_game() && regs[1] == 17 && tk_rd(regs[0], in, sizeof in) && in[4] == 0x16) { memcpy(&pk_id, in + 5, 4); uint64_t u = dm_diag_srv_item(pk_id);
-          if (u) { pk_code = ((uint32_t (*)(uint64_t))(m->base + 0x570260))(u); pk_auto = dm_potpick_auto(pk_id); } else pk_id = 0; } }
+          if (u) { pk_code = ((uint32_t (*)(uint64_t))(m->base + 0x570260))(u); } else pk_id = 0; } }
     recv(regs[0], regs[1], regs[2], regs[3]);
     if (pk_id) { static uint32_t win, used, skipped; uint32_t t = cur_tick(); if (t - win >= 25) { win = t; used = 0; }
         if (used >= 4) skipped++;
@@ -1358,8 +1314,8 @@ void c2s_deliver(uint64_t *regs) {   // svc #0x81：收包泵 → 0x632510(包, 
             if (!u || !tk_rd(u + 0xc, &mode, 4) || !tk_rd(u + 0x10, &d, 8) || !d) snprintf(where, sizeof where, "服务端已没有这件（叠进了别的一叠 / 金币等）");
             else if (mode == 3) snprintf(where, sizeof where, "还在地上（没捡成）");
             else { tk_rd(d + 0x55, &page, 1); if (tk_rd(u + 0x38, &pp, 8) && pp) { tk_rd(pp + 0x10, &x, 4); tk_rd(pp + 0x14, &y, 4); } snprintf(where, sizeof where, "容器 %u 页 %u 格 %d,%d", mode, page, (int)x, (int)y); }
-            if (skipped) LOG("拾取：物品 %u（%.4s，%s）→ %s（此前另有 %u 条没记）", pk_id, (const char *)&pk_code, pk_auto ? "药水自动拾取发的" : "玩家点的", where, skipped);
-            else LOG("拾取：物品 %u（%.4s，%s）→ %s", pk_id, (const char *)&pk_code, pk_auto ? "药水自动拾取发的" : "玩家点的", where);
+            if (skipped) LOG("拾取：物品 %u（%.4s，玩家点的）→ %s（此前另有 %u 条没记）", pk_id, (const char *)&pk_code, where, skipped);
+            else LOG("拾取：物品 %u（%.4s，玩家点的）→ %s", pk_id, (const char *)&pk_code, where);
             skipped = 0; } }
 }
 static uint64_t unit_by_id(uint64_t G, uint32_t id) {   // 玩家表 G+0x2230：128 桶、next=+0x158（tick_state_format.md 同口径） | Player table G+0x2230: 128 buckets, next=+0x158 (same convention as tick_state_format.md)
@@ -1693,7 +1649,6 @@ static void tick_gate(const uint64_t *regs) {         // 拍入口：先注入�
     if (g_rp) c2s_inject(regs[0]);
     if (g_spfp) state_dump(regs);
     if (g_tkfp) ticks_hash(regs);
-    { void dm_bright_server_tick(uint64_t G); dm_bright_server_tick(regs[0]); }   // 3D 画面加亮的测试开关 DM_TEST_DAYTIME（dm_bright.c） | The test switch DM_TEST_DAYTIME for 3D picture brightening (dm_bright.c)
     freeze_tick(regs[0]);   // 面板冻结：放在最后，前面各段读到的还是没减过的拍号 | Panel freeze: placed last, so the sections before it still read the tick number before the decrement
 }
 // ---------- DM_SOAK=<路径>[,间隔秒（缺省 60）]：浸泡读数，宿主线程定时写一行 TSV ----------
@@ -1762,14 +1717,8 @@ static void loadscreen_on_uimsg(const char *cat, const char *act, const char *ar
     if (!strcmp(cat, "PanelManager") && !strcmp(arg, "QuestLogPanelExpansion") && (!strcmp(act, "OpenPanel") || !strcmp(act, "OpenExclusivePanel"))) { module_t *qm = main_mod(); if (qm) *(volatile uint8_t *)(qm->base + 0x2d5ff58) = 0; }
     { void dm_textinput_on_uimsg(const char *, const char *, const char *); dm_textinput_on_uimsg(cat, act, arg); }
     { void dm_update_on_uimsg(const char *, const char *, const char *); dm_update_on_uimsg(cat, act, arg); }
-    { void dm_kills_on_uimsg(const char *, const char *, const char *); dm_kills_on_uimsg(cat, act, arg); } { void dm_rift_ui_on_uimsg(const char *, const char *, const char *); dm_rift_ui_on_uimsg(cat, act, arg); }   // 编年史「首领」页签（dm_kills.c） | The chronicle's 「首领」(Bosses) tab (dm_kills.c)
-    { void dm_vault_on_uimsg(const char *, const char *, const char *); dm_vault_on_uimsg(cat, act, arg); }
     { void dm_padmode_on_uimsg(const char *, const char *, const char *); dm_padmode_on_uimsg(cat, act, arg); }   // 手柄版暂停菜单「游戏难度」行（dm_padmode.c） | "Game Difficulty" row of the controller pause menu (dm_padmode.c)
-    { void dm_pouch_on_uimsg(const char *, const char *, const char *); dm_pouch_on_uimsg(cat, act, arg); }   // 百宝囊框 / 存放按钮（dm_pouch.c）   // 储藏箱第六页「编年史」（dm_vault_ui.c） | Pouch frame / deposit button (dm_pouch.c)   // stash page six 「编年史」(Chronicle) (dm_vault_ui.c)
-    { void dm_shoprefresh_on_uimsg(const char *, const char *, const char *, uint8_t *); module_t *sm = main_mod(); dm_shoprefresh_on_uimsg(cat, act, arg, sm ? (uint8_t *)sm->base : NULL); }   // 商人交易页「刷新货架」按钮（dm_shoprefresh.c） | The 「刷新货架」(Refresh Stock) button on the vendor trade page (dm_shoprefresh.c)
-    { void dm_runeword_on_uimsg(const char *, const char *, const char *); dm_runeword_on_uimsg(cat, act, arg); }   // 符文之语助手（dm_runeword.c） | Runeword helper (dm_runeword.c)
-    { void dm_beltauto_on_uimsg(const char *, const char *, const char *); dm_beltauto_on_uimsg(cat, act, arg); }   // 开背包自动补腰带（dm_beltauto.c） | Auto-refill the belt when the inventory opens (dm_beltauto.c)
-    { extern void (*g_dm_charsel_hook)(void); if (g_dm_charsel_hook && !strcmp(cat, "FrontEndNavigation") && !strcmp(act, "ToFrontEnd")) g_dm_charsel_hook(); }   // 退出这一局、回到前端（主菜单 / 选角页）：iOS 把这一局攒下的存档传 iCloud（cloud_ios.m）   // 构建号 + 新版本提示（dm_update.c） | Exiting this run and returning to the front end (main menu / character select page): iOS uploads the saves accumulated during this run to iCloud (cloud_ios.m)   // build number + new version notice (dm_update.c)
+    // 构建号 + 新版本提示（dm_update.c） | build number + new version notice (dm_update.c)
     if (!strcmp(cat, "PanelManager") && !strcmp(act, "ClosePanel") && !strcmp(arg, "TouchShareLog")) {   // 暂停菜单「分享诊断日志」（按钮发这条空操作，布局见 touch_layout.py _pause_no_help） | Pause menu 「分享诊断日志」(Share Diagnostics) (the button sends this no-op; for the layout see touch_layout.py _pause_no_help)
         LOG("诊断日志：点了「分享诊断日志」%s", g_sharelog_cb ? "" : "（外壳没登记，不弹）"); if (g_sharelog_cb) g_sharelog_cb(); }
     {   // DM_TEST_FRZ=<开消息>[><关消息>]（测试用）：界面消息子串命中就置 / 清图形后端的「世界已冻结」状态位（nvn_mtl.m frz_op）——没有真正的冻结握手时用它顶替 | DM_TEST_FRZ=<open message>[><close message>] (for testing): when a UI message substring hits, set / clear the graphics backend's "world frozen" status bit (nvn_mtl.m frz_op) -- used as a stand-in when there is no real freeze handshake
@@ -1901,8 +1850,6 @@ void ticks_install(void) {
     else LOG("【红】产物没有命令分派观测门 OBS_C2S：首领连战的门点了不换关");
     if (gate_obs_present(OBS_TICK)) gate_obs_set(OBS_TICK, tick_gate_product);
     else LOG("【红】产物没有拍入口观测门 OBS_TICK：底栏数字 / 难度条 / 动态 3D 比例（dm_ingame_now）都不工作");
-    { module_t *tm = main_mod(); void dm_textbox_install(uint8_t *); if (tm) dm_textbox_install((uint8_t *)tm->base); }   // 普通文字框里的注释颜色码（dm_textbox.c，观测门 14） | Annotation color codes in ordinary text boxes (dm_textbox.c, observation gate 14)
-    { module_t *tm = main_mod(); void dm_turnsmooth_install(uint8_t *); if (tm) dm_turnsmooth_install((uint8_t *)tm->base); }   // 转向回跳平滑 / 模型转身参数读取（dm_turnsmooth.c，观测门 19 / 20） | turn snap-back smoothing / reading the model turning parameters (dm_turnsmooth.c, observation gates 19 / 20)
     if (e || rp || lg || sp) {                              // DM_C2S_LOG 也挂拍入口：系统类消息的拍号要从 G 读 | DM_C2S_LOG also hooks the tick entry: the tick number of system-class messages has to be read from G
         if (!gate_obs_present(OBS_TICK)) die("DM_TICKS / DM_STATE / DM_C2S_REPLAY / DM_C2S_LOG：产物没有拍入口观测门 OBS_TICK（需 r8 起的产物）");
         gate_obs_set(OBS_TICK, tick_gate);

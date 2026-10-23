@@ -200,64 +200,20 @@ def apply_all(s, romfs):
 
 
 # 普通文字框（TextBoxWidget）不认颜色码：游戏加载时把 ÿc 换成私用区字符 U+E07E，文字框原样画成「*5」、换行画成空格
-# （真机上编年史列表所见）。说明框（TooltipsPanel）、聊天（ChatListWidget）认。所以除了写进字符串表的注释版，再出一份「文字框版」：
-# 同一条流水线只做改名类步骤（旧译名、符文序号、底材档次、区域等级），不做装饰类步骤（可变范围行、点评行、神殿效果行、掉落名的缩写 / 颜色 / 说明行）。
-# 两份逐键对照，凡注释版带颜色码且与文字框版不同的，记一行「注释版 → 文字框版」（都换成运行时的 U+E07E 写法）。
-# 宿主在文字框写字入口（观测门 14，dm_textbox.c）只按这张表整串 / 子串替换：原版自带的串不在表里、一个字节都不动；注释开关关掉时没有这张表
+# （真机上编年史列表所见）。说明框（TooltipsPanel）、聊天（ChatListWidget）认 —— 注释版串照旧写进字符串表。
 # Ordinary text boxes (TextBoxWidget) do not understand color codes: at load time the game replaces ÿc with the private-use character U+E07E, and the text box draws it verbatim as "*5" and draws newlines as spaces
-# (as seen in the chronicle list on a real device). The tooltip box (TooltipsPanel) and chat (ChatListWidget) do understand them. So besides the annotated version written into the string table, a "text-box version" is also produced:
-# the same pipeline does only the renaming steps (old translated names, rune numbers, base tiers, area levels) and not the decorative steps (variable range lines, review lines, shrine effect lines, and the abbreviations / colors / description lines of drop names).
-# The two are compared key by key; wherever the annotated version has color codes and differs from the text-box version, one line "annotated version → text-box version" is recorded (both converted to the runtime U+E07E form).
-# At the text-box write entry (observation gate 14, dm_textbox.c) the host only does whole-string / substring replacement by this table: the original game's own strings are not in the table and not a single byte of them is touched; when the annotation switch is off this table does not exist
-TEXTBOX_TABLE = 'dm_textbox_plain.tsv'
-TEXTBOX_STEPS = ('旧译名', '符文序号', '底材档次', '区域等级')
-_last_table = None
+# (as seen in the chronicle list on a real device). The tooltip box (TooltipsPanel) and chat (ChatListWidget) do understand them.
+# 原本这里还出的「文字框版」对照表与宿主侧那套文字框改写（观测门 14）已随裁剪批 7g 一起摘除：宿主不再读它，生成器也不再出它。
 
 
-def apply_textbox(s, romfs):
-    from annot_world import ann_levels
-    steps = {'旧译名': lambda: old_names(s), '符文序号': lambda: rune_numbers(s), '底材档次': lambda: base_tiers(s, romfs), '区域等级': lambda: ann_levels(s, romfs)}
-    return {k: steps[k]() for k in TEXTBOX_STEPS}
 
 
-def textbox_table(full, plain):
-    """full / plain：同一组文件、同一组键的两份 Strings。返回 {运行时注释版: 运行时文字框版}；同一注释版对到两种文字框版 = 生成器自相矛盾，报错。 | full / plain: two Strings over the same set of files and the same set of keys. Returns {runtime annotated version: runtime text-box version}; the same annotated version mapping to two different text-box versions = the generator contradicts itself, raise an error."""
-    rt = lambda t: t.replace('\u00ffc', '\ue07e')
-    # 同一个键在几份表里都有时，后加载的覆盖前面的（同 annot_drop：最后一份才是游戏里显示的）：先按加载顺序取每个键的生效值
-    # When the same key exists in several tables, the later-loaded one overrides the earlier ones (same as annot_drop: the last one is what the game displays): first take each key's effective value in load order
-    from annot_drop import FILES as LOAD_ORDER
-    order = [n for n in LOAD_ORDER if n in full.dirty] + sorted(n for n in full.dirty if n not in LOAD_ORDER)
-    eff = {}
-    for name in order:
-        for key in full.keys(name):
-            a, b = full.get(name, key), plain.get(name, key)
-            if a is not None and b is not None: eff[(name if name not in LOAD_ORDER else '*', key)] = (a, b)
-    tab, src = {}, {}
-    for k, (a, b) in eff.items():
-        if 'ÿc' not in a or a == b: continue
-        ra, rb = rt(a), rt(b)
-        if tab.get(ra, rb) != rb: raise SystemExit('annot_strings：注释版 %r 对到两种文字框版 %r（%s）/ %r（%s）' % (a, tab[ra], src[ra], rb, k))
-        tab[ra] = rb; src[ra] = k
-    return tab
-
-
-def write_textbox_table(dst):
-    """gen_romfs_overlay 写完带本特性的变体后调：把最近一次 build 算出的对照表写进变体目录（一行一条，键与值里的 \\ / 换行 / 制表转义）。 | Called by gen_romfs_overlay after it writes a variant with this feature: writes the mapping table computed by the most recent build into the variant directory (one entry per line; \\\\ / newline / tab in keys and values are escaped)."""
-    if _last_table is None: raise SystemExit('annot_strings：还没 build 就写文字框对照表')
-    esc = lambda t: t.replace('\\', '\\\\').replace('\n', '\\n').replace('\t', '\\t')
-    with open(os.path.join(dst, TEXTBOX_TABLE), 'w', encoding='utf-8', newline='\n') as f:
-        f.write('# 注释版\t文字框版（annot_strings.py 生成，宿主 dm_textbox.c 读）\n')
-        for a in sorted(_last_table): f.write('%s\t%s\n' % (esc(a), esc(_last_table[a])))
-    return len(_last_table)
 
 
 def build(romfs, outdir, repl):
     """repl：前面步骤已换的 {包内逻辑路径: 本地文件}。返回 ({包内逻辑路径: 本地文件}, {步骤: 改了几处})。 | repl: {in-package logical path: local file} already replaced by earlier steps. Returns ({in-package logical path: local file}, {step: number of changes})."""
-    global _last_table
     s = Strings(romfs, repl)
     stat = apply_all(s, romfs)
-    p = Strings(romfs, repl); apply_textbox(p, romfs)
-    _last_table = textbox_table(s, p); stat['文字框对照'] = len(_last_table)
     return s.write(outdir), stat
 
 if __name__ == '__main__':   # 单独跑：python3 annot_strings.py <RomFS> <输出目录> → 打印统计 | Standalone run: python3 annot_strings.py <RomFS> <output dir> → prints statistics

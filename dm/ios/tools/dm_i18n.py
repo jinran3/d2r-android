@@ -15,33 +15,17 @@ ID0 = 300000   # 原版全部字符串表最大 id 251780；我们的条目从�
 PROPER = '老机型补充包|D2R Mobile Resources|D2R Mobile'   # 英文里唯一许可的中文：App 显示名与资源文件夹名（玩家在桌面 /「文件」里看到的就是这几个字，改名另案，见盘点待定 6、7） | the only Chinese allowed in English text: the App display name and the asset folder name (these are the very characters the player sees on the home screen / in "Files"; renaming is a separate matter, see open items 6 and 7 of the inventory)
 FMT = re.compile(r'%[-+ #0-9.]*(?:ll|l|h|z)?[a-zA-Z@%]')   # printf / strftime / NSString 占位符：中英两列必须同序同类（运行时拿英文串当格式串用） | printf / strftime / NSString placeholders: the Chinese and English columns must match in order and type (at run time the English string is used as a format string)
 
-# 英文字数闸（进行中页「This Rift will be lost」被截断出框，靠人眼看图没拦住）：大秘境面板 / 秘境提示各栏的英文上限（字符数，占位符按 3 个字符算）。
-# 数是按 Mac 截图量出来的每栏像素宽 ÷ 该栏字号下英文每字符平均宽度、再留一个字符余量——是按字数的近似，不是按字形逐个量宽；
-# 全是窄字母（i、l、1）的串实际更短，全是宽字母（M、W）的会更长，所以新词进表后仍要出图看一眼
-# English length gate (on the in-progress page "This Rift will be lost" was truncated and ran out of its box, and looking at screenshots by eye did not
-# catch it): English limits for each field of the Greater Rift panel / Rift messages (in characters, with a placeholder counted as 3 characters).
 # The numbers are each field's pixel width measured from Mac screenshots ÷ the average English character width at that field's font size, less one
 # character of margin. This is an approximation by character count, not a glyph-by-glyph width measurement;
 # a string made of narrow letters only (i, l, 1) is actually shorter and one made of wide letters only (M, W) is longer, so new wording added to the
 # table still needs a look at a screenshot
 EN_LIMITS = (
-    (r'dmRiftSay(?!Prefix).*', 31),
-    (r'dmRiftPtsGot', 62), (r'dmRiftPtsHeld', 33),        # 通关点数两句：第一句中文就占两行（提示框自动换行），英文同样两行、不缩写；第二句一行                       # 系统提示：前缀「Rift  」6 个字符 + 正文，提示框一行约 37 个字符 | the two clear-points sentences: the first already takes two lines in Chinese (the message box wraps automatically), so English is likewise two lines, unabbreviated; the second is one line                       # system messages: the prefix "Rift  " is 6 characters plus the body, and one message box line holds about 37 characters
-    (r'dmRift(Range|Best|Str|Lvl|Time)', 13),             # 左栏「标签 + 值」的标签（英文专用小字号控件，值最长 7 个字符） | labels of the left column's "label + value" rows (English-only small-font widget; values are at most 7 characters)
-    (r'dmRiftGam(Uni|Set)', 8), (r'dmRiftGamAfterEn', 17),
-    (r'dmRift(SelT|InfT|GamT|TitleRun|TitleDone|TitleLate)', 16),   # 左栏小标题（中号字，栏宽约 160 像素） | left column small headings (medium font, column about 160 pixels wide)
-    (r'dmRift(GuardDown|NextOpen|Saved|RetryOpen|NotCounted)', 16),            # 已完成页那三行（整行，中号字） | the three lines on the completed page (full lines, medium font)
-    (r'dmRiftCap.*', 20),                                 # 按钮上方的说明（英文专用小字号控件） | caption above the buttons (English-only small-font widget)
-    (r'dmRiftBtn.*', 12),                                 # 按钮上的字 | text on the buttons
-    (r'dmRiftMsItem\d+', 15), (r'dmRiftMsSub\d+', 19), (r'dmRiftMsTier\d+', 4), (r'dmRiftMs(Got|Next|No)', 7), (r'dmRiftMsT', 12), (r'dmRiftMsNEn', 38),
-    (r'dmRiftHud(Title)', 4), (r'dmRiftHud(Done|Late|Guard)', 18), (r'dmRiftHud(Next|Same|Kill|Goal)', 26),
-    (r'dmKbRiftUnlock', 9), (r'dmKbRift(Best|Total)', 16),
 )
-# 键只许字母数字：布局里「@键」的解析遇到 _ 就断（@dmCustom_auto_mana 显示成「丢失字符串_auto_mana」，Mac 上的 iOS 包实测）
-# 英文界面下也要写汉字的键（自定义页语言那一行：切错语言的人得看得懂）。只许用在指定了全球字体 BlizzardGlobal 的文字控件上——英文界面缺省字体没有汉字
-# Keys may only contain letters and digits: the layout's "@key" parsing stops at _ (@dmCustom_auto_mana was shown as "missing string_auto_mana", measured in the iOS package on a Mac)
-# Keys that must show Chinese characters in the English UI as well (the language row of the Custom page: someone who switched to the wrong language has to be able to read it). Only allowed on text controls that specify the global font BlizzardGlobal -- the default font of the English UI has no Chinese characters
-EN_HAS_ZH = {'dmCustomLang', 'dmCustomLangZh', 'dmCustomLangHintZh'}
+# 键只许字母数字：布局里「@键」的解析遇到 _ 就断（@dmAuto_mana 显示成「丢失字符串_auto_mana」，Mac 上的 iOS 包实测）
+# 英文界面下也要写汉字的键：当前没有此类键；若以后新增，只许用在指定了全球字体 BlizzardGlobal 的文字控件上（英文界面缺省字体没有汉字）。
+# Keys may only contain letters and digits: the layout's "@key" parsing stops at _ (@dmAuto_mana was shown as "missing string_auto_mana", measured in the iOS package on a Mac)
+# Keys that must show Chinese characters in the English UI as well: none currently; if one is added later, it is only allowed on text controls that specify the global font BlizzardGlobal (the default font of the English UI has no Chinese characters).
+EN_HAS_ZH = set()
 def rows():
     out = []
     with open(TABLE, encoding='utf-8') as f:
@@ -59,7 +43,7 @@ def rows():
 
 def build(romfs, outdir, repl):
     """repl：前面步骤已换的 {包内逻辑路径: 本地文件}。返回 ({包内逻辑路径: 本地文件}, 条数)。 | repl: {logical path in the package: local file} already replaced by earlier steps. Returns ({logical path in the package: local file}, entry count)."""
-    import touch_layout   # 用时再导：touch_layout 自己在模块层要读本表（自定义页行数），顶层互导会半初始化 | imported at use time: touch_layout itself reads this table at module level (row count of the Custom page), and a top-level mutual import would leave it half-initialized
+    import touch_layout   # 用时再导，避免模块层互导留下半初始化状态 | imported at use time to avoid a half-initialized top-level mutual import
     path, text = touch_layout.read_layout(romfs, None, suffix='/lng/strings/ui.json')
     prev = repl.get(path.lower())
     if prev: text = open(prev, encoding='utf-8-sig').read()

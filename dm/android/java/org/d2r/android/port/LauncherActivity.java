@@ -55,6 +55,9 @@ public final class LauncherActivity extends Activity {
     private static final String PACKAGE_DIRECTORY = "d2r-package";
     private static final String MANIFEST_NAME = PackageArchive.MANIFEST;
     private static final int PICK_PACKAGE = 1;
+    // 固定路径的包名：把 zip 用 adb push 放到外部目录后，从这里直接导入，不用走文件选择器。
+    // The package name at a fixed path: push the zip here with adb and import it directly, no file picker.
+    private static final String FIXED_PACKAGE = "totk-package.zip";
     private static final int EXPORT_SAVE = 2;
     private static final int IMPORT_SAVE = 3;
 
@@ -64,10 +67,11 @@ public final class LauncherActivity extends Activity {
     private static final int WARNING = 0xffd08a78;
 
     private Switch overlaySwitch;
-    private TextView profileItem, resolutionItem, driverItem, importItem, statusView, startItem;
+    private TextView profileItem, resolutionItem, driverItem, gameItem, importItem, statusView, startItem;
     private boolean handheld;
     private int resolutionIndex;
     private int driverIndex;
+    private int gameIndex;
     private String packageSummary = "";
     private boolean importing;
     private volatile boolean cancelImport;
@@ -81,6 +85,10 @@ public final class LauncherActivity extends Activity {
     // Measured difference: the Adreno driver shows blocky lighting around the player, Turnip does not — see the
     // driver notes under docs/.
     private static final String[] DRIVER_STATES = {"system", "turnip"};
+    // 游戏档位：决定宿主用哪套 c[2] 句柄表布局（D2R 是分离贴图，TotK 是合并句柄）与哪套着色器包。
+    // The game profile selects the host's c[2] handle table layout (D2R separate textures, TotK combined handles)
+    // and the shader package that goes with it.
+    private static final String[] GAME_STATES = {"d2r", "totk"};
     private static final String TURNIP_ASSET = "turnip/vulkan.purple.so";
 
     private String text(String key) {
@@ -95,7 +103,7 @@ public final class LauncherActivity extends Activity {
     // input_receipts, for instance) and has to survive a rewrite -- otherwise starting the game from the launcher
     // silently drops it. Measured once with input_receipts=1: the file said so, native read "unset", the HID
     // receipts were never produced, and the overwrite was the last thing found.
-    private static final String[] OWNED_KEYS = {"debug_overlay", "operation_mode", "resolution"};
+    private static final String[] OWNED_KEYS = {"debug_overlay", "operation_mode", "resolution", "game_profile"};
 
     // 游戏还活着时启动界面立刻让位。
     // 从桌面点图标回来时，安卓会在**游戏上面**再开一个启动界面（启动界面是本应用的入口活动），玩家看到的是启动界面、
@@ -199,6 +207,11 @@ public final class LauncherActivity extends Activity {
         }
     }
 
+    private String gameLabel() {
+        return text("dmAndroidLaunchGame") + "：" + text(
+                GAME_STATES[gameIndex].equals("totk") ? "dmAndroidLaunchGameTotK" : "dmAndroidLaunchGameD2R");
+    }
+
     private String driverLabel() {
         return text("dmAndroidLaunchDriver") + "：" + text(
                 DRIVER_STATES[driverIndex].equals("turnip") ? "dmAndroidLaunchDriverTurnip" : "dmAndroidLaunchDriverSystem");
@@ -271,6 +284,7 @@ public final class LauncherActivity extends Activity {
         StringBuilder content = new StringBuilder("# 仅供界面显示 | display only\n");
         if (!packageSummary.isEmpty()) content.append("package_summary=").append(packageSummary).append('\n');
         content.append("driver=").append(DRIVER_STATES[driverIndex]).append('\n');
+        content.append("game=").append(GAME_STATES[gameIndex]).append('\n');
         write(stateFile(), content.toString());
     }
 
@@ -291,6 +305,7 @@ public final class LauncherActivity extends Activity {
         if (profileItem != null) profileItem.setText(profileLabel());
         if (resolutionItem != null) resolutionItem.setText(resolutionLabel());
         if (driverItem != null) driverItem.setText(driverLabel());
+        if (gameItem != null) gameItem.setText(gameLabel());
         if (importItem != null) importItem.setText(importLabel());
         if (startItem != null) updateStartState();
     }
@@ -315,6 +330,13 @@ public final class LauncherActivity extends Activity {
         driverIndex = 0;
         if (driver != null) for (int i = 0; i < DRIVER_STATES.length; i++) if (DRIVER_STATES[i].equals(driver)) driverIndex = i;
         if (!turnipBundled()) driverIndex = 0;
+        // 游戏档位记在启动界面自己的状态文件里（与驱动同理），同时写进 launch-settings.conf 的
+        // game_profile 键 —— native 读那个键来选 c[2] 的句柄表布局。
+        // The game profile lives in the launcher's own state file (like the driver) and is also written as the
+        // game_profile key in launch-settings.conf, which native reads to pick the c[2] handle table layout.
+        String game = LaunchSettings.read(stateFile(), "game");
+        gameIndex = 0;
+        if (game != null) for (int i = 0; i < GAME_STATES.length; i++) if (GAME_STATES[i].equals(game)) gameIndex = i;
         applyLabels();
     }
 
@@ -364,9 +386,18 @@ public final class LauncherActivity extends Activity {
             column.addView(driverItem);
         }
 
+        gameItem = item(gameLabel(), 19, PARCHMENT, false, true);
+        gameItem.setOnClickListener(v -> { gameIndex = (gameIndex + 1) % GAME_STATES.length; applyLabels(); writeState(); });
+        column.addView(gameItem);
+
         importItem = item(importLabel(), 19, PARCHMENT, false, true);
         importItem.setOnClickListener(v -> pickPackage());
         column.addView(importItem);
+        // 「从推送的包导入」是给几十 GB 的包用的：推过来就能导，不必用手指在文件选择器里翻。
+        // "Import the pushed package" is for multi-gigabyte packages: push it and import, no picking by hand.
+        TextView fixedImportItem = item(text("dmAndroidLaunchImportFixed"), 19, PARCHMENT, false, true);
+        fixedImportItem.setOnClickListener(v -> importFixedPackage());
+        column.addView(fixedImportItem);
 
         // 存档导入/导出：走系统的文件选择器（应用不需要任何存储权限），包是玩家自己选的路径。
         // Save import/export goes through the system file picker (the app needs no storage permission); the player
@@ -507,8 +538,47 @@ public final class LauncherActivity extends Activity {
         updateStartState();
         setStatus(String.format(text("dmAndroidLaunchImporting"), 0), MUTED);
         new Thread(() -> {
-            try {
-                String summary = extract(uri, documentSize(uri));
+            try (InputStream raw = getContentResolver().openInputStream(uri)) {
+                if (raw == null) throw new IOException("cannot open the selected file");
+                String summary = extract(raw, documentSize(uri));
+                runOnUiThread(() -> {
+                    packageSummary = summary;
+                    writeState();
+                    refreshFromDisk();
+                    setStatus(summary, PARCHMENT);
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> setStatus(String.format(text("dmAndroidLaunchImportFailed"), failureText(error)), WARNING));
+            } finally {
+                importing = false;
+                runOnUiThread(this::updateStartState);
+            }
+        }, "d2r-package-import").start();
+    }
+
+    // 从固定路径导入：把 zip 用 adb push 放到外部目录（/sdcard/Android/data/<包名>/files/totk-package.zip），
+    // 然后点这一项就能导入 —— 不用走文件选择器，几十 GB 的包靠手指点太不现实。
+    // Import from a fixed path: push the zip into the external directory and tap this entry; a multi-gigabyte
+    // package is not something to pick by hand through a file picker.
+    private void importFixedPackage() {
+        File external = getExternalFilesDir(null);
+        File file = external == null ? null : new File(external, FIXED_PACKAGE);
+        if (file == null || !file.isFile()) {
+            setStatus(String.format(text("dmAndroidLaunchImportFixedMissing"), FIXED_PACKAGE), WARNING);
+            return;
+        }
+        if (importing) {
+            setStatus(text("dmAndroidLaunchCancel"), MUTED);
+            cancelImport = true;
+            return;
+        }
+        importing = true;
+        cancelImport = false;
+        updateStartState();
+        setStatus(String.format(text("dmAndroidLaunchImporting"), 0), MUTED);
+        new Thread(() -> {
+            try (InputStream raw = new FileInputStream(file)) {
+                String summary = extract(raw, file.length());
                 runOnUiThread(() -> {
                     packageSummary = summary;
                     writeState();
@@ -537,18 +607,14 @@ public final class LauncherActivity extends Activity {
     // The rules, the acceptance check and the write-the-marker-last ordering all live in PackageArchive (which holds
     // no Android API and is regression-tested on a PC). This supplies only where the stream comes from, how progress
     // is shown, how cancellation is noticed, and how a failure is told to the player.
-    private String extract(Uri uri, long totalBytes) throws IOException {
-        PackageArchive.Counts counts;
-        try (InputStream raw = getContentResolver().openInputStream(uri)) {
-            if (raw == null) throw new IOException("cannot open the selected file");
-            counts = PackageArchive.unpack(raw, packageDirectory(), packageGameDirectory(), totalBytes,
+    private String extract(InputStream raw, long totalBytes) throws IOException {
+        PackageArchive.Counts counts = PackageArchive.unpack(raw, packageDirectory(), packageGameDirectory(), totalBytes,
                                            new PackageArchive.Sink() {
                 @Override public void progress(final int percent) {
                     runOnUiThread(() -> setStatus(String.format(text("dmAndroidLaunchImporting"), percent), MUTED));
                 }
                 @Override public boolean cancelled() { return cancelImport; }
             }, LauncherActivity::declaration);
-        }
         // 显示**实际解出**的数量。清单自报的数只参与校验、不当结果显示 —— 以前正是把它当结果显示，
         // 才让一个只装了一个文件的包报出"46 个资源、20795 个着色器"。
         // Report what was **actually** unpacked. The manifest's own numbers are only compared, never displayed:
@@ -612,6 +678,8 @@ public final class LauncherActivity extends Activity {
         // 跟随档位时不写这个键：native 语义里"省略"就是不改动，保持原版 16:9 常数。
         // "Follow profile" writes no key: omitting it means "leave it alone" to native, keeping the original 16:9 constants.
         if (!RESOLUTION_PRESETS[resolutionIndex].isEmpty()) content.append("resolution=").append(RESOLUTION_PRESETS[resolutionIndex]).append('\n');
+        // 游戏档位：native 读它来选 c[2] 的句柄表布局（D2R 分离表 / TotK 合并表）。
+        content.append("game_profile=").append(GAME_STATES[gameIndex]).append('\n');
         content.append(LaunchSettings.foreign(configFile(), OWNED_KEYS));
         write(configFile(), content.toString());
         setStatus("", PARCHMENT);

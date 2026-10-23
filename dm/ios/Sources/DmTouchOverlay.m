@@ -6,7 +6,7 @@
 #include "dm_input.h"
 #include "../../host/dm_i18n.h"
 
-#define DM_SKILL_IDLE_ALPHA .6   // 五个技能钮、回城钮、技能组切换钮没按着时底圈与圆环的不透明度（图标、切换钮上的「Ⅰ / Ⅱ」不乘，保持清晰；要调浓淡只改这一处） | Opacity of the base circles and rings of the five skill buttons, the town portal button and the skill set switch button when not held (the icons and the "Ⅰ / Ⅱ" on the switch button are not multiplied and stay clear; to adjust the fade, change only this one place)
+#define DM_SKILL_IDLE_ALPHA .6   // 五个技能钮、技能组切换钮没按着时底圈与圆环的不透明度（图标、切换钮上的「Ⅰ / Ⅱ」不乘，保持清晰；要调浓淡只改这一处） | Opacity of the base circles and rings of the five skill buttons and the skill set switch button when not held (the icons and the "Ⅰ / Ⅱ" on the switch button are not multiplied and stay clear; to adjust the fade, change only this one place)
 static UIColor *bronze(CGFloat a) { return [UIColor colorWithRed:.66 green:.53 blue:.32 alpha:a]; }
 static void caption(NSString *s, CGRect rect, CGFloat size, CGFloat alpha) {
     NSMutableParagraphStyle *p = [NSMutableParagraphStyle new]; p.alignment = NSTextAlignmentCenter;
@@ -131,8 +131,8 @@ static void v4text(NSString *str, NSDictionary *glyphs, CGFloat x, CGFloat basel
     v4text([NSString stringWithFormat:@(dm_ui("dmHudMana")),h.mp,h.mp_max],vt[@"glyphs"],[vt[@"right_x"] doubleValue],[vt[@"baseline"] doubleValue],0,W,u);
     NSDictionary *lv=ui[@"lv"];
     v4text([NSString stringWithFormat:@"Lv %d · %d%%",h.level,h.exp_permille/10],lv[@"glyphs"],[lv[@"x"] doubleValue],[lv[@"baseline"] doubleValue],0,W,u);
-    // 角标：腰带四列件数（第 1–4 格），右下内角右对齐（回城不要书 / 卷轴、不显示次数，第 5 格是十字）
-    // Badges: item counts of the four belt columns (cells 1–4), right-aligned at the inner bottom-right corner (town portal needs no tome / scroll and shows no count; cell 5 is the cross)
+    // 角标：腰带四列件数（第 1–4 格），右下内角右对齐（第 5 格是十字）
+    // Badges: item counts of the four belt columns (cells 1–4), right-aligned at the inner bottom-right corner (cell 5 is the cross)
     NSArray *slots=ui[@"slots"], *in=ui[@"inner"]; NSDictionary *bd=ui[@"badge"];
     int counts[5]={0,h.belt[0],h.belt[1],h.belt[2],h.belt[3]};
     for(int i=1;i<=4;i++) { if(!counts[i]) continue;
@@ -161,23 +161,22 @@ static void v4text(NSString *str, NSDictionary *glyphs, CGFloat x, CGFloat basel
     if (k <= 0) return;
     CGContextRef c = UIGraphicsGetCurrentContext();
     uint64_t hostNow=now_ns(); dm_tg_snapshot native=self.nativeMapping;
-    NSString *labels[DM_TC_COUNT] = {@"主技能",@"技能一",@"技能二",@"技能三",@"技能四",@"回城",@"药剂",@"药剂",@"药剂",@"药剂",@"功能",@"地图"};
+    NSString *labels[DM_TC_COUNT] = {@"主技能",@"技能一",@"技能二",@"技能三",@"技能四",@"药剂",@"药剂",@"药剂",@"药剂",@"功能",@"地图"};
     if (self.navigationMode) { labels[0]=@"确认／交换"; labels[1]=@"返回"; labels[2]=@"操作"; labels[3]=@"绑定"; labels[4]=@"下一页"; }   // 底栏十字位置的「关闭」已去：关闭入口只留外框右上角那一个（dm_tc_nav_mask） | The 「关闭」(Close) at the bottom bar cross position has been removed: the only close entry left is the one at the top-right corner of the outer frame (dm_tc_nav_mask)
     for (int i=0;i<DM_TC_COUNT;i++) {
         if (!(s->enabled_targets & (1u<<i))) continue;
-        if(!self.navigationMode && i>DM_TC_PORTAL && i<=DM_TC_MENU) continue; // 底部 UI v4：腰带 / 功能入口（LevelUpButton）由原生 HUD 画；宿主只保 hit-test。回城（技能弧上方圆钮）照技能钮画 | Bottom UI v4: belt / function entry (LevelUpButton) are drawn by the native HUD; the host only keeps hit-test. Town portal (round button above the skill arc) is drawn like a skill button
+        if(!self.navigationMode && i>DM_TC_SKILL4 && i<=DM_TC_MENU) continue; // 底部 UI v4：腰带 / 功能入口（LevelUpButton）由原生 HUD 画；宿主只保 hit-test | Bottom UI v4: belt / function entry (LevelUpButton) are drawn by the native HUD; the host only keeps hit-test
         const dm_tc_target *t = &l->target[i]; CGRect b = CGRectMake(t->x-t->r,t->y-t->r,t->r*2,t->r*2);
         BOOL held = t->button != 0 && (s->buttons & t->button) == t->button;
-        if(i==DM_TC_PORTAL) for(int f=0;f<DM_TC_MAX_TOUCH;f++) held|=s->finger[f].active && s->finger[f].target==DM_TC_PORTAL;   // 回城钮不出按键（宿主施放回城技能），按住态看手指 | The town portal button emits no key (the host casts the town portal skill); the held state is read from the fingers
         CGFloat opacity = held ? .6 : .28;
         if(!self.navigationMode && i==DM_TC_MAP && s->map_cancel_active) {
             CGContextSetFillColorWithColor(c,[UIColor colorWithRed:.55 green:.05 blue:.04 alpha:.36].CGColor); CGContextFillRect(c,b); labels[i]=@"取消";
         }
-        BOOL skillKey=!self.navigationMode && (i<=DM_TC_SKILL4 || i==DM_TC_PORTAL);   // 回城钮（圆形、和技能图标一样） | Town portal button (round, same as the skill icons)
+        BOOL skillKey=!self.navigationMode && (i<=DM_TC_SKILL4);
         if (skillKey) {   // PC 定稿演示图同款：深色圆底 + 古铜圆环（外亮内暗两道） | Same as the finalized PC demo image: dark round base + bronze ring (two strokes, bright outside and dark inside)
             CGFloat lw=MAX(1.5,t->r*0.075);
-            // 五个技能钮与回城钮平时底圈、圆环淡一些（DM_SKILL_IDLE_ALPHA，少挡画面），按住时恢复原样给手感；图标、角标、标签、充能用完的灰态不跟着变
-            // The base circles and rings of the five skill buttons and the town portal button are faded when idle (DM_SKILL_IDLE_ALPHA, to block less of the view) and return to normal while held for feedback; icons, badges, labels and the grey out-of-charges state do not follow
+            // 五个技能钮平时底圈、圆环淡一些（DM_SKILL_IDLE_ALPHA，少挡画面），按住时恢复原样给手感；图标、角标、标签、充能用完的灰态不跟着变
+            // The base circles and rings of the five skill buttons are faded when idle (DM_SKILL_IDLE_ALPHA, to block less of the view) and return to normal while held for feedback; icons, badges, labels and the grey out-of-charges state do not follow
             CGFloat fr=held?1:DM_SKILL_IDLE_ALPHA;
             CGContextSetFillColorWithColor(c,[UIColor colorWithRed:.086 green:.067 blue:.047 alpha:held?.92:.80*fr].CGColor); CGContextFillEllipseInRect(c,b);
             CGContextSetLineWidth(c,lw); CGContextSetStrokeColorWithColor(c,[UIColor colorWithRed:.60 green:.47 blue:.28 alpha:held?1:.9*fr].CGColor);
@@ -195,8 +194,6 @@ static void v4text(NSString *str, NSDictionary *glyphs, CGFloat x, CGFloat basel
             if(g.status!=DM_TA_EMPTY && g.status!=DM_TA_UNKNOWN) { int dm_swapskill_slot(int,int*); ssKind=dm_swapskill_slot(g.slot,&ssCharges); }
             icon=[self skillImage:g held:held];
             showCaption=g.status!=DM_TA_EMPTY && !icon;
-        } else if(!self.navigationMode && i==DM_TC_PORTAL) {
-            icon=[self skillImage:dm_ta_skill(359) held:held]; // 原版回城技能图（技能描述表 Town Portal：通用技能页第 18 格，219 / 220 / 411 同一张），不显示次数 | the original game's town portal skill image (skill description table Town Portal: cell 18 of the generic skill page, 219 / 220 / 411 share one image), count not shown
         } else if(!self.navigationMode && (i==DM_TC_MENU || i==DM_TC_MAP)) {
             icon=[self frameImage:i==DM_TC_MAP?_map:_menu key:[NSString stringWithFormat:@"fixed:%d:%d",i,held] rect:CGRectMake(held?36:0,0,36,36)];
         }
@@ -274,12 +271,12 @@ static void v4text(NSString *str, NSDictionary *glyphs, CGFloat x, CGFloat basel
     const dm_tc_state *s=self.controls; if (!s) return @{};
     NSMutableArray *a=[NSMutableArray array];
     dm_tg_snapshot visualNative=self.nativeMapping; uint64_t hostNow=now_ns();
-    NSString *names[DM_TC_COUNT]={@"main",@"skill1",@"skill2",@"skill3",@"skill4",@"portal",@"belt1",@"belt2",@"belt3",@"belt4",@"menu",@"map"};
+    NSString *names[DM_TC_COUNT]={@"main",@"skill1",@"skill2",@"skill3",@"skill4",@"belt1",@"belt2",@"belt3",@"belt4",@"menu",@"map"};
     for(int i=0;i<DM_TC_COUNT;i++) {
         const dm_tc_target *t=&s->layout.target[i];
         NSMutableDictionary *entry=[@{@"id":names[i],@"rect_pt":@[@(t->x-t->r),@(t->y-t->r),@(t->r*2),@(t->r*2)],@"npad_button":@(t->button),@"visible":@((s->enabled_targets&(1u<<i))!=0)} mutableCopy];
-        if(!self.navigationMode && i>=DM_TC_PORTAL && i<=DM_TC_MENU) {
-            entry[@"visual_owner"]=i==DM_TC_PORTAL?@"overlay_portal_skill":(i==DM_TC_MENU?@"native_levelup_button":@"native_game_belt"); entry[@"host_drawn"]=@NO;
+        if(!self.navigationMode && i>=DM_TC_BELT1 && i<=DM_TC_MENU) {
+            entry[@"visual_owner"]=i==DM_TC_MENU?@"native_levelup_button":@"native_game_belt"; entry[@"host_drawn"]=@NO;
             entry[@"touch_enabled"]=@((s->enabled_targets&(1u<<i))!=0);
         }
         if(i<=DM_TC_SKILL4) {
@@ -307,9 +304,9 @@ static void v4text(NSString *str, NSDictionary *glyphs, CGFloat x, CGFloat basel
     // The capture version and the layout version are separate; the expected state is supplied by the test input, not inferred back from visible.
     return @{@"capture_schema":@"dm-touch-capture-2",@"profile_id":@"native_art_v1",@"binding_profile_id":@"touch_native_binding_v5",@"input_schema":@"dm-touch-input-5",@"native_mapping":nativeInfo,
         @"layout_sha256":[NSString stringWithUTF8String:dm_ta_geometry_sha],@"geometry_sha256":[NSString stringWithUTF8String:dm_ta_geometry_sha],@"binding_protocol_sha256":[NSString stringWithUTF8String:dm_ta_binding_sha],
-        @"art_provenance":@{@"schema":@"dm-native-art-provenance-1",@"manifest":@"native_art_manifest.json",@"manifest_sha256":[NSString stringWithUTF8String:dm_ta_manifest_sha],@"shell_idle_alpha":@.28,@"shell_held_alpha":@.6,@"fixed_functions":@[@"portal",@"map",@"menu"],@"unsupported_state":@"no ammo/cooldown/mana tint"},
+        @"art_provenance":@{@"schema":@"dm-native-art-provenance-1",@"manifest":@"native_art_manifest.json",@"manifest_sha256":[NSString stringWithUTF8String:dm_ta_manifest_sha],@"shell_idle_alpha":@.28,@"shell_held_alpha":@.6,@"fixed_functions":@[@"map",@"menu"],@"unsupported_state":@"no ammo/cooldown/mana tint"},
         @"source":TARGET_OS_SIMULATOR?@"uikit_simulator_overlay":@"uikit_device_overlay",
         @"right_aim":@{@"rx":@(s->rx),@"ry":@(s->ry),@"owner_slot":@(s->aim_slot),@"map_cancel_active":@(s->map_cancel_active),@"navigation_suppressed":@(s->navigation_mode),@"mapping":@"UIKit dx/r, -dy/r; independent clamped SDK axes"},
-        @"state":self.navigationMode?@"navigation":@"game",@"joystick":joystick,@"coordinate_space":@"UIKit points",@"view_size_pt":@[@(s->layout.width),@(s->layout.height)],@"navigation":@(self.navigationMode),@"controls":a,@"portal_request":@{@"gesture_epoch":@(s->gesture_epoch),@"binding_identity":@(s->portal_binding_identity),@"scene_epoch":@(s->portal_scene_epoch),@"phase":@(s->portal_phase),@"pending":@(s->portal_pending)},@"portal_binding_verified":@NO,@"game_hud_relayout_verified":@NO};
+        @"state":self.navigationMode?@"navigation":@"game",@"joystick":joystick,@"coordinate_space":@"UIKit points",@"view_size_pt":@[@(s->layout.width),@(s->layout.height)],@"navigation":@(self.navigationMode),@"controls":a,@"game_hud_relayout_verified":@NO};
 }
 @end

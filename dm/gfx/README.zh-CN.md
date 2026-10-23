@@ -11,8 +11,10 @@ English: [README.md](README.md)
 ### 接管 NVN 接口
 
 - 游戏主程序只导入一个 NVN 符号 `nvnBootstrapLoader`，其余 NVN 函数都通过它按名字取地址。宿主强制接管这个导入（`nvn/hle_nvn.c`），原版图形驱动一条指令都不执行。
-- 游戏会取址的名字共 523 个（`nvn/names.txt`）。每个名字对应一个跳板（`nvn/nvn_thunks.S`，生成文件）：先给该函数的调用计数加一，再跳到实现。
-- 其中游戏主程序里有调用点的 216 个（`nvn/nvn_slots.tsv`）都有实现：203 个按 NVN 语义实现，13 个是空实现（`hle_nvn.c` 的 `g_nops`）。其余 307 个接报红桩，被调到时日志里打印 `【红】NVN 未实现被调用：名字`。
+- 名字表共 536 个（`nvn/names.txt`）：**D2R 的 523 个**（顺序不变，槽索引不变）+ **TotK 独有的 13 个**（追加在末尾）。每个名字对应一个跳板（`nvn/nvn_thunks.S`，生成文件）：先给该函数的调用计数加一，再跳到实现。
+- D2R：主程序里有调用点的 216 个（`nvn/nvn_slots.tsv`）都有实现：203 个按 NVN 语义实现，13 个是空实现（`hle_nvn.c` 的 `g_nops`）。其余 307 个接报红桩，被调到时日志里打印 `【红】NVN 未实现被调用：名字`。
+- TotK：主程序里被真正调用的是 213 个接口（`nvn/nvn_calls_totk.tsv`，静态扫描 TotK main 的 .text 得到），其中 **110 个已有实现，103 个仍缺实现**（缺的那些会打红桩）。覆盖情况用 `dm/gfx/tools/nvn_coverage.py` 查。
+- 名字表里没有的名字会在取址时失败（`nvn_lookup` 返回 NULL）→ 客体拿到空指针。TotK 的 534 个取址名已全部在表里 ✓。
 - 每个实现都按 `nvn/nvn_protos.h`（生成文件）做编译期签名检查。苹果 arm64 与 Switch 的调用约定在小于 32 位的整型参数上不同，所以 `NVNboolean` 参数在宿主侧一律按 `uint32_t` 接、只看低 8 位。
 
 ### 两层：录制与回放

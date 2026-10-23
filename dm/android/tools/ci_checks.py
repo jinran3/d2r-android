@@ -14,14 +14,23 @@ import os
 import subprocess
 import sys
 import tempfile
+if hasattr(sys.stdout, 'reconfigure'):
+    # Windows 控制台默认 GBK，打不出 OK/NG 符号，会在打印第一个结果前 UnicodeEncodeError 崩溃。
+    # 只改本进程输出编码；Linux/CI 上 stdout 本就是 UTF-8，无行为变化。
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from host_env import tool
 
 ROOT = Path(__file__).resolve().parents[1]          # dm/android
 REPO = ROOT.parents[1]                              # repository root
 TOOLS = Path(os.environ.get("DM_ANDROID_TOOLS", str(Path.home() / "dm-work" / "tools" / "android")))
 CC = os.environ.get("CC", "cc")
-JAVA = TOOLS / "jdk/bin/java"
-JAVAC = TOOLS / "jdk/bin/javac"
+# tool() 补 Windows 后缀：Windows 上只有 javac.exe / java.exe，不带扩展名时 exists()
+# 为假，会把「工具存在但名字带后缀」误判成「没有 JDK」，连带跳过两个真实的 Java 闸门。
+JAVA = tool(TOOLS / "jdk/bin/java")
+JAVAC = tool(TOOLS / "jdk/bin/javac")
 
 # 仓库里绝不允许出现的游戏内容与派生物：本体/更新包、密钥、存档、重写后的游戏模块。
 # Game content and derived files that must never appear in the repository: game images, keys, saves, rewritten
@@ -46,7 +55,7 @@ def report(name, ok, detail=""):
 
 def run(command, **kwargs):
     return subprocess.run([str(c) for c in command], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          text=True, **kwargs)
+                          text=True, encoding="utf-8", errors="replace", **kwargs)
 
 
 def python_check(name, script, *args):
@@ -80,14 +89,12 @@ def hygiene():
 
 
 def table_stubs():
-    """三张派生表必须是**运行时替身**，不能是真实数据：仓库里不许出现游戏内容。
-    The three derived tables must be **runtime stubs**, never real data: the repository must hold no game content.
-    A real table loses the stub marker and is tens of kilobytes; either way this fails loudly instead of shipping
-    game content in a clean checkout."""
+    """派生表（现在只剩经验表）必须是**运行时替身**，不能是真实数据：仓库里不许出现游戏内容。
+    The derived table (only the experience table is left) must be a **runtime stub**, never real data: the repository
+    must hold no game content. A real table loses the stub marker and is tens of kilobytes; either way this fails
+    loudly instead of shipping game content in a clean checkout."""
     expected = (
         ("dm/host/dm_hud_exp.h", "dm_derived_rt.h"),
-        ("dm/host/dm_vault_tab.h", "dm_derived_rt.h"),
-        ("dm/host/dm_bright_levels.inc", "DM_BRIGHT_COUNT"),
     )
     bad = []
     for relative, marker in expected:
@@ -104,20 +111,56 @@ def table_stubs():
 def main():
     with tempfile.TemporaryDirectory() as workspace:
         workspace = Path(workspace)
-        python_check("中文字面量扫描", "dm/i18n/scan_literals.py")
+        # 中文字面量扫描的白名单是按 CPython 3.12+ 的分词行为生成的（PEP 701 把 f-string 拆成
+        # FSTRING_START/MIDDLE/END），3.9 及更早把整个 f-string 当一个 STRING token。两者扫出的集合不同，
+        # 而闸门是双向严格的（缺行报红、多余行也报红），所以在旧版解释器上无论如何都跑不绿。
+        # 这里如实按版本判定，沿用本文件对 macOS 专有测试的同一原则：不假装通过，也不假失败。
+        # 上游 CI 固定 python-version 3.12，见 .github/workflows/build.yml。
+        if sys.version_info < (3, 12):
+            skipped.append("中文字面量扫描：需要 Python 3.12+（PEP 701 分词），本机为 %s" % ".".join(map(str, sys.version_info[:3])))
+        else:
+            python_check("中文字面量扫描", "dm/i18n/scan_literals.py")
         python_check("中英表一致性", "dm/ios/tools/dm_i18n.py", "--check")
         # 版本折算：Android 拒绝版本号倒退的安装，这条规则要有回归挡住。
         # The version mapping: Android refuses an install whose version code goes backwards, so it needs a regression.
         python_check("APK 版本折算（test_version）", "dm/android/tests/test_version.py")
+        # TotK 着色器包的反射格式必须与宿主读的那份一致（DMVK 头、绑定表、c1、属性数组）。
+        # The TotK shader package reflection must match what the host reads (DMVK header, binding table, c1, attributes).
+        python_check("TotK 着色器包格式（t_totkpkg）", "dm/gfx/tools/test_totk_shader_package.py")
+        # 数据包里的 RomFS 布局：D2R 的 data/ 与 TotK 的整棵树都要打出游戏要开的路径。
+        # The RomFS layout in the package: D2R's data/ and TotK's whole tree must both produce the paths the game opens.
+        python_check("数据包 RomFS 布局（t_pkglayout）", "dm/android/tests/test_package_layout.py")
+        python_check("BKTR overlay 清单（t_overlay）", "dm/android/tests/test_overlay_manifest.py")
+        python_check("数据包合并（t_mergepkg）", "dm/android/tests/test_merge_package.py")
+        # 推包开机一键化：干跑 exit 0 且原样打印 adb 命令，与真跑同一条 main()；
+        # 行匹配容忍「▸  」前缀、字节校验/空间闸门/设备枚举的负路也都要有回归。
+        # The one-command deploy: dry-run exits 0 and prints the adb commands verbatim, sharing
+        # main() with the real run; the row match tolerates the "▸  " prefix and the negative
+        # paths (byte mismatch, space gate, no device) are covered too.
+        python_check("推包开机一键化（t_deploy）", "dm/android/tests/test_deploy_totk.py")
 
         compile_and_run("方向键/扳机映射（t_padmap）", [REPO / "dm/host/tests/t_padmap.c"], workspace / "t_padmap")
+        # TotK 的 NVN 接口面：名字表要覆盖它取址的全部名字，它调用的接口宿主都要有实现。
+        # TotK's NVN surface: the name table must cover every name it resolves, and every interface it calls must be implemented.
+        python_check("NVN 接口覆盖（nvn_coverage）", "dm/gfx/tools/nvn_coverage.py", "--check")
+        # c[2] 句柄表布局：D2R 的分离表与 TotK 的合并表是纯逻辑，任何平台都能跑。
+        # The c[2] handle table layout (D2R separate tables, TotK combined handles) is pure logic and runs anywhere.
+        compile_and_run("c[2] 句柄表布局（t_c2layout）", [REPO / "dm/android/tests/c2_layout_test.c"], workspace / "t_c2layout",
+                        ("-std=c11", "-O2", "-Wall", "-Wextra", "-Werror"))
         # 启动设置：普通版与"环境写入失败"注入版都要跑（故障恢复那条只有注入版才覆盖）。
+        # 这条测试用的是 alarm/setenv/unsetenv/mkdtemp 和 -Wl,--wrap，都是 POSIX 专有；
+        # Windows/MinGW 没有它们，直接编译必然失败。这里如实标成跳过，不假装通过——
+        # 与下面 t_thread_leak / t_i18n 的 macOS 专有处理是同一条原则。
+        # Linux/CI（ubuntu-latest）上 os.name == 'posix'，下面两行照常真跑，闸门不变。
         launch = [ROOT / "native/launch_settings.c", ROOT / "tests/launch_settings_test.c"]
-        compile_and_run("启动设置（普通）", launch, workspace / "launch_settings",
-                        ("-std=c11", "-O3", "-Wall", "-Wextra", "-Werror", "-I", ROOT / "native"))
-        compile_and_run("启动设置（环境故障注入）", launch, workspace / "launch_settings_fault",
-                        ("-std=c11", "-O3", "-Wall", "-Wextra", "-Werror", "-I", ROOT / "native",
-                         "-DDM_LAUNCH_SETTINGS_TEST_WRAP_ENV", "-Wl,--wrap=setenv", "-Wl,--wrap=unsetenv"))
+        if os.name != "posix":
+            skipped.append("启动设置（普通 + 环境故障注入）：测试依赖 POSIX 专有的 alarm/setenv/mkdtemp 与 -Wl,--wrap，本机（%s）不适用" % os.name)
+        else:
+            compile_and_run("启动设置（普通）", launch, workspace / "launch_settings",
+                            ("-std=c11", "-O3", "-Wall", "-Wextra", "-Werror", "-I", ROOT / "native"))
+            compile_and_run("启动设置（环境故障注入）", launch, workspace / "launch_settings_fault",
+                            ("-std=c11", "-O3", "-Wall", "-Wextra", "-Werror", "-I", ROOT / "native",
+                             "-DDM_LAUNCH_SETTINGS_TEST_WRAP_ENV", "-Wl,--wrap=setenv", "-Wl,--wrap=unsetenv"))
 
         # 存档的压缩/解压/原子替换、数据包导入的规则与验收都是纯 Java（不碰 Android API），用项目 JDK 在宿主机上跑。
         # 数据包这一支是补上来的：导入曾经只检查"每个类别至少一个文件"，一个残缺的包能通过并让游戏开不了机。
@@ -143,6 +186,11 @@ def main():
 
         hygiene()
         table_stubs()
+        # 交接控制面是上下文压缩后的唯一恢复入口，必须和代码检查一起验证。
+        # The handoff control plane is the only recovery entry after context compaction, so it is
+        # checked together with the code gates rather than left to manual review.
+        python_check("Agent 交接控制面（HANDOFF + 日志）", "tools/agent_handoff_check.py", "--verify")
+        python_check("Agent 交接校验器负向测试", "tools/test_agent_handoff_check.py")
 
         skipped.append("t_thread_leak / t_i18n：依赖 macOS 专有头文件，Linux/CI 上不跑")
         print()

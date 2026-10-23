@@ -5,13 +5,13 @@
 extern "C" {
 #endif
 
-enum { DM_TC_MAX_TOUCH = 16, DM_TC_COUNT = 12 };
+enum { DM_TC_MAX_TOUCH = 16, DM_TC_COUNT = 11 };
 enum {
     DM_TC_NONE = -1, DM_TC_JOYSTICK = -2, DM_TC_SWAP = -3, DM_TC_DIFF = -4,   /* DIFF：难度格 / 选择条占用的手指，不发按键 | DIFF: a finger captured by the difficulty cell / selector bar; sends no key */
     DM_TC_EDGE = -5,   /* 屏幕底边归系统的那一条里起手的手指：不当摇杆，松手也不当点地 | A finger that started in the strip along the bottom edge of the screen that belongs to the system: not treated as the stick, and its release is not treated as a ground tap */
     DM_TC_MAIN = 0,
     DM_TC_SKILL1, DM_TC_SKILL2, DM_TC_SKILL3, DM_TC_SKILL4,
-    DM_TC_PORTAL, DM_TC_BELT1, DM_TC_BELT2, DM_TC_BELT3, DM_TC_BELT4,
+    DM_TC_BELT1, DM_TC_BELT2, DM_TC_BELT3, DM_TC_BELT4,
     DM_TC_MENU, DM_TC_MAP
 };
 typedef struct { float x, y, r; uint64_t button; } dm_tc_target;
@@ -50,8 +50,6 @@ typedef struct {
     int32_t lx, ly, rx, ry;
     int aim_slot, navigation_mode, map_cancel_active;
     uint64_t aim_move_sequence;
-    int portal_pending, portal_phase; // 0idle / 1modifier-pending / 2armed
-    uint64_t gesture_epoch, portal_binding_identity, portal_scene_epoch;
     /* 松手施放的短按脉冲：按键与右轴方向同时发布，前端到时调 dm_tc_pulse_end 收回 | Short-press pulse for release-to-cast: the key and the right-axis direction are published together, and the front end calls dm_tc_pulse_end to release it when due */
     uint64_t pulse_button, pulse_epoch;
     int32_t pulse_rx, pulse_ry;
@@ -134,7 +132,7 @@ int dm_tc_navigation(dm_tc_scene *scene, const char *cat, const char *act, const
 int dm_tc_scene_dialog_only(const dm_tc_scene *scene);   /* 只开着 NPC 对话菜单 | Only the NPC dialog menu is open */
 int dm_tc_scene_dead(void);   /* 死亡弹窗开着（导航态，但不给手柄圆钮） | Death popup open (navigation state, but no controller round buttons) */
 
-/* 坐标使用 UIKit 点；布局本身不画球、不声称游戏已绑定回城/腰带。 | Coordinates use UIKit points; the layout itself does not draw the orbs and does not claim the game has bound town portal/belt. */
+/* 坐标使用 UIKit 点；布局本身不画球、不声称游戏已绑定腰带。 | Coordinates use UIKit points; the layout itself does not draw the orbs and does not claim the game has bound the belt. */
 /* 安全区左右内缩（点）；在 init / resize 之前设，之后的布局按它把右侧技能键组与左摇杆移进安全区。缺省 0。 | Left/right safe-area insets (points); set before init / resize, and the layout afterwards uses them to move the right-side skill key group and the left stick into the safe area. Default 0. */
 void dm_tc_set_safe_insets(float left, float right);
 void dm_tc_set_edge_bottom(float bottom);   /* 屏幕底边归系统的那一条的高度（点）；0 = 没有。只约束移动摇杆的起手 | Height (points) of the strip along the bottom edge of the screen that belongs to the system; 0 = none. Constrains only where the movement stick may start */
@@ -158,12 +156,6 @@ static inline uint32_t dm_tc_nav_mask(int pad) { return pad ? ((1u<<DM_TC_MAIN)|
 /* 模式变化释放全部手势；导航模式只按键，不启用技能拖拽和地图取消区。 | A mode change releases all gestures; navigation mode only presses keys and does not enable skill dragging or the map cancel area. */
 void dm_tc_set_navigation_mode(dm_tc_state *state, int navigation_mode);
 void dm_tc_set_joy_block(dm_tc_state *state, int block);   /* 讲话文字框 / 对话菜单单独开着：落在底座上的手指不起摇杆、只当一次点击 | speech text box / dialogue menu open on its own: a finger on the base starts no stick and is just one click */
-/* 只取消回城控件拥有的core触点；物理触点由前端保留。 | Cancel only the core touch point owned by the town-portal widget; the physical touch point is kept by the front end. */
-void dm_tc_set_portal_button(dm_tc_state *state, uint64_t mask);
-void dm_tc_set_portal_binding(dm_tc_state *state, uint64_t mask, uint64_t binding_identity, uint64_t scene_epoch);
-/* 反馈确认仅作用于仍持有且身份/场景/请求一致的pending手势；返回是否首次armed。 | Feedback confirmation applies only to a pending gesture that is still held and whose identity/scene/request match; returns whether it was armed for the first time. */
-int dm_tc_portal_ack(dm_tc_state *state, uint64_t gesture_epoch, uint64_t binding_identity, uint64_t scene_epoch);
-void dm_tc_cancel_portal(dm_tc_state *state);
 void dm_tc_begin(dm_tc_state *state, int slot, float x, float y);
 void dm_tc_move(dm_tc_state *state, int slot, float x, float y);
 void dm_tc_end(dm_tc_state *state, int slot);

@@ -35,7 +35,6 @@ int dm_ui_origin_point(float *nx, float *ny);   // 最近一次「拿起」的�
 int dm_ui_drop_last(void);                      // 最近一次答上的拖放落点类（松手时这次的还没答上就用它；-1 = 没有） | Class of the most recently answered drag-and-drop landing point (used on release if this one has not been answered yet; -1 = none)
 int dm_ui_drop_point(float *nx, float *ny);   // 落点判定为 5 时的放下位置（归一化） | Put-down position when the landing verdict is 5 (normalized)
 int dm_ui_drop_bag(void);                       // 落点判定为 5 时落点是不是玩家背包格（货架拖买 / 成叠格拖出只在这里成交） | When the landing verdict is 5, whether the landing point is a player inventory cell (shelf drag-to-buy / dragging out of a stacked cell only complete here)
-int dm_fe_bliss(void);   // 建角模式页的「极乐世界」勾没勾（1 = 勾了；玩家离开模式页后保留最后的值，建角时读）。任意线程可读 | Whether 「极乐世界」(Elysium) on the character-creation mode page is checked (1 = checked; the last value is kept after the player leaves the mode page and is read at character creation). Readable from any thread
 int dm_ui_shelf_grid(float g[4]);   // 商人货架格网（归一化：左上角 x,y、一格宽、高）；0 = 还没探到 | Vendor shelf grid (normalized: top-left x,y, width and height of one cell); 0 = not probed yet
 int dm_ui_item_rect(unsigned seq, float r[4]);   // 商人货架上被按住的那件货的屏幕矩形（归一化；拖货跟手图用）；0 = 没有 / 还没好，下一帧再问 | Screen rectangle of the goods being held down on the vendor shelf (normalized; used for the finger-following image when dragging goods); 0 = none / not ready yet, ask again next frame
 int dm_ui_stack_left(void);                       // 这次按下的成叠格里那一叠有几件；-1 = 还没读到 | How many items are in the stack of the stacked cell pressed this time; -1 = not read yet
@@ -46,7 +45,7 @@ void dm_ui_shop_buy_at(float nx, float ny);       // 货架上的货拖到背包
 void dm_ui_item_tap(void);                       // 物品区单击：处在「用了鉴定卷轴 / 书、等选目标」的状态时 = 鉴定光标下那件；不在该状态什么都不做 | Single tap in an item area: when in the 'identify scroll / tome used, waiting for target selection' state = identify the item under the cursor; does nothing when not in that state
 int dm_ui_targeting(void);                       // 此刻是否处在那个状态（宿主每帧发布，任意线程读） | Whether that state is in effect right now (published by the host every frame, read from any thread)
 int dm_ui_panel_resident(const char *name);   // 局内常驻层（HUD 各层、佣兵头像栏、存盘指示、提示条…）：开着不算「有面板开着」 | In-run always-on layers (the HUD layers, mercenary portrait bar, save indicator, button legend...): being open does not count as 'a panel is open'
-enum { DM_PS_BANK = 1, DM_PS_VENDOR = 2, DM_PS_DEAD = 4, DM_PS_TEXT = 8, DM_PS_IMBUE = 16, DM_PS_CUBE = 32, DM_PS_VAULT = 64 };   // VAULT = 储藏箱开在第六页「编年史」（dm_vault_ui.c）   // CUBE = 赫拉迪克方块页开着（HoradricCubeLayout）   // IMBUE = 单件任务槽面板开着（灌魔 / 打孔 / 个性化 / 古墓底座共用的 ImbueItemsPanel） | VAULT = the stash is open on the sixth page 「编年史」(Chronicle) (dm_vault_ui.c)   // CUBE = the Horadric Cube page is open (HoradricCubeLayout)   // IMBUE = the single-item task slot panel is open (ImbueItemsPanel, shared by imbue / socketing / personalize / tomb pedestal)
+enum { DM_PS_BANK = 1, DM_PS_VENDOR = 2, DM_PS_DEAD = 4, DM_PS_TEXT = 8, DM_PS_IMBUE = 16, DM_PS_CUBE = 32 };   // CUBE = 赫拉迪克方块页开着（HoradricCubeLayout）   // IMBUE = 单件任务槽面板开着（灌魔 / 打孔 / 个性化 / 古墓底座共用的 ImbueItemsPanel） | CUBE = the Horadric Cube page is open (HoradricCubeLayout)   // IMBUE = the single-item task slot panel is open (ImbueItemsPanel, shared by imbue / socketing / personalize / tomb pedestal)
 int dm_ui_panel_state(void);
 void dm_ui_lifecycle(int background);   /* 前端进 / 出后台时调：位置守卫自检（dm_cursor.c mv_audit） | Called when the front end enters / leaves the background: position guard self-check (dm_cursor.c mv_audit) */   // 面板状态位（每帧读游戏面板树发布；变化时发合成界面消息 DM:PanelState） | Panel state bits (published by reading the game's panel tree every frame; on change the synthetic UI message DM:PanelState is sent)
 int dm_ui_panel_shown(const char *name);   // 这个面板此刻在游戏面板树里可见（游戏主线程调） | This panel is visible in the game's panel tree right now (called from the game main thread)
@@ -73,7 +72,7 @@ void dm_ui_key_pulse(uint64_t mask, int frames);   // 替玩家点一下手柄�
 void dm_ui_drag_begin(int kind, float ox, float oy, float tol_ny);
 void dm_ui_drag_move(float x, float y);
 void dm_ui_drag_end(void);
-void dm_ui_drag_lift(float ny);   // 起拖前报物品图抬在手指上方多少（屏高比例）：编年史格子拖回背包按物品图位置判落点（dm_vault_ui.c） | Before a drag starts, report how far the item image is lifted above the finger (as a fraction of screen height): dragging a chronicle cell back to the inventory decides the landing point by the item image position (dm_vault_ui.c)
+void dm_ui_drag_lift(float ny);   // 起拖前报物品图抬在手指上方多少（屏高比例） | Before a drag starts, report how far the item image is lifted above the finger (as a fraction of screen height)
 // 右上角小地图（游戏的 AutoMap 面板）在出图画面里的矩形，归一化 [0,1]：r = 左、上、右、下。返回 1 = 读到过（面板关着时给最近一次的）；任意线程调
 // Rectangle of the top-right minimap (the game's AutoMap panel) in the rendered picture, normalized [0,1]: r = left, top, right, bottom. Returns 1 = has been read (the most recent one is given while the panel is closed); callable from any thread
 int dm_ui_minimap_rect(float r[4]);

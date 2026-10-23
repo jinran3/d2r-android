@@ -18,16 +18,12 @@
 //            whether a point can be added = main+0xc368b0(skill id).
 #include "dm_actions.h"
 #include "dm_cursor_item.h"
-#include "dm_elysium.h"
-#include "dm_custom.h"
 #include "dm_input.h"
 #include "dm_hud.h"
 #include <unistd.h>
 #include "dm_uiscreen.h"
 #include "hle.h"
-#include "dm_rift.h"
 #include "dm_i18n.h"
-int dm_skill_cap(void);
 #include "dm.h"
 #include <string.h>
 #include <stdio.h>
@@ -156,47 +152,7 @@ static int a_skill_block(uint8_t *b, uint64_t pl, int skill, int points) {
     if (((int (*)(uint64_t, int, int))(b + 0x5b9290))(pl, 12, 0) < *(int16_t *)(rec + 0x214) + a_skill_base(pl, skill)) return 2;
     for (int i = 0; i < 3; i++) { int q = *(int16_t *)(rec + 0x21e + 2 * i); if (q >= 0 && a_skill_base(pl, q) < 1) return 3; }
     if (((int (*)(int))(b + 0xc368b0))(skill) & 1) return 0;
-    // 5：卡在「没打通过秘境、已到原版上限 20」——这一格本来是 20、解锁后会放到 40 的技能，基础等级已到 20
-    // 5: stuck at "no Greater Rift cleared, already at the original cap of 20": this slot holds a skill whose cap was 20 and becomes 40 once unlocked, and its base level is already 20
-    if (dm_skill_cap() > 20 && !dm_rift_cleared_any() && a_skill_base(pl, skill) >= 20 && a_skill_base(pl, skill) < dm_skill_cap() && *(int16_t *)(uintptr_t)(rec + 0x184) == 20) return 5;
     return 4;
-}
-// 技能硬点上限 20 → 40（「硬点放到 40 级上限吧」，秘境里人物能力要跟上怪物成长）。
-// 上限在哪判（读码）：客户端「能不能加」main+0xc368b0（0xc36a64–0xc36a90）与服务端收加点包 0x3b main+0x6db600（0x6db770–0x6db798）读的都是
-// 技能表记录 +0x184（int16，skills.txt 的 maxlvl 列）；两处写死的 20（mov #0x14）只是这一格 < 1 时的缺省。所以改表就够，不用改代码：
-// 数据表装好后把每个版本表里 maxlvl 正好是 20 的技能改成 40（客户端与服务端同进程、同一份表）。别的上限值（1 级技能、不可加点的 0）不动。
-// 基础等级读数另有一个全局钳值 *[数据表 + 0x1500]（两处都先 min 一下），值在首次改表时记进日志。
-// 上限是可调的数（「太强了就压到 30 级硬顶。这个咱们都可调」）：缺省 SKILL_CAP，环境变量 DM_SKILL_CAP=<21–99> 覆盖（=20 等于不改表，照原版）
-// Hard skill point cap 20 → 40 ("let's raise hard points to a cap of level 40"; in the Rift the character's power has to keep up with monster growth).
-// Where the cap is checked (from reading the code): both the client's "can a point be added" check at main+0xc368b0 (0xc36a64–0xc36a90) and the server's
-// handler for the add-point packet 0x3b at main+0x6db600 (0x6db770–0x6db798) read
-// skill table record +0x184 (int16, the maxlvl column of skills.txt); the hard-coded 20 at both sites (mov #0x14) is only the default when this field is
-// < 1. So changing the table is enough, with no code change:
-// once the data tables are loaded, every skill whose maxlvl is exactly 20 in each version's table is changed to 40 (client and server share one process
-// and one copy of the table). Other cap values (level 1 skills, 0 for skills that cannot take points) are left alone.
-// The base level reading also has a global clamp *[data table + 0x1500] (both sites apply min with it first); its value is logged the first time the
-// table is changed.
-// The cap is a tunable number ("if it's too strong, clamp it to a hard cap of level 30. All of this is adjustable"): default SKILL_CAP, overridden by
-// the environment variable DM_SKILL_CAP=<21–99> (=20 means the table is not changed, same as the original game)
-#define SKILL_CAP 40
-int dm_skill_cap(void) { static int c; if (!c) { const char *e = getenv("DM_SKILL_CAP"); c = e ? atoi(e) : SKILL_CAP; if (c < 20 || c > 99) c = SKILL_CAP; } return c; }
-// 解锁条件：「做成首次打通任意一次秘境以后开启技能硬点上限解锁。之前已有存档和状态不用管。」——这个角色限时内打通过任意一层（dm_rift_cleared_any，
-// 就是秘境记录里的最高通关层 ≥ 1，随角色档同一次提交）才把表改成 40；没打通过是原版的 20。表是全局的、客户端与服务端共用，所以每帧按「当前角色」对一次，换角色跟着换。
-// 不迁移不回收：没解锁的老角色已经点过 20 的技能点数原样留着（表只管「还能不能再加」），只是不能再往上加。
-// Unlock condition: "Once any Greater Rift has been cleared for the first time, unlock the hard skill point cap. Existing saves and state need no handling." Only when this character has cleared any level within the time limit (dm_rift_cleared_any,
-// i.e. highest cleared level in the Greater Rift record ≥ 1, committed together with the character save) is the table changed to 40; otherwise it stays at the original 20. The table is global and shared by client and server, so it is synced to "the current character" every frame and follows character switches.
-// No migration, no refund: skill points that an old character without the unlock has already put in up to 20 stay as they are (the table only governs "can more be added"); they just cannot go higher.
-static void skill_cap_pump(uint8_t *b) {
-    static uint64_t seen[4]; static int applied[4]; static uint8_t ours[4][512]; int cap = dm_skill_cap();   // ours：这个版本表里原本正好是 20、归我们改的那些技能（位图） | ours: the skills whose entry in this version's table was originally exactly 20 and that we change (bitmap)
-    if (cap == 20) return;
-    int want = dm_rift_cleared_any() ? cap : 20;
-    for (int v = 1; v <= 3; v++) { uint64_t t = *(uint64_t *)(b + 0x2d64a18 + (uint64_t)v * 16); if (!t || (seen[v] == t && applied[v] == want)) continue;
-        uint64_t recs = *(uint64_t *)(t + 0x11e8), n = *(uint64_t *)(t + 0x11f0), gp = *(uint64_t *)(t + 0x1500); if (!recs || !n || n > 4096) continue;
-        if (seen[v] != t) { int ch = 0, other = 0; memset(ours[v], 0, sizeof ours[v]);
-            for (uint64_t i = 0; i < n; i++) { int16_t m = *(int16_t *)(uintptr_t)(recs + i * 0x2ec + 0x184); if (m == 20) { ours[v][i >> 3] |= (uint8_t)(1 << (i & 7)); ch++; } else if (m > 0) other++; }
-            seen[v] = t; applied[v] = 20; LOG("技能上限：数据表版本 %d 共 %llu 个技能，%d 个的硬点上限是 20（解锁后改成 %d；另有 %d 个上限不是 20 的不动）；基础等级读数的全局钳值 %d", v, (unsigned long long)n, ch, cap, other, gp ? *(int32_t *)(uintptr_t)gp : -1); }
-        if (applied[v] != want) { int ch = 0; for (uint64_t i = 0; i < n; i++) if (ours[v][i >> 3] & (1 << (i & 7))) { *(int16_t *)(uintptr_t)(recs + i * 0x2ec + 0x184) = (int16_t)want; ch++; }
-            applied[v] = want; LOG("技能上限：数据表版本 %d 的 %d 个技能硬点上限 → %d（这个角色%s）", v, ch, want, want == 20 ? "还没打通过秘境" : "打通过秘境"); } }
 }
 static void a_send(uint8_t *b, uint64_t root, uint64_t cat, uint64_t act, int32_t p0, int32_t p1) {   // 给界面根发消息（虚表 +0x28） | send a message to the UI root (vtable +0x28)
     static int32_t payload[4]; static uint64_t msg[8]; payload[0] = p0; payload[1] = p1; memset(msg, 0, sizeof msg); msg[0] = cat; msg[1] = act; msg[2] = (uint64_t)(uintptr_t)payload;
@@ -210,7 +166,7 @@ static void a_send(uint8_t *b, uint64_t root, uint64_t cat, uint64_t act, int32_
 //   生命：状态 100 healthpot（misc.txt hp* 的 state）。不用它的属性 74 hpregen：装备的「生命回复」也记在 74 上，戴着就一直非 0。
 //   状态位：[单位+0x88] 属性表（+0x1c 最高位 = 扩展表）+0xb30 起按 状态号 / 32 一个字的位图（游戏自己读法见 main+0x6240f4，置位见 0x5bd510）。
 // 发出喝药后等药效出现，1 秒（25 拍）没出现算这次没喝成，再按数值重判。两种同时低时先喝红。
-// 开关：「自定义」设置 auto_mana（dm_custom.c，键名沿用只管蓝药时的旧名，现管红蓝两种），缺省开
+// 自动喝药常开（自定义页开关已摘除）：键名沿用只管蓝药时的旧名，现管红蓝两种。
 // Auto potion: life uses two tiers (see ap_life_pick below: red potion below 50%, purple potion below 30%, one more red potion if there is no purple), mana < 30% of the maximum drinks a blue potion (mp1–mp5) -- inventory first (page 0), and the belt if the inventory has none; also drinks in town.
 // Life / mana are read with the game's own stat getter function main+0x5b9290(unit, stat id, 0) (including equipment / charm bonuses, same definition as the character page), 6 / 7 life, 8 / 9 mana, fixed point ×256.
 // Drinking goes through the original g_use path (belt-cell branch 0x2cecf0 / inventory 0x3c0098, both build the 0x26 packet themselves), no click simulation.
@@ -219,7 +175,7 @@ static void a_send(uint8_t *b, uint64_t root, uint64_t cat, uint64_t act, int32_
 //   life: state 100 healthpot (state of hp* in misc.txt). Its stat 74 hpregen is not used: the "life regeneration" of equipment is also recorded on 74, so it stays non-zero as long as such gear is worn.
 //   State bits: [unit+0x88] stat table (top bit of +0x1c = extended table), a bitmap from +0xb30 with one word per state id / 32 (for how the game itself reads it see main+0x6240f4, for setting see 0x5bd510).
 // After a drink is sent, wait for the effect to appear; if it has not appeared within 1 second (25 ticks) this drink counts as failed, and it is judged again by the values. When both are low, red is drunk first.
-// Switch: the 「自定义」(Custom) setting auto_mana (dm_custom.c; the key name keeps the old name from when it only handled blue potions and now covers both red and blue), on by default
+// The auto-potion feature is always on (the Custom page switch has been removed); the key name keeps the old name from when it only handled blue potions and now covers both red and blue.
 uint32_t dm_cur_tick(void);
 static int a_has_state(uint64_t u, int st) {
     uint64_t sl = *(uint64_t *)(u + 0x88); if (!sl || st < 0 || st > 0x1fe || !(*(uint32_t *)(sl + 0x1c) >> 31)) return 0;
@@ -282,16 +238,16 @@ static int auto_pot_mana(uint8_t *b, uint64_t pl, uint32_t t) {   // 法力：�
     return 1;
 }
 // 佣兵自动喂药：同上面的生命两档；玩家自己生命低于 30% 那一档时先不喂（药先紧着玩家）。
-// 走现成的喂佣兵路径（g_use + g_use_merc，同腰带双击：原版自己判这瓶能不能喂、目标 = 佣兵单位）。开关：「自定义」设置 merc_pot，缺省关（会多耗玩家的药）。
+// 走现成的喂佣兵路径（g_use + g_use_merc，同腰带双击：原版自己判这瓶能不能喂、目标 = 佣兵单位）。
 // 佣兵单位 id = [0x2d33528] 链表里类型 7、属主 = 玩家、[+0x20] == 0 的那条（同下面喂佣兵处）；生命与药效读服务端那只的真值（diag.c dm_diag_srv_merc）——
 // 客户端那只的生命是服务端发来的比例，进局头两百多拍没发过、是没初始化的值，不能拿来决定消耗玩家的药
 // Mercenary auto-feed potions: the same two life tiers as above; while the player's own life is in the below-30% tier, do not feed yet (potions go to the player first).
-// Goes through the existing feed-mercenary path (g_use + g_use_merc, same as the belt double-tap: the original game itself judges whether this potion can be fed, target = the mercenary unit). Switch: the 「自定义」(Custom) setting merc_pot, off by default (it uses up more of the player's potions).
+// Goes through the existing feed-mercenary path (g_use + g_use_merc, same as the belt double-tap: the original game itself judges whether this potion can be fed, target = the mercenary unit).
 // Mercenary unit id = the entry in the [0x2d33528] linked list with type 7, owner = the player, and [+0x20] == 0 (same as the feed-mercenary code below); life and potion effect are read from the true values of the server-side one (diag.c dm_diag_srv_merc) --
 // the client-side one's life is a ratio sent by the server, which has not been sent during the first two-hundred-odd ticks after joining a game and is an uninitialized value, so it must not be used to decide to consume the player's potions
 static int auto_merc_pot(uint8_t *b, uint64_t pl, uint32_t t) {
-    static int env = -2; if (env == -2) { const char *e = getenv("DM_MERC_POT"); env = e ? e[0] != '0' : -1; }   // 测试强制：DM_MERC_POT=0 关 / 其余开，优先于自定义页 | Test override: DM_MERC_POT=0 off / anything else on, takes priority over the Custom page
-    if (!(env >= 0 ? env : dm_custom_get("merc_pot"))) return 0;
+    static int env = -2; if (env == -2) { const char *e = getenv("DM_MERC_POT"); env = e ? e[0] != '0' : -1; }   // 测试强制：DM_MERC_POT=0 关 / 其余开；未设时佣兵自动喂药常开 | Test override: DM_MERC_POT=0 off / anything else on; when unset, mercenary auto-feeding is always on
+    if (!(env >= 0 ? env : 1)) return 0;
     static ap_life s; int (*gs)(uint64_t, int, int) = (void *)(b + 0x5b9290);
     { int v = gs(pl, 6, 0), mx = gs(pl, 7, 0); if (mx <= 0 || (long long)v * 100 < (long long)mx * ap_pct(1)) return 0; }   // 玩家自己缺血：药先紧着玩家 | The player is low on life: potions go to the player first
     uint32_t mid = 0xffffffffu; for (uint64_t e = *(uint64_t *)(b + 0x2d33528); e; e = *(uint64_t *)(e + 0x30)) if (*(uint32_t *)(e + 4) == 7 && *(uint32_t *)(e + 0xc) == *(uint32_t *)(pl + 8) && !*(uint32_t *)(e + 0x20)) { mid = *(uint32_t *)(e + 8); break; }
@@ -308,7 +264,7 @@ static void auto_pot_pump(uint8_t *b, uint64_t pl) {
     uint32_t t = dm_cur_tick(); if (!t) return;
     uint32_t mode = *(uint32_t *)(pl + 0xc); if (mode == 0 || mode == 17 || mode == 0x11) return;   // 死亡中 / 已死 / 玩家状态不允许用物品（同 g_use 的挡法） | Dying / dead / the player state does not allow using items (same blocking as g_use)
     if (((uint64_t (*)(void))(b + 0x2aa7c0))() || atomic_load(&g_use)) return;   // 手上拿着东西 / 已有一件在等着用 | Holding something in hand / one item is already waiting to be used
-    if (dm_custom_get("auto_mana") && (auto_pot_life(b, pl, t) || auto_pot_mana(b, pl, t))) return;   // 一拍只发一件（g_use 一次一件），先红后蓝 | Only one is sent per tick (g_use handles one at a time), red first, then blue
+    if (auto_pot_life(b, pl, t) || auto_pot_mana(b, pl, t)) return;   // 一拍只发一件（g_use 一次一件），先红后蓝 | Only one is sent per tick (g_use handles one at a time), red first, then blue
     auto_merc_pot(b, pl, t);   // 玩家这一拍没喝药才轮到佣兵 | The mercenary only gets a turn if the player did not drink a potion this tick
 }
 // ---------- 副手组技能一键放 ----------
@@ -341,7 +297,7 @@ static _Atomic uint64_t g_ss_map[6];       // 6 个面：手柄位 | 普通格 <
 static _Atomic uint32_t g_ss_equipped[16]; static _Atomic int g_ss_neq;   // 身上穿着的物品 id（两组都算） | Ids of the items being worn (both sets counted)
 void dm_swapskill_srv_wset(int w) { atomic_store(&g_ss_srv_wset, w); }
 int dm_swapskill_wset(void) { return atomic_load(&g_ss_srv_wset); }
-int dm_swapskill_busy(void) { return atomic_load(&g_ss_phase) != SS_IDLE; }   // 副手组技能的连招在进行（增益自动补 dm_autobuff.c 这时不自己换武器） | an off-hand-set skill combo is in progress (buff auto-recast dm_autobuff.c does not swap weapons itself meanwhile)
+int dm_swapskill_busy(void) { return atomic_load(&g_ss_phase) != SS_IDLE; }   // 副手组技能的连招在进行 | an off-hand-set skill combo is in progress
 static _Atomic uint32_t g_ss_itemsig; uint32_t dm_swapskill_itemsig(void) { return atomic_load(&g_ss_itemsig); }   // 客户端技能链表里物品给的技能（技能号、物品 id）的指纹 | Fingerprint of the item-granted skills (skill id, item id) in the client skill linked list
 int dm_swapskill_slot(int slot, int *charges) {   // 1 = 技能在另一组（画「II」），2 = 充能技能（画次数），4 = 当前组也有同号技能（按下用当前组那个，不换武器）；可叠加 | 1 = the skill is in the other set (draw "II"), 2 = charged skill (draw the count), 4 = the current set also has a skill with the same id (a press uses the one in the current set, no weapon swap); can be combined
     if (slot < 0 || slot >= 12) return 0; int k = atomic_load(&g_ss_kind[slot]); if (charges) *charges = atomic_load(&g_ss_charges[slot]); return k; }
@@ -473,8 +429,6 @@ uint64_t dm_swapskill_filter(uint64_t raw) {
 void dm_actions_pump(void) {
     uint8_t *b = ab(); if (!b) return; uint64_t root = *(uint64_t *)(b + 0x2f05458); if (!root) return;
     uint64_t pl = ((uint64_t (*)(uint32_t))(b + 0x45f9d0))(*(uint32_t *)(b + 0x2d20e4c));
-    dm_elysium_pump();
-    { void dm_runeword_pump(void); dm_runeword_pump(); }   // 符文之语助手（dm_runeword.c） | Runeword helper (dm_runeword.c)
     dm_uiscreen_pump();
     // 随机名：给 CharacterCreateNamePanel 发它自己认的那条消息——InputMessage:ControllerActionBegin，载荷 +0x10 键序号 2（布局图例 option2「随机名字」；面板消息处理 main+0xc33378 的 0xc33594 分支：
     // 按当前职业从建角面板的名字表里随机取一条，main+0xac2058 写进名字框）。界面根 +0xb8（本帧已处理标志）非 0 时面板会忽略，下一帧再发
@@ -723,7 +677,6 @@ void dm_actions_pump(void) {
       else if (h) { int r = ((int (*)(uint64_t, int, uint64_t, int, int))(b + 0x565950))(pl, loc, h, 0, 0); ((void (*)(uint64_t, int, int, int, int))(b + 0x3bb24c))(h, loc, 0, -1, 0);
           LOG("装备：手上物品 id %u → 栏位 %d（原版判定 %d：0 不能放、1 放入、5 交换）已调原版放下", *(uint32_t *)(h + 8), loc, r); }
       else if (loc > 0) LOG("装备：手上没有物品，不动"); }
-    skill_cap_pump(b);
     {   // 测试开关 DM_TEST_SKILL_ADD=<帧>:<技能号>:<点数>[,<技能号>:<点数>…]（造现场 / 验上限）：到帧起每 6 帧替玩家发一个原版加技能点包（0x3b：技能号、0 = 加 1 点）， | test switch DM_TEST_SKILL_ADD=<frame>:<skill id>:<points>[,<skill id>:<points>...] (for setting up a test case / verifying the cap): starting at that frame, every 6 frames send one of the original game's add-skill-point packets on the player's behalf (0x3b: skill id, 0 = add 1 point),
         // 按写的顺序一个技能发够再发下一个（有前置的技能把前置写在前面）；进局后列一次已学技能，每个技能发完记一行它的基础等级
         // Skills are processed in the order written, one skill receiving all its points before the next (for a skill with prerequisites, list the prerequisites
@@ -743,8 +696,7 @@ void dm_actions_pump(void) {
         if (n < 0) { n = 0; const char *e = getenv("DM_TEST_C2S"); while (e && *e && n < 8) { q[n].at = strtoull(e, NULL, 10); const char *c = strchr(e, ':'); if (!c) break; c++; int l = 0; unsigned v;
                 while (l < 32 && sscanf(c, "%2x", &v) == 1 && c[0] != ';' && c[1] != ';' && c[1]) { q[n].pk[l++] = (uint8_t)v; c += 2; } q[n].len = l; n++; e = strchr(c, ';'); if (e) e++; } }
         uint64_t f = dm_guest_frame(); for (int i = 0; pl && i < n; i++) if (q[i].at && f >= q[i].at) { q[i].at = 0; ((void (*)(const uint8_t *, int))(b + 0x2ceab0))(q[i].pk, q[i].len); LOG("测试 DM_TEST_C2S：帧 %llu 发包 %02x（长 %d）", (unsigned long long)f, q[i].pk[0], q[i].len); } }
-    { void dm_freetp_client_step(uint8_t *, uint64_t); dm_freetp_client_step(b, pl); }   // 免费回城：客户端玩家挂回城技能、读 ZR 那格空不空 | Free town portal: attach the town portal skill to the client player and read whether the ZR slot is empty
-    dm_custom_ui_pump(root); auto_pot_pump(b, pl); swapskill_pump(b, pl); { void dm_kills_ui_pump(void); dm_kills_ui_pump(); } { void dm_rift_ui_pump(void); dm_rift_ui_pump(); } { void dm_vault_ui_pump(void); dm_vault_ui_pump(); }
+    auto_pot_pump(b, pl); swapskill_pump(b, pl);
     uint32_t use = atomic_exchange(&g_use, 0); int force_merc = use ? atomic_exchange(&g_use_merc, 0) : 0;
     if (use && pl) { uint64_t it = ((uint64_t (*)(uint64_t, uint32_t, uint32_t, uint32_t))(b + 0x45f5f0))((uint64_t)(uintptr_t)(b + 0x2d603a0 + 4 * 0x400), use & 0x7f, use, 4);
         int busy = *(uint32_t *)(pl + 0xc) == 0x11 || ((uint64_t (*)(void))(b + 0x2aa7c0))() != 0, can = it && !busy && (((int (*)(uint64_t, int))(b + 0x3bff70))(it, 3) & 1);
@@ -830,6 +782,6 @@ void dm_actions_pump(void) {
         if (!done) LOG("测试：没有能卖的物品 / 商人页没开"); }
     int st = atomic_exchange(&g_stat, -1);
     if (st >= 0 && pl) { a_send(b, root, H_STATS, H_USEPT, st >> 8, st & 0xff); LOG("加点：属性序号 %d 模式 %d（2 = 1 点、3 = 5 点、1 = 全部），发令前剩余属性点 %d", st >> 8, st & 0xff, p.stat_points); }
-    if (atomic_exchange(&g_skill, 0)) { int go = p.sel_skill >= 0 && p.sel_can_add; if (go) a_send(b, root, H_TREE, H_USEPT, p.sel_skill, 0); LOG("加点：技能 %d（不能加的原因 %d：0 可加 1 没点数 2 等级不够 3 前置没学 4 其它 5 没打通过秘境、已到 20；剩余技能点 %d）%s", p.sel_skill, p.sel_block, p.skill_points, go ? "已发" : p.sel_skill >= 0 ? "不能加，没发" : "没有选中的技能，忽略");
-        if (!go && p.sel_skill >= 0 && p.sel_block == 5) { static uint64_t last; uint64_t f = dm_guest_frame(); if (!last || f - last >= 120) { last = f; void dm_game_notice(uint8_t *, const char *); dm_game_notice(b, dm_str(b, "dmSkillCapLocked")); LOG("加点：提示「%s」", dm_str(b, "dmSkillCapLocked")); } } }
+    if (atomic_exchange(&g_skill, 0)) { int go = p.sel_skill >= 0 && p.sel_can_add; if (go) a_send(b, root, H_TREE, H_USEPT, p.sel_skill, 0); LOG("加点：技能 %d（不能加的原因 %d：0 可加 1 没点数 2 等级不够 3 前置没学 4 其它；剩余技能点 %d）%s", p.sel_skill, p.sel_block, p.skill_points, go ? "已发" : p.sel_skill >= 0 ? "不能加，没发" : "没有选中的技能，忽略");
+    }
 }

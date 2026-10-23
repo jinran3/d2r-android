@@ -6,7 +6,7 @@
 //   · 切换：改写前缀后让游戏重载布局——只对 GetOperationMode 报另一个运行模式、推一次运行模式通知，几帧后报回原值再推一次（hle_oe.c dm_oe_ui_opmode）。
 //     原版收到运行模式变化会按当前前缀重建全部面板；手柄样式与性能模式不动，所以不弹「重新连接控制器」、出图分辨率不变（宿主实测）。
 // 字符串：手柄说法 ↔ 触摸说法（「按 A 使用」→「双击使用」等 25 条）也按模式换。覆盖层不改字符串文件，旁路表 touch_strings.tsv（gen_romfs_overlay.py）给 键 / 原文校验 / 触摸说法；
-//   当前语言串表（main+0x2d71030，节点 {+0 下一个, +8 键, +0x10 键长, +0x20 串, +0x28 串长}，见 dm_bossrush.c）里按键找到节点，触屏模式把串指针换成触摸说法、手柄模式换回原值。
+//   当前语言串表（main+0x2d71030，节点 {+0 下一个, +8 键, +0x10 键长, +0x20 串, +0x28 串长}）里按键找到节点，触屏模式把串指针换成触摸说法、手柄模式换回原值。
 //   原文校验（SHA-1 前 8 位）对不上的不换（非简中语言、原包换版本）；切语言时原版重装串表、节点全换，每 30 帧核一次、节点变了重认。
 // 只读数据段宿主可写（loader.c 只封代码区与补丁区），串的原值逐个核对，对不上不写（游戏版本不对）。
 // Two sets of UI layouts, controller / touch (controller support P2: connecting a controller automatically returns to the original controller UI, touching the
@@ -26,7 +26,7 @@
 // Strings: controller wording ↔ touch wording ("Press A to use" → "Double-tap to use" and so on, 25 entries) is also switched by mode. The overlay does not
 // modify the string files; the sidecar table touch_strings.tsv (gen_romfs_overlay.py) gives key / source checksum / touch wording;
 //   the node is found by key in the current language's string table (main+0x2d71030, node {+0 next, +8 key, +0x10 key length, +0x20 string, +0x28 string
-//   length}, see dm_bossrush.c); touch mode swaps the string pointer to the touch wording and controller mode swaps the original value back.
+//   length}); touch mode swaps the string pointer to the touch wording and controller mode swaps the original value back.
 //   Entries whose source checksum (first 8 hex digits of SHA-1) does not match are not swapped (non-Simplified-Chinese languages, a different version of
 //   the original package); on a language switch the original reloads the string table and all nodes change, so check every 30 frames and re-identify
 //   when a node has changed.
@@ -83,7 +83,7 @@ static void str_load(void) {   // 开机读旁路表 | Read the sidecar table at
         *a = 0; *c = 0; unesc(c + 1); g_str[g_nstr].key = strdup(line); g_str[g_nstr].klen = strlen(line); memcpy(g_str[g_nstr].sha, a + 1, 8); g_str[g_nstr].val = strdup(c + 1); g_nstr++; }
     fclose(f); LOG("手柄 / 触屏布局：触摸说法 %d 条（touch_strings.tsv）", g_nstr);
 }
-static uint64_t str_node(uint64_t map, const char *key, size_t n) {   // 串表里键为 key 的节点（同 dm_bossrush.c loc_has） | The node in the string table whose key is key (same as loc_has in dm_bossrush.c)
+static uint64_t str_node(uint64_t map, const char *key, size_t n) {   // 串表里键为 key 的节点 | The node in the string table whose key is key
     uint64_t cnt = rd8(map), bk = rd8(map + 8); if (!cnt || !bk || (cnt & (cnt - 1))) return 0;
     uint64_t h[4] = {0}; ((void (*)(uint64_t *, const char *, uint64_t, int))(g_b + 0x1b6e1e0))(h, key, n, 0);   // 出参 16 字节 | Output parameter is 16 bytes
     for (uint64_t nd = rd8(bk + 8 * (h[0] & (cnt - 1))); nd; nd = rd8(nd)) if (rd8(nd + 0x10) == n && !memcmp((const void *)(uintptr_t)rd8(nd + 8), key, n)) return nd;
@@ -178,12 +178,12 @@ uint64_t dm_padmode_page_filter(uint64_t bt) {
     atomic_store(&g_pg_ev, 0); atomic_store(&g_pg_held, 0); eat &= bt; return (bt & ~eat) | pulse;
 }
 // 编年史仓库页开着时（手柄模式）把原版「按住 Y」那半句提示的字换成我们实际做的事：原版在储藏箱各页对背包物品的提示是「丢弃（按住移动到私人储藏箱）」，
-// 第六页上按住 Y 被我们接管成存入编年史仓库（dm_vault_ui.c）。这半句只写「存入」：原版那条本来就超宽、在限宽里滚动（截图对照），写短到不滚，人就在编年史页上。换法同上面的手柄 / 触屏说法：只换当前语言串表里这个键的串指针，离开那一页换回
+// 这半句只写「存入」：原版那条本来就超宽、在限宽里滚动（截图对照），写短到不滚，人就停在那一页上。换法同上面的手柄 / 触屏说法：只换当前语言串表里这个键的串指针，离开那一页换回
 // 同一个换法现在有两条（一张小表）：编年史页的「存入」，和光标停在未鉴定物品上时把「捡起」换成「捡起（按住鉴定）」（手柄按住 A = 免费鉴定，dm_cursor.c；
 // 原版对未鉴定装备只提示「A 捡起」，往提示条里加条目会被原版每帧按光标下的物品重建盖掉，所以换它取的那条串）
 // While the Chronicle vault page is open (controller mode), replace the text of the original "hold Y" half of the hint with what we actually do:
 // on every stash page the original hint for an inventory item is "Drop (hold to move to private stash)",
-// and on the sixth page holding Y is taken over by us to deposit into the Chronicle vault (dm_vault_ui.c). This half only says "Deposit": the
+// This half only says "Deposit": the
 // original string is already too wide and scrolls within the width limit (compared against screenshots), so it is kept short enough not to
 // scroll, and the player is on the Chronicle page anyway. The swap works like the controller / touch wording above: only the string pointer of
 // this key in the current language's string table is swapped, and it is swapped back on leaving that page
@@ -244,7 +244,7 @@ void dm_padmode_on_uimsg(const char *cat, const char *act, const char *arg) {   
     if (!cur) { LOG("【红】手柄暂停菜单：游戏难度没读到当前档位，不动"); return; }
     int to = cur % 8 + 1; dm_hud_request_players(to); atomic_store(&g_diff_pend, to); LOG("手柄暂停菜单：游戏难度 %d → %d", cur, to);
 }
-static uint64_t pm_find(uint64_t w, const char *name, int dep) {   // 按名字找控件：名字 +8、子控件 +0x58、个数 +0x60（同 dm_custom.c） | Find a widget by name: name +8, children +0x58, count +0x60 (same as dm_custom.c)
+static uint64_t pm_find(uint64_t w, const char *name, int dep) {   // 按名字找控件：名字 +8、子控件 +0x58、个数 +0x60（同原版控件查找） | Find a widget by name: name +8, children +0x58, count +0x60 (same as the original widget lookup)
     if (!w || dep > 6) return 0; const char *nm = (const char *)rd8(w + 8); if (nm && !strcmp(nm, name)) return w;
     uint64_t ch = rd8(w + 0x58), n = rd8(w + 0x60); for (uint64_t i = 0; ch && i < n && i < 256; i++) { uint64_t r = pm_find(rd8(ch + 8 * i), name, dep + 1); if (r) return r; }
     return 0;
@@ -356,7 +356,7 @@ static void legend_pump(uint8_t *b, uint64_t frame) {   // 游戏主线程每帧
         for (uint64_t i = 0; arr && i < n && i < 10; i++) L += (size_t)snprintf(o + L, L < sizeof o ? sizeof o - L : 0, " %x", *(uint32_t *)(uintptr_t)(arr + 0x40 * i));
         LOG("手柄提示条：帧 %llu，近 120 帧声明 %d 次、补加 %d 次；提示条现有 %llu 条，字形%s", (unsigned long long)frame, tot, miss, (unsigned long long)n, o); tot = miss = 0; }
 }
-static void diff_text(uint8_t *b, uint64_t frame) {   // 游戏主线程：菜单开着时每 6 帧核一次这行的字（只写我们自己的 TouchPadDiffTxt，文字控件虚表 main+0x20ba4c8，同 dm_pouch.c w_text） | Game main thread: while the menu is open, check this row's text every 6 frames (only writes our own TouchPadDiffTxt; text widget vtable main+0x20ba4c8, same as w_text in dm_pouch.c)
+static void diff_text(uint8_t *b, uint64_t frame) {   // 游戏主线程：菜单开着时每 6 帧核一次这行的字（只写我们自己的 TouchPadDiffTxt，文字控件虚表 main+0x20ba4c8，） | Game main thread: while the menu is open, check this row's text every 6 frames (only writes our own TouchPadDiffTxt; text widget vtable main+0x20ba4c8)
     if (!g_cur || !atomic_load(&g_pause_open) || frame % 6) return;
     uint64_t w = pm_find(rd8((uint64_t)(uintptr_t)(b + 0x2f05458)), "TouchPadDiffTxt", 0); if (!w || rd8(w) - (uint64_t)(uintptr_t)b != 0x20ba4c8) return;
     dm_hud_info h; dm_hud_get(&h); int n = atomic_load(&g_diff_pend); if (!n) n = h.players; if (!n) return;
@@ -411,7 +411,7 @@ void dm_padmode_step(uint8_t *b, uint64_t frame) {   // 游戏主线程每帧（
     atomic_store(&g_freeze, 0);   // 放开输入：冻结期间按着过的键先松开过一次才交给游戏（dm_modegate）；事务中又来了反向请求的，下一帧接着起下一次（请求时已重新立冻结） | Release input: keys held during the freeze must be let go once before being handed to the game (dm_modegate); if an opposite request arrived during the transaction, the next switch starts on the next frame (the freeze was already set again at request time)
     if (atomic_load(&g_want) >= 0 && atomic_load(&g_want) != g_cur) atomic_store(&g_freeze, 1);
     LOG("手柄 / 触屏布局：切到%s版——完成（%llu 帧，两次重建里 %d 次靠超时）", g_cur ? "原版手柄" : "触屏", (unsigned long long)(frame - g_tx_from), g_tx.timeouts);
-    if (g_cur) {   // 切到手柄版时记一行六个技能格各绑的技能号（第二组 = 按着 ZL）：面 → 格表 main+0x2d13cbc（6 × {逻辑键, 普通格, 替代格}）、格 → 技能表 main+0x2d5f0c0（每格 28 字节，武器第二组在 +16 格），读法同 dm_freetp.c | On switching to the controller layout, log one line with the skill number bound to each of the six skill slots (second set = ZL held): face button -> slot table main+0x2d13cbc (6 x {logical key, normal slot, alternate slot}), slot -> skill table main+0x2d5f0c0 (28 bytes per slot, the second weapon set is at +16 slots), read the same way as dm_freetp.c
+    if (g_cur) {   // 切到手柄版时记一行六个技能格各绑的技能号（第二组 = 按着 ZL）：面 → 格表 main+0x2d13cbc（6 × {逻辑键, 普通格, 替代格}）、格 → 技能表 main+0x2d5f0c0（每格 28 字节，武器第二组在 +16 格），读法见下 | On switching to the controller layout, log one line with the skill number bound to each of the six skill slots (second set = ZL held): face button -> slot table main+0x2d13cbc (6 x {logical key, normal slot, alternate slot}), slot -> skill table main+0x2d5f0c0 (28 bytes per slot, the second weapon set is at +16 slots), read as below
         int dm_swapskill_wset(void); int bank = dm_swapskill_wset() ? 16 : 0; char o[240]; size_t L = 0; o[0] = 0;
         static const struct { uint32_t lg; const char *nm; } face[6] = { { 0x2000, "A" }, { 0x1000, "B" }, { 0x8000, "X" }, { 0x4000, "Y" }, { 0x200, "R" }, { 0x800, "ZR" } };
         for (int f = 0; f < 6; f++) for (int i = 0; i < 6; i++) { uint32_t lg, sl[2], id[2] = { 0xffffffffu, 0xffffffffu }; memcpy(&lg, b + 0x2d13cbc + 12 * i, 4); memcpy(sl, b + 0x2d13cbc + 12 * i + 4, 8); if (lg != face[f].lg) continue;
